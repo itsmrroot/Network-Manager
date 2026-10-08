@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-label="Network Manager — Powered by Bashar Salmo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="0.55" stop-color="#0f2a4a"/>
+      <stop offset="1" stop-color="#0b5cad"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity="0.05"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="320" rx="24" fill="url(#bg)"/>
+  <rect width="1200" height="320" rx="24" fill="url(#grid)"/>
+
+  <!-- A hub with Wi-Fi and three devices -->
+  <g transform="translate(70 40)">
+    <path d="M58 86a92 92 0 0 1 130 0" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="10" stroke-linecap="round"/>
+    <path d="M86 114a52 52 0 0 1 74 0" fill="none" stroke="#ffffff" stroke-opacity="0.8" stroke-width="10" stroke-linecap="round"/>
+    <path d="M123 152L50 222M123 152L196 222M123 152V236" stroke="url(#accent)" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="123" cy="152" r="24" fill="#ffffff"/>
+    <circle cx="123" cy="152" r="9" fill="#38bdf8"/>
+    <circle cx="50" cy="222" r="17" fill="#0b1220" stroke="#ffffff" stroke-width="6"/>
+    <circle cx="196" cy="222" r="17" fill="#0b1220" stroke="#ffffff" stroke-width="6"/>
+    <circle cx="123" cy="240" r="17" fill="#22c55e" stroke="#ffffff" stroke-width="6"/>
+  </g>
+
+  <g font-family="Segoe UI, -apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif">
+    <text x="350" y="138" fill="#ffffff" font-size="46" font-weight="700">Network Manager</text>
+    <text x="350" y="184" fill="#cbd5e1" font-size="24">IP &amp; MAC addresses, Wi-Fi passwords, devices and network tools.</text>
+    <rect x="350" y="214" width="268" height="40" rx="20" fill="url(#accent)"/>
+    <text x="484" y="240" fill="#0b1220" font-size="18" font-weight="700" text-anchor="middle">Powered by Bashar Salmo</text>
+    <text x="640" y="240" fill="#94a3b8" font-size="18">Windows · macOS · Linux</text>
+  </g>
+</svg>

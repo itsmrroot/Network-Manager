@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d4ed8"/>
+      <stop offset="0.6" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+  <rect x="8" y="8" width="240" height="120" rx="56" fill="url(#shine)"/>
+  <!-- Wi-Fi arcs above the hub -->
+  <path d="M84 84a62 62 0 0 1 88 0" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="11" stroke-linecap="round"/>
+  <path d="M104 104a34 34 0 0 1 48 0" fill="none" stroke="#ffffff" stroke-opacity="0.85" stroke-width="11" stroke-linecap="round"/>
+  <!-- links to the devices -->
+  <path d="M128 138L62 196M128 138L194 196M128 138V206" stroke="#ffffff" stroke-opacity="0.9" stroke-width="9" stroke-linecap="round"/>
+  <!-- hub -->
+  <circle cx="128" cy="138" r="21" fill="#ffffff"/>
+  <circle cx="128" cy="138" r="8" fill="#38bdf8"/>
+  <!-- devices -->
+  <circle cx="62" cy="196" r="15" fill="#0b1220" fill-opacity="0.55" stroke="#ffffff" stroke-width="7"/>
+  <circle cx="194" cy="196" r="15" fill="#0b1220" fill-opacity="0.55" stroke="#ffffff" stroke-width="7"/>
+  <circle cx="128" cy="210" r="15" fill="#22c55e" stroke="#ffffff" stroke-width="7"/>
+</svg>
