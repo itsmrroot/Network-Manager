@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Network Manager
+GenericName=Network settings and tools
+Comment=Change IP and MAC addresses, see saved Wi-Fi passwords and the devices on your network
+Exec=netmgr-gui
+Icon=netmgr
+Terminal=false
+Categories=Network;Utility;System;
+Keywords=ip;mac;wifi;password;lan;scanner;dns;ping;subnet;

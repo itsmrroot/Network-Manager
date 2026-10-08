@@ -1,0 +1,85 @@
+[package]
+name = "netmgr-gui"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Desktop app for Network Manager"
+authors = ["Bashar Salmo"]
+license = "MIT"
+build = "build.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+eframe = { version = "0.36.2", default-features = false, features = ["default_fonts", "wgpu", "persistence", "accesskit", "wayland", "x11", "links"] }
+egui-phosphor = "0.14.0"
+egui_extras = "0.36.2"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+log = "0.4.34"
+netdev = "0.46.3"
+netmgr = { version = "0.1.0", path = ".." }
+rfd = "0.17.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+ureq = "3.4.2"
+
+[build-dependencies]
+winresource = "0.1.31"
+
+[target."cfg(unix)".dependencies]
+libc = "0.2.189"
+
+# Installers, built by `cargo packager --release -p netmgr-gui` (see
+# .github/workflows/release.yml): Windows setup (NSIS), macOS .app/.dmg,
+# Linux .deb and AppImage. The binaries must be built first.
+[package.metadata.packager]
+product-name = "Network Manager"
+identifier = "io.github.itsmrroot.netmgr"
+description = "Change IP and MAC addresses, see saved Wi-Fi passwords and the devices on your network"
+homepage = "https://github.com/itsmrroot/Network-Manager"
+authors = ["Bashar Salmo"]
+publisher = "Bashar Salmo"
+copyright = "© 2026 Bashar Salmo. Powered by Bashar Salmo."
+category = "Utility"
+license-file = "../LICENSE"
+# One per system: macOS uses the .icns, Windows the .ico, Linux the PNG.
+icons = ["assets/netmgr.icns", "assets/netmgr.ico", "assets/icon.png"]
+# The command line comes along for scripting and keyboard use.
+binaries = [{ path = "netmgr-gui", main = true }, { path = "netmgr", main = false }]
+
+[package.metadata.packager.macos]
+minimum-system-version = "10.15"
+# Ad-hoc signature over the whole bundle. Without it the app only carries
+# the linker signature, which Gatekeeper reports as "damaged" after a
+# download. Replace "-" with a Developer ID to sign and notarize.
+signing-identity = "-"
+# Asks for Local Network access: without it macOS hides MAC addresses and
+# the devices on the network from the app.
+info-plist-path = "assets/macos/Info.plist"
+
+[package.metadata.packager.nsis]
+# The app needs administrator rights to change settings, so it installs for all users.
+installMode = "perMachine"
+
+[package.metadata.packager.deb]
+# wgpu draws with Vulkan or OpenGL; pkexec asks for the password for
+# changes NetworkManager (nmcli, used when installed) does not allow the user.
+depends = ["libc6", "libgl1 | libvulkan1", "libxkbcommon0", "pkexec | policykit-1"]
+
+# Fedora / openSUSE package, built by `cargo generate-rpm -p gui` after the
+# release build (the .deb and AppImage come from cargo-packager above).
+[package.metadata.generate-rpm]
+name = "netmgr"
+summary = "Change IP and MAC addresses, see saved Wi-Fi passwords and the devices on your network"
+license = "MIT"
+assets = [
+    { source = "target/release/netmgr-gui", dest = "/usr/bin/netmgr-gui", mode = "755" },
+    { source = "target/release/netmgr", dest = "/usr/bin/netmgr", mode = "755" },
+    { source = "gui/assets/linux/netmgr.desktop", dest = "/usr/share/applications/netmgr.desktop", mode = "644" },
+    { source = "gui/assets/icon.png", dest = "/usr/share/icons/hicolor/256x256/apps/netmgr.png", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/licenses/netmgr/LICENSE", mode = "644", doc = true },
+]
+
+[package.metadata.generate-rpm.requires]
+polkit = "*"

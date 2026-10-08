@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Merged into the app bundle's Info.plist by cargo-packager. -->
+<plist version="1.0">
+<dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Network Manager finds the devices on your network and shows the addresses of your adapters.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_device-info._tcp</string>
+	</array>
+</dict>
+</plist>
