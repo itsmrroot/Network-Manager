@@ -128,6 +128,101 @@ enum Cmd {
     Speedtest,
     /// Find out why the internet does not work, step by step.
     Diagnose,
+    /// Which switch, port and VLAN this computer is plugged into (LLDP/CDP).
+    SwitchPort {
+        /// The adapter's device name (default: the wired default adapter).
+        #[arg(long)]
+        interface: Option<String>,
+        /// How long to listen (CDP is sent every 60 s).
+        #[arg(long, default_value_t = 65)]
+        seconds: u64,
+    },
+    /// Find the DHCP servers on the network (and rogue ones).
+    DhcpTest {
+        #[arg(long)]
+        interface: Option<String>,
+        #[arg(long, default_value_t = 5)]
+        seconds: u64,
+    },
+    /// Ping several hosts at once, continuously, with loss and jitter.
+    Monitor {
+        hosts: Vec<String>,
+        /// Seconds between rounds.
+        #[arg(long, default_value_t = 1)]
+        interval: u64,
+    },
+    /// Path analysis like MTR: loss and delay at every router on the way.
+    Mtr {
+        host: String,
+        /// Rounds to send (0 = until Ctrl+C).
+        #[arg(short, long, default_value_t = 10)]
+        count: u64,
+    },
+    /// Run a TFTP server for firmware and configuration files.
+    TftpServer {
+        /// The folder to serve.
+        folder: std::path::PathBuf,
+        #[arg(long, default_value_t = 69)]
+        port: u16,
+        /// Let devices upload (configuration backups).
+        #[arg(long)]
+        allow_upload: bool,
+    },
+    /// Receive and print syslog messages from devices.
+    SyslogServer {
+        #[arg(long, default_value_t = 514)]
+        port: u16,
+    },
+    /// Throughput test between two computers: "server", or a host to test to.
+    Throughput {
+        target: String,
+        #[arg(long, default_value_t = 10)]
+        seconds: u64,
+        /// Measure from the server to this computer.
+        #[arg(long)]
+        download: bool,
+    },
+    /// Inspect a server's TLS certificate (host or host:port).
+    Tls { target: String },
+    /// Follow a web address's redirects and show its headers.
+    Http { url: String },
+    /// WHOIS (RDAP) for a domain, an IP address or an AS number.
+    Whois { query: String },
+    /// Open connections and listening ports, with their programs.
+    Connections {
+        /// Only listening ports.
+        #[arg(long)]
+        listening: bool,
+    },
+    /// The route table; add or delete static routes.
+    Routes {
+        #[command(subcommand)]
+        command: Option<RouteCmd>,
+    },
+    /// Show the hosts file.
+    Hosts,
+    /// List serial ports (console cables).
+    SerialPorts,
+    /// Write a network report (Markdown) for a support ticket.
+    Report {
+        /// The file to write (default: print it).
+        #[arg(short, long)]
+        output: Option<std::path::PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+enum RouteCmd {
+    /// Add a static route, e.g. 10.20.0.0/16 via 192.168.1.254.
+    Add {
+        network: String,
+        gateway: IpAddr,
+        /// Keep it after a restart (Windows).
+        #[arg(long)]
+        persistent: bool,
+    },
+    /// Delete a route.
+    Delete { network: String },
 }
 
 #[derive(Subcommand)]
@@ -455,6 +550,345 @@ fn run(cli: Cli) -> Result<()> {
             });
             if json {
                 return print_json(&checks);
+            }
+        }
+        Cmd::SwitchPort { interface, seconds } => {
+            let iface = match interface {
+                Some(i) => i,
+                None => adapters::list(false)?
+                    .into_iter()
+                    .find(|a| a.up && a.kind == adapters::Kind::Ethernet)
+                    .or_else(adapters::default_adapter)
+                    .map(|a| if cfg!(windows) { a.name } else { a.device })
+                    .context("no connected adapter")?,
+            };
+            if !json {
+                eprintln!("Listening on {iface} for up to {seconds} s (switches announce themselves every 30–60 s)…");
+            }
+            let found = if netmgr::cmd::is_admin() || cfg!(windows) {
+                netmgr::discovery::capture(&iface, seconds)?
+            } else {
+                netmgr::discovery::listen(&iface, seconds)?
+            };
+            if json {
+                return print_json(&found);
+            }
+            if found.is_empty() {
+                println!(
+                    "No LLDP or CDP announcement was heard. The switch may have them turned off, or this is not a wired port."
+                );
+            }
+            for n in found {
+                println!("{} from {}", n.protocol, n.system_name.as_deref().unwrap_or("?"));
+                for (k, v) in [
+                    ("Port", n.port_id.clone()),
+                    ("Port description", n.port_description.clone()),
+                    ("VLAN", n.vlan.map(|v| v.to_string())),
+                    ("Voice VLAN", n.voice_vlan.map(|v| v.to_string())),
+                    ("Management", (!n.management.is_empty()).then(|| n.management.join(", "))),
+                    ("Platform", n.platform.clone()),
+                    ("Link", n.link.clone().or(n.duplex.clone())),
+                    ("PoE", n.poe.clone()),
+                    ("Capabilities", (!n.capabilities.is_empty()).then(|| n.capabilities.join(", "))),
+                    ("Software", n.description.clone().map(|d| d.lines().next().unwrap_or("").to_string())),
+                ] {
+                    if let Some(v) = v {
+                        println!("  {k:<17} {v}");
+                    }
+                }
+            }
+        }
+        Cmd::DhcpTest { interface, seconds } => {
+            let r = if netmgr::cmd::is_admin() || cfg!(windows) {
+                netmgr::dhcp::test(interface.as_deref(), seconds)?
+            } else {
+                netmgr::dhcp::test_elevated(interface.as_deref(), seconds)?
+            };
+            if json {
+                return print_json(&r);
+            }
+            let servers = r.servers();
+            println!("{} DHCP server(s) answered (asked for {})", servers.len(), r.mac);
+            if servers.len() > 1 {
+                println!("⚠  More than one DHCP server: one of them is probably a rogue server.");
+            }
+            for o in &r.offers {
+                println!(
+                    "\nServer {} ({} ms){}",
+                    o.server.map_or("?".into(), |s| s.to_string()),
+                    o.millis,
+                    o.relay.map(|r| format!(" via relay {r}")).unwrap_or_default()
+                );
+                println!(
+                    "  Offers     {}{}",
+                    o.address.map_or("—".into(), |a| a.to_string()),
+                    o.mask.map(|m| format!(" / {m}")).unwrap_or_default()
+                );
+                let list = |v: &[Ipv4Addr]| v.iter().map(Ipv4Addr::to_string).collect::<Vec<_>>().join(", ");
+                println!("  Router     {}", list(&o.routers));
+                println!("  DNS        {}", list(&o.dns));
+                if let Some(d) = &o.domain {
+                    println!("  Domain     {d}");
+                }
+                if let Some(l) = o.lease_seconds {
+                    println!("  Lease      {} h", l / 3600);
+                }
+                if let Some(t) = &o.tftp_server {
+                    println!("  Boot       {t} {}", o.boot_file.clone().unwrap_or_default());
+                }
+            }
+        }
+        Cmd::Monitor { hosts, interval } => {
+            anyhow::ensure!(!hosts.is_empty(), "give one or more hosts");
+            let targets: Vec<(String, IpAddr)> =
+                hosts.iter().map(|h| Ok((h.clone(), tools::resolve(h, 0)?.ip()))).collect::<Result<_>>()?;
+            let mut stats = vec![netmgr::monitor::Stats::default(); targets.len()];
+            loop {
+                let results: Vec<_> = std::thread::scope(|s| {
+                    let hs: Vec<_> = targets
+                        .iter()
+                        .map(|(_, ip)| s.spawn(move || netmgr::icmp::ping(*ip, Duration::from_secs(1)).ok().flatten()))
+                        .collect();
+                    hs.into_iter().map(|h| h.join().ok().flatten()).collect()
+                });
+                for (st, r) in stats.iter_mut().zip(results) {
+                    st.add(r);
+                }
+                print!("\x1b[2J\x1b[H");
+                println!("{:<28} {:>6} {:>6} {:>8} {:>8} {:>8}", "Host", "Sent", "Loss", "Last", "Avg", "Jitter");
+                for ((name, _), st) in targets.iter().zip(&stats) {
+                    let ms = |v: Option<f64>| v.map_or("—".into(), |v| format!("{v:.1}"));
+                    println!(
+                        "{name:<28} {:>6} {:>5.0}% {:>8} {:>8} {:>8}",
+                        st.sent,
+                        st.loss_percent(),
+                        ms(st.last),
+                        ms(st.avg()),
+                        ms(st.jitter())
+                    );
+                }
+                std::thread::sleep(Duration::from_secs(interval.max(1)));
+            }
+        }
+        Cmd::Mtr { host, count } => {
+            let cancel = AtomicBool::new(false);
+            let mut hops: Vec<(u32, Option<IpAddr>)> = Vec::new();
+            eprintln!("Finding the route…");
+            let target = netmgr::monitor::discover_path(&host, &cancel, |n, ip| hops.push((n, ip)))?;
+            if hops.last().is_none_or(|(_, ip)| *ip != Some(target)) {
+                hops.push((hops.len() as u32 + 1, Some(target)));
+            }
+            let mut stats = vec![netmgr::monitor::Stats::default(); hops.len()];
+            let mut round = 0;
+            while count == 0 || round < count {
+                round += 1;
+                let results: Vec<Option<Duration>> = std::thread::scope(|s| {
+                    let hs: Vec<_> = hops
+                        .iter()
+                        .map(|(_, ip)| {
+                            s.spawn(move || {
+                                ip.and_then(|ip| netmgr::icmp::ping(ip, Duration::from_secs(1)).ok().flatten())
+                            })
+                        })
+                        .collect();
+                    hs.into_iter().map(|h| h.join().ok().flatten()).collect()
+                });
+                for ((st, r), (_, ip)) in stats.iter_mut().zip(results).zip(&hops) {
+                    if ip.is_some() {
+                        st.add(r);
+                    }
+                }
+                print!("\x1b[2J\x1b[H");
+                println!("Path to {host} ({target}), round {round}\n");
+                println!(
+                    "{:>3}  {:<40} {:>6} {:>6} {:>8} {:>8} {:>8}",
+                    "#", "Router", "Loss", "Sent", "Last", "Avg", "Worst"
+                );
+                for ((n, ip), st) in hops.iter().zip(&stats) {
+                    let ms = |v: Option<f64>| v.map_or("—".into(), |v| format!("{v:.1}"));
+                    let name = ip.map_or("(no answer)".to_string(), |i| i.to_string());
+                    println!(
+                        "{n:>3}  {name:<40} {:>5.0}% {:>6} {:>8} {:>8} {:>8}",
+                        st.loss_percent(),
+                        st.sent,
+                        ms(st.last),
+                        ms(st.avg()),
+                        ms(st.max)
+                    );
+                }
+                std::thread::sleep(Duration::from_secs(1));
+            }
+        }
+        Cmd::TftpServer { folder, port, allow_upload } => {
+            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            let opts = netmgr::servers::TftpOptions { root: folder, port, allow_upload, overwrite: false };
+            netmgr::servers::tftp_serve(opts, Default::default(), stop, std::sync::Arc::new(|l| println!("{l}")))?;
+        }
+        Cmd::SyslogServer { port } => {
+            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            println!("Listening for syslog on UDP port {port}…");
+            netmgr::servers::syslog_serve(
+                port,
+                stop,
+                std::sync::Arc::new(move |m| {
+                    if json {
+                        println!("{}", serde_json::to_string(&m).unwrap_or_default());
+                    } else {
+                        println!(
+                            "{:<15} {:<9} {}",
+                            m.from,
+                            netmgr::servers::SEVERITIES[m.severity as usize % 8],
+                            m.text
+                        );
+                    }
+                }),
+            )?;
+        }
+        Cmd::Throughput { target, seconds, download } => {
+            let port = netmgr::servers::THROUGHPUT_PORT;
+            if target == "server" {
+                let stop = std::sync::Arc::new(AtomicBool::new(false));
+                netmgr::servers::throughput_serve(port, stop, std::sync::Arc::new(|l| println!("{l}")))?;
+            } else {
+                let dir =
+                    if download { netmgr::servers::Direction::Download } else { netmgr::servers::Direction::Upload };
+                let cancel = AtomicBool::new(false);
+                let r = netmgr::servers::throughput_test(&target, port, dir, seconds, &cancel, &|v| {
+                    eprint!("\r{v:8.1} Mbit/s")
+                })?;
+                eprintln!();
+                println!("{} {r:.1} Mbit/s", if download { "Download" } else { "Upload" });
+            }
+        }
+        Cmd::Tls { target } => {
+            let r = netmgr::web::tls(&target)?;
+            if json {
+                return print_json(&r);
+            }
+            println!("{} ({}) — {}, {}, {} ms", r.host, r.address, r.version, r.cipher, r.millis);
+            println!("{}", r.problem.as_deref().map_or("✔ Trusted".to_string(), |p| format!("✘ {p}")));
+            for (i, c) in r.chain.iter().enumerate() {
+                println!("\n[{i}] {}\n    issued by {}", c.subject, c.issuer);
+                println!(
+                    "    valid {} to {} ({} days left)",
+                    netmgr::web::date(c.not_before),
+                    netmgr::web::date(c.not_after),
+                    c.days_left()
+                );
+                println!("    {} · {}", c.key, c.signature);
+                if !c.names.is_empty() {
+                    println!("    names: {}", c.names.join(", "));
+                }
+            }
+        }
+        Cmd::Http { url } => {
+            let hops = netmgr::web::http(&url)?;
+            if json {
+                return print_json(&hops);
+            }
+            for h in hops {
+                println!("{} {} ({} ms)", h.status, h.url, h.millis);
+                for (k, v) in h.headers {
+                    println!("    {k}: {v}");
+                }
+            }
+        }
+        Cmd::Whois { query } => {
+            let w = netmgr::web::whois(&query)?;
+            if json {
+                return print_json(&w);
+            }
+            for (k, v) in [
+                ("Type", Some(w.kind.clone())),
+                ("Name", w.name.clone()),
+                ("Handle", w.handle.clone()),
+                ("Registrar", w.registrar.clone()),
+                ("Organisation", w.organisation.clone()),
+                ("Range", w.range.clone()),
+                ("Country", w.country.clone()),
+                ("Registered", w.registered.clone()),
+                ("Changed", w.changed.clone()),
+                ("Expires", w.expires.clone()),
+                ("Name servers", (!w.nameservers.is_empty()).then(|| w.nameservers.join(", "))),
+                ("Status", (!w.status.is_empty()).then(|| w.status.join(", "))),
+                ("Abuse", w.abuse.clone()),
+            ] {
+                if let Some(v) = v {
+                    println!("{k:<14}{v}");
+                }
+            }
+        }
+        Cmd::Connections { listening } => {
+            let mut list = netmgr::system::connections()?;
+            if listening {
+                list.retain(|c| c.listening());
+            }
+            if json {
+                return print_json(&list);
+            }
+            for c in list {
+                println!(
+                    "{:<4} {:<40} {:<40} {:<12} {}",
+                    c.proto,
+                    format!("{}:{}", c.local, c.local_port.map_or("*".into(), |p| p.to_string())),
+                    c.remote,
+                    c.state,
+                    c.process.map(|p| format!("{p} ({})", c.pid.unwrap_or(0))).unwrap_or_default()
+                );
+            }
+        }
+        Cmd::Routes { command } => match command {
+            None => {
+                let r = netmgr::system::routes()?;
+                if json {
+                    return print_json(&r);
+                }
+                for rt in r {
+                    println!(
+                        "{:<40} {:<40} {:<12} {}",
+                        rt.destination,
+                        rt.gateway,
+                        rt.interface,
+                        rt.metric.map(|m| m.to_string()).unwrap_or_default()
+                    );
+                }
+            }
+            Some(RouteCmd::Add { network, gateway, persistent }) => {
+                netmgr::system::add_route(&network, gateway, persistent)?;
+                println!("Route to {network} via {gateway} added.");
+            }
+            Some(RouteCmd::Delete { network }) => {
+                netmgr::system::delete_route(&network)?;
+                println!("Route to {network} deleted.");
+            }
+        },
+        Cmd::Hosts => {
+            let lines = netmgr::system::read_hosts()?;
+            if json {
+                return print_json(&lines);
+            }
+            println!("{}", netmgr::system::format_hosts(&lines));
+        }
+        Cmd::SerialPorts => {
+            let ports = netmgr::console::ports();
+            if json {
+                return print_json(&ports);
+            }
+            if ports.is_empty() {
+                println!("No serial ports. Plug in the console cable (a driver may be needed).");
+            }
+            for p in ports {
+                println!("{:<30} {}", p.name, p.description);
+            }
+        }
+        Cmd::Report { output } => {
+            let text = netmgr::report::build(true, &|s| eprintln!("{s}…"));
+            match output {
+                Some(path) => {
+                    std::fs::write(&path, text)?;
+                    println!("Saved to {}", path.display());
+                }
+                None => println!("{text}"),
             }
         }
     }

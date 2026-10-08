@@ -54,6 +54,11 @@ pub struct Settings {
     // Safety
     /// The MAC address each adapter had before this app first changed it.
     pub original_macs: BTreeMap<String, String>,
+    // Servers and console
+    /// Empty: a "TFTP" folder in the home folder.
+    pub tftp_folder: String,
+    pub serial_port: String,
+    pub serial: netmgr::console::LineSettings,
 }
 
 impl Default for Settings {
@@ -72,6 +77,9 @@ impl Default for Settings {
             ping_count: 4,
             recent_hosts: Vec::new(),
             original_macs: BTreeMap::new(),
+            tftp_folder: String::new(),
+            serial_port: String::new(),
+            serial: Default::default(),
         }
     }
 }

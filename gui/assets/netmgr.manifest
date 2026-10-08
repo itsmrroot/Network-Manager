@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity type="win32" name="BasharSalmo.NetworkManager" version="0.1.0.0"/>
+  <assemblyIdentity type="win32" name="BasharSalmo.NetworkManager" version="0.2.0.0"/>
   <description>Network Manager - Powered by Bashar Salmo</description>
   <!-- Changing IP and MAC addresses and reading Wi-Fi keys requires administrator rights: ask for them up front. -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">

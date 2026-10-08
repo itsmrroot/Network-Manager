@@ -13,7 +13,9 @@ use crate::jobs::{self, Job};
 use crate::settings::{self, Settings};
 use crate::theme::{self, Palette};
 use crate::update::Updater;
-use crate::{about, adapters_page, devices, help, overview, profiles, tools, wifi_page};
+use crate::{
+    about, adapters_page, console, devices, help, monitor, overview, profiles, servers, switchport, tools, wifi_page,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
@@ -21,8 +23,12 @@ pub enum Page {
     Adapters,
     Wifi,
     Devices,
+    SwitchPort,
+    Monitor,
     Profiles,
     Tools,
+    Servers,
+    Console,
     Settings,
     Help,
     About,
@@ -35,6 +41,8 @@ pub enum Nav {
     Adapter(String),
     /// A tool with an address filled in.
     Tool(tools::Tab, String),
+    /// Watch a host in the ping monitor.
+    Monitor(String),
 }
 
 /// Transfer rates of the default adapter, sampled every second.
@@ -140,6 +148,10 @@ pub struct App {
     devices: devices::Devices,
     profiles: profiles::Profiles,
     tools: tools::Tools,
+    switchport: switchport::SwitchPort,
+    monitor: monitor::Monitor,
+    servers: servers::Servers,
+    console: console::Console,
     #[cfg(debug_assertions)]
     tour: Option<tour::Tour>,
 }
@@ -214,6 +226,10 @@ impl App {
             devices: Default::default(),
             profiles: Default::default(),
             tools: Default::default(),
+            switchport: Default::default(),
+            monitor: Default::default(),
+            servers: Default::default(),
+            console: Default::default(),
             #[cfg(debug_assertions)]
             tour,
         }
@@ -378,30 +394,37 @@ impl App {
         }
         ui.add_space(22.0);
 
-        let devices_badge = self.devices.count().map(|n| n.to_string());
-        let scanning = self.devices.scanning().then(|| "●".to_string());
-        let tool_running = self.tools.running().then(|| "●".to_string());
-        let items: [(&str, &str, Page, Option<String>); 9] = [
+        let dot = |on: bool| on.then(|| "●".to_string());
+        let devices_badge = dot(self.devices.scanning()).or(self.devices.count().map(|n| n.to_string()));
+        let items: [(&str, &str, Page, Option<String>); 13] = [
             (icon::GAUGE, "Overview", Page::Overview, None),
             (icon::PLUGS_CONNECTED, "Adapters", Page::Adapters, None),
             (icon::WIFI_HIGH, "Wi-Fi", Page::Wifi, None),
-            (icon::DEVICES, "Devices", Page::Devices, scanning.or(devices_badge)),
+            (icon::DEVICES, "Devices", Page::Devices, devices_badge),
+            (icon::TREE_STRUCTURE, "Switch port", Page::SwitchPort, dot(self.switchport.busy())),
+            (icon::HEARTBEAT, "Monitor", Page::Monitor, dot(self.monitor.running())),
             (icon::STACK, "Profiles", Page::Profiles, None),
-            (icon::TOOLBOX, "Tools", Page::Tools, tool_running),
+            (icon::TOOLBOX, "Tools", Page::Tools, dot(self.tools.running())),
+            (icon::HARD_DRIVES, "Servers", Page::Servers, dot(self.servers.running())),
+            (icon::TERMINAL_WINDOW, "Console", Page::Console, dot(self.console.connected())),
             (icon::GEAR_SIX, "Settings", Page::Settings, None),
             (icon::QUESTION, "Help", Page::Help, None),
             (icon::INFO, "About", Page::About, None),
         ];
-        for (i, (glyph, label, target, badge)) in items.into_iter().enumerate() {
-            if i == 6 {
-                ui.add_space(6.0);
-                ui.separator();
-                ui.add_space(6.0);
+        // Scrolls on small windows, above the "Powered by" footer.
+        let height = (ui.available_height() - 86.0).max(120.0);
+        egui::ScrollArea::vertical().id_salt("nav").max_height(height).show(ui, |ui| {
+            for (i, (glyph, label, target, badge)) in items.into_iter().enumerate() {
+                if i == 10 {
+                    ui.add_space(4.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+                }
+                if nav_item(ui, p, glyph, label, self.page == target, badge.as_deref()).clicked() {
+                    self.page = target;
+                }
             }
-            if nav_item(ui, p, glyph, label, self.page == target, badge.as_deref()).clicked() {
-                self.page = target;
-            }
-        }
+        });
 
         ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
             ui.add_space(16.0);
@@ -435,6 +458,10 @@ impl App {
             Page::Devices => self.devices.ui(ui, p, sh),
             Page::Profiles => self.profiles.ui(ui, p, sh),
             Page::Tools => self.tools.ui(ui, p, sh),
+            Page::SwitchPort => self.switchport.ui(ui, p, sh),
+            Page::Monitor => self.monitor.ui(ui, p, sh),
+            Page::Servers => self.servers.ui(ui, p, sh),
+            Page::Console => self.console.ui(ui, p, sh),
             Page::Settings => settings::page(ui, p, &mut sh.settings),
             Page::Help => help::page(ui, p),
             Page::About => about::page(ui, p, &self.logo, &mut self.updater),
@@ -443,6 +470,7 @@ impl App {
         let ctx = ui.ctx().clone();
         self.devices.poll(&ctx, sh);
         self.tools.poll(sh);
+        self.console.poll();
         if let Some(nav) = sh.nav.take() {
             match nav {
                 Nav::Page(page) => self.page = page,
@@ -453,6 +481,10 @@ impl App {
                 Nav::Tool(tab, host) => {
                     self.tools.open(tab, &host);
                     self.page = Page::Tools;
+                }
+                Nav::Monitor(host) => {
+                    self.monitor.add(sh, &host);
+                    self.page = Page::Monitor;
                 }
             }
         }
@@ -563,7 +595,7 @@ impl eframe::App for App {
 }
 
 fn nav_item(ui: &mut Ui, p: &Palette, glyph: &str, label: &str, active: bool, badge: Option<&str>) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 40.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 36.0), Sense::click());
     let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
@@ -669,16 +701,21 @@ impl App {
             return;
         }
         t.frames += 1;
-        let pages: [(Page, &str, u32); 9] = [
-            (Page::Overview, "1-overview", 140),
-            (Page::Adapters, "2-adapters", 30),
-            (Page::Wifi, "3-wifi", 120),
-            (Page::Devices, "4-devices", 30),
-            (Page::Profiles, "5-profiles", 20),
-            (Page::Tools, "6-tools", 20),
-            (Page::Settings, "7-settings", 20),
-            (Page::Help, "8-help", 20),
-            (Page::About, "9-about", 20),
+        let pages: [(Page, &str, u32); 14] = [
+            (Page::Overview, "01-overview", 140),
+            (Page::Adapters, "02-adapters", 30),
+            (Page::Wifi, "03-wifi", 120),
+            (Page::Devices, "04-devices", 30),
+            (Page::SwitchPort, "05-switch-port", 30),
+            (Page::Monitor, "06-monitor", 30),
+            (Page::Profiles, "07-profiles", 20),
+            (Page::Tools, "08-tools", 20),
+            (Page::Servers, "09-servers", 30),
+            (Page::Console, "10-console", 20),
+            (Page::Settings, "11-settings", 20),
+            (Page::Help, "12-help", 20),
+            (Page::About, "13-about", 20),
+            (Page::Monitor, "14-path", 20),
         ];
         // NETMGR_TOUR_LIGHT: the light theme instead.
         if t.frames == 1 && t.step == 0 && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {
@@ -689,6 +726,9 @@ impl App {
             if t.frames == 1 && t.step == 0 {
                 self.wifi_page.demo();
                 self.devices.demo();
+                self.switchport.demo();
+                self.monitor.demo();
+                self.servers.demo();
                 self.shared.settings.lookup_public_ip = false;
                 self.shared.refresh_public = false;
             }
@@ -732,6 +772,9 @@ impl App {
         };
         if t.frames == 1 {
             self.page = page;
+            if name == "14-path" {
+                self.monitor.show_path();
+            }
         }
         if t.frames > wait {
             let t = self.tour.as_mut().unwrap();

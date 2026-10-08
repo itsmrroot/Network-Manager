@@ -28,6 +28,11 @@ pub enum Tab {
     Subnet,
     Wol,
     MacLookup,
+    Web,
+    Whois,
+    Connections,
+    Routes,
+    Hosts,
 }
 
 pub struct Tools {
@@ -52,6 +57,7 @@ pub struct Tools {
     wol_mac: String,
     wol_ip: String,
     lookup: String,
+    inspect: crate::inspect::Inspect,
 }
 
 impl Default for Tools {
@@ -78,6 +84,7 @@ impl Default for Tools {
             wol_mac: String::new(),
             wol_ip: String::new(),
             lookup: String::new(),
+            inspect: Default::default(),
         }
     }
 }
@@ -91,15 +98,23 @@ impl Tools {
             Tab::Subnet => self.subnet = host.to_string(),
             Tab::Wol => self.wol_mac = host.to_string(),
             Tab::MacLookup => self.lookup = host.to_string(),
+            Tab::Web => self.inspect.open_web(host),
+            Tab::Whois => self.inspect.open_whois(host),
+            Tab::Connections | Tab::Routes | Tab::Hosts => {}
             _ => self.host = host.to_string(),
         }
     }
 
     pub fn running(&self) -> bool {
-        self.ping.is_some() || self.trace.is_some() || self.port_job.is_some() || self.dns.is_some()
+        self.ping.is_some()
+            || self.trace.is_some()
+            || self.port_job.is_some()
+            || self.dns.is_some()
+            || self.inspect.running()
     }
 
     pub fn poll(&mut self, sh: &mut Shared) {
+        self.inspect.poll(sh);
         if let Some(job) = &self.ping {
             self.ping_lines = job.progress.snapshot().lines;
         }
@@ -144,6 +159,11 @@ impl Tools {
                 (Tab::Subnet, icon::CALCULATOR, "Subnet calculator"),
                 (Tab::Wol, icon::POWER, "Wake-on-LAN"),
                 (Tab::MacLookup, icon::FINGERPRINT, "MAC lookup"),
+                (Tab::Web, icon::LOCK, "Web & TLS check"),
+                (Tab::Whois, icon::IDENTIFICATION_CARD, "WHOIS"),
+                (Tab::Connections, icon::PLUGS, "Connections"),
+                (Tab::Routes, icon::SIGNPOST, "Routes"),
+                (Tab::Hosts, icon::NOTE_PENCIL, "Hosts file"),
             ],
         );
         ui.add_space(10.0);
@@ -155,6 +175,11 @@ impl Tools {
             Tab::Subnet => self.subnet_tab(ui, p, sh),
             Tab::Wol => self.wol_tab(ui, p, sh),
             Tab::MacLookup => self.mac_tab(ui, p),
+            Tab::Web => self.inspect.web_tab(ui, p, sh),
+            Tab::Whois => self.inspect.whois_tab(ui, p, sh),
+            Tab::Connections => self.inspect.connections_tab(ui, p),
+            Tab::Routes => self.inspect.routes_tab(ui, p, sh),
+            Tab::Hosts => self.inspect.hosts_tab(ui, p, sh),
         }
     }
 

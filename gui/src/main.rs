@@ -6,12 +6,17 @@
 mod about;
 mod adapters_page;
 mod app;
+mod console;
 mod devices;
 mod help;
+mod inspect;
 mod jobs;
+mod monitor;
 mod overview;
 mod profiles;
+mod servers;
 mod settings;
+mod switchport;
 mod theme;
 mod tools;
 mod update;

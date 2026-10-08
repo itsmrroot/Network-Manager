@@ -24,12 +24,29 @@ pub struct Overview {
     speed_live: Arc<Mutex<(Option<SpeedPhase>, f64, SpeedResult)>>,
     speed_result: Option<SpeedResult>,
     fix: Option<Job<&'static str>>,
+    report: Option<Job<String>>,
 }
 
 impl Overview {
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         self.poll(sh);
-        theme::page_title(ui, p, "Overview", "Your connection at a glance.");
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| theme::page_title(ui, p, "Overview", "Your connection at a glance."));
+            ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+                if let Some(job) = &self.report {
+                    ui.spinner();
+                    ui.label(RichText::new(job.progress.snapshot().message).color(p.weak).size(12.5));
+                } else if theme::secondary_button(ui, &icon_label(icon::FILE_TEXT, "Network report"))
+                    .on_hover_text("Save everything about this connection to a file, e.g. for a support ticket")
+                    .clicked()
+                {
+                    let public = sh.settings.lookup_public_ip;
+                    self.report = Some(Job::spawn(ui.ctx(), move |progress, _| {
+                        Ok(netmgr::report::build(public, &|s| progress.set(0.0, s)))
+                    }));
+                }
+            });
+        });
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             if sh.lan_denied {
                 local_network_notice(ui, p);
@@ -52,6 +69,25 @@ impl Overview {
     }
 
     fn poll(&mut self, sh: &mut Shared) {
+        if let Some(r) = jobs::finished(&mut self.report) {
+            match r {
+                Ok(text) => {
+                    let name = format!("network-report-{}.md", chrono::Local::now().format("%Y-%m-%d-%H%M"));
+                    if let Some(path) =
+                        rfd::FileDialog::new().add_filter("Markdown", &["md"]).set_file_name(name).save_file()
+                    {
+                        match std::fs::write(&path, text) {
+                            Ok(()) => {
+                                sh.toast(format!("Report saved to {}.", path.display()));
+                                crate::app::open_path(&path.display().to_string());
+                            }
+                            Err(e) => sh.fail("The report could not be saved.", &e.into()),
+                        }
+                    }
+                }
+                Err(e) => sh.fail("The report could not be made.", &e),
+            }
+        }
         if let Some(Ok(_)) = jobs::finished(&mut self.diagnose) {
             self.checked = true;
         }

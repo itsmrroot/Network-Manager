@@ -19,7 +19,7 @@ use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 
 /// What a finished command printed.
 #[derive(Debug, Clone)]
@@ -98,6 +98,29 @@ pub fn is_admin() -> bool {
     }
     #[allow(unreachable_code)]
     false
+}
+
+/// The command line `netmgr` next to this program (the desktop app runs it
+/// with administrator rights for work that needs them).
+pub fn helper_exe() -> Result<std::path::PathBuf> {
+    let exe = std::env::current_exe()?;
+    let name = if cfg!(windows) { "netmgr.exe" } else { "netmgr" };
+    if exe.file_name().is_some_and(|n| n == name) {
+        return Ok(exe);
+    }
+    let sibling = exe.with_file_name(name);
+    ensure!(sibling.is_file(), "{} is missing next to the app: reinstall Network Manager", name);
+    // Inside an AppImage the files live on a FUSE mount that root cannot
+    // read: hand root a copy.
+    #[cfg(unix)]
+    if std::env::var_os("APPIMAGE").is_some() {
+        use std::os::unix::fs::PermissionsExt;
+        let copy = std::env::temp_dir().join(format!("netmgr-helper-{}", std::process::id()));
+        std::fs::copy(&sibling, &copy)?;
+        std::fs::set_permissions(&copy, std::fs::Permissions::from_mode(0o755))?;
+        return Ok(copy);
+    }
+    Ok(sibling)
 }
 
 /// Single-quotes `s` for `sh`.
