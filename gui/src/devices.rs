@@ -62,8 +62,8 @@ impl Devices {
             }
         };
         self.devices = vec![
-            d("192.168.1.1", "00:94:EC:10:20:30", Some("router"), &[53, 80, 443], false, true),
-            d("192.168.1.10", "5C:9B:A6:11:22:33", Some("MacBook-Pro"), &[], true, false),
+            d("192.168.1.1", "B4:FB:E4:10:20:30", Some("router"), &[53, 80, 443], false, true),
+            d("192.168.1.10", "F0:18:98:11:22:33", Some("MacBook-Pro"), &[], true, false),
             d("192.168.1.20", "B8:27:EB:44:55:66", Some("pi-hole"), &[22, 53, 80], false, false),
             d("192.168.1.31", "3C:2A:F4:12:34:56", Some("BRW-Office-Printer"), &[80, 631, 9100], false, false),
             d("192.168.1.42", "8E:1F:3A:77:88:99", Some("Annas-iPhone"), &[62078], false, false),

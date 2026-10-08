@@ -181,7 +181,7 @@ impl Monitor {
                 hop(1, "192.168.1.1", Some("router.lab"), fill(1.1, 1.0, 0, 120)),
                 hop(2, "100.64.0.1", None, fill(8.0, 3.0, 0, 120)),
                 hop(3, "", None, Stats::default()),
-                hop(4, "198.51.100.17", Some("ae1.core1.vie.example.net"), fill(11.0, 4.0, 40, 120)),
+                hop(4, "198.51.100.17", Some("ae1.core1.ams.example.net"), fill(11.0, 4.0, 40, 120)),
                 hop(5, "198.51.100.41", Some("be2.edge2.fra.example.net"), fill(19.0, 5.0, 0, 120)),
                 hop(6, "1.1.1.1", Some("one.one.one.one"), fill(20.0, 4.0, 0, 120)),
             ];

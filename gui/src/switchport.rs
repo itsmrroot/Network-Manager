@@ -61,7 +61,7 @@ impl SwitchPort {
             ..Default::default()
         };
         self.dhcp_result = Some(TestResult {
-            mac: "5C:9B:A6:11:22:33".into(),
+            mac: "F0:18:98:11:22:33".into(),
             offers: vec![
                 offer([192, 168, 1, 1], [192, 168, 1, 77], 4),
                 offer([192, 168, 1, 250], [192, 168, 1, 120], 11),

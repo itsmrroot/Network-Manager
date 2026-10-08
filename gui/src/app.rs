@@ -734,15 +734,15 @@ impl App {
             }
             self.shared.public = Some(Ok(PublicInfo {
                 ip: "203.0.113.24".into(),
-                city: Some("Vienna".into()),
-                country: Some("AT".into()),
+                city: Some("Springfield".into()),
+                country: Some("US".into()),
                 org: Some("AS64500 Example Broadband".into()),
                 ..Default::default()
             }));
             self.shared.wifi = vec![wifi::Connection {
                 interface: "en0".into(),
                 ssid: Some("Home-5G".into()),
-                bssid: Some("00:94:EC:10:20:31".into()),
+                bssid: Some("B4:FB:E4:10:20:31".into()),
                 signal: Some(96),
                 rssi: Some(-48),
                 noise: Some(-94),
@@ -755,14 +755,21 @@ impl App {
             }];
             self.shared.wifi_loaded = true;
             self.shared.lan_denied = false;
+            // Sample traffic instead of this computer's.
+            self.shared.traffic.down =
+                (0..60).map(|i| 4e6 + 3e6 * ((i as f64) * 0.35).sin().abs() + 1e6 * ((i * 7 % 5) as f64)).collect();
+            self.shared.traffic.up = (0..60).map(|i| 0.6e6 + 0.5e6 * ((i as f64) * 0.5).cos().abs()).collect();
             for a in &mut self.shared.adapters {
                 if a.default {
                     a.ipv4 = vec![([192, 168, 1, 10].into(), 24)];
                     a.ipv6 = vec![("2001:db8::10".parse().unwrap_or(std::net::Ipv6Addr::LOCALHOST), 64)];
                     a.gateway = Some([192, 168, 1, 1].into());
-                    a.gateway_mac = "00:94:EC:10:20:30".parse().ok();
+                    a.gateway_mac = "B4:FB:E4:10:20:30".parse().ok();
                     a.dns = vec![[192, 168, 1, 1].into()];
-                    a.mac = "5C:9B:A6:11:22:33".parse().ok();
+                    a.mac = "F0:18:98:11:22:33".parse().ok();
+                    a.rx_bytes = Some(12_400_000_000);
+                    a.tx_bytes = Some(2_100_000_000);
+                    a.speed_bps = Some(1_201_000_000);
                 }
             }
         }
