@@ -409,6 +409,9 @@ impl Devices {
                 if ui.button(icon_label(icon::DOOR_OPEN, "Ports")).clicked() {
                     sh.nav = Some(Nav::Tool(Tab::Ports, ip.clone()));
                 }
+                if ui.button(icon_label(icon::HEARTBEAT, "Watch")).on_hover_text("Add to the ping monitor").clicked() {
+                    sh.nav = Some(Nav::Monitor(ip.clone()));
+                }
                 let web = [443u16, 80, 8080, 8443, 5000, 5001].into_iter().find(|p| d.open_ports.contains(p));
                 if let Some(port) = web
                     && ui.button(icon_label(icon::ARROW_SQUARE_OUT, "Web page")).clicked()

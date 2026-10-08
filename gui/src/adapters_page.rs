@@ -348,6 +348,9 @@ impl AdaptersPage {
                     if ui.link(icon_label(icon::PULSE, "Ping the router")).clicked() {
                         sh.nav = Some(Nav::Tool(crate::tools::Tab::Ping, g.to_string()));
                     }
+                    if ui.link(icon_label(icon::HEARTBEAT, "Watch the router")).clicked() {
+                        sh.nav = Some(Nav::Monitor(g.to_string()));
+                    }
                     if ui.link(icon_label(icon::ARROW_SQUARE_OUT, "Open the router's page")).clicked() {
                         crate::app::open_path(&format!("http://{g}"));
                     }

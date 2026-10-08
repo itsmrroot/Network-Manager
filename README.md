@@ -11,7 +11,7 @@
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-dea584?logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/github/license/itsmrroot/Network-Manager?color=a78bfa)](LICENSE)
 
-**Change IP and MAC addresses, see saved Wi-Fi passwords, find every device on your network —<br>and keep the everyday tools of network engineers in one modern app.**
+**Change IP and MAC addresses, see saved Wi-Fi passwords, find every device on your network, see which switch port<br>you are plugged into, watch hosts and paths, and run TFTP, syslog and a console — in one modern app.**
 
 [![Install on Windows](https://img.shields.io/badge/Install%20on%20Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](#-windows)
 [![Install on macOS](https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](#-macos)
@@ -131,6 +131,78 @@ service. Settings are changed with the system's own tools (`netsh`,
 
 </td>
 </tr>
+<tr>
+<td valign="top">
+
+### 🔌 Which switch port am I on?
+Listens to what the switch announces (**LLDP** and **CDP**) and shows the
+**switch name, port, VLAN, voice VLAN, PoE, link speed** and its **management
+address** — with one click to SSH into it. On Windows, macOS **and** Linux.
+
+</td>
+<td valign="top">
+
+### 🕵️ DHCP test & rogue servers
+Asks the network for an address and lists **every DHCP server** that answers,
+with the address, router, DNS and lease it offers. Two servers? You have a
+**rogue DHCP server** — and now you know its address. Nothing is changed.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 📈 Ping monitor
+Watch servers, switches, printers and the internet **all at once**: delay,
+loss, jitter and a history bar for each, **alerts when one goes down** and when
+it comes back, and CSV export. Native ICMP — no admin rights needed.
+
+</td>
+<td valign="top">
+
+### 🛣️ Path analysis (MTR)
+Every router on the way to a host, pinged every second, with loss, delay,
+worst case and jitter per hop — and a plain-language **verdict**: where the
+loss really starts, and which routers merely ignore pings.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 📦 TFTP & syslog servers
+A built-in **TFTP server** (with large-file block sizes) for firmware upgrades
+and configuration backups — with ready-made Cisco, Aruba and Juniper commands —
+and a **syslog server** with severity colours, filters and export.
+
+</td>
+<td valign="top">
+
+### 🖥️ Serial console & SSH
+**Console cables** with a real terminal: every key goes to the device, so Tab,
+`?` and Ctrl+Shift+6 work; **send break** for password recovery, paste a whole
+configuration, log to file. **SSH / Telnet** open in your terminal.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🔒 Web, TLS & WHOIS
+Certificate chain, **expiry**, trust and TLS version; every **redirect** with
+its security headers; **WHOIS/RDAP** for domains, IP addresses and AS numbers —
+registrar, network range, organisation and abuse contact.
+
+</td>
+<td valign="top">
+
+### 🧭 Connections, routes, hosts & reports
+Which program **listens on which port**; the **route table** with add and
+delete; a **hosts file editor** with automatic backup; a **throughput test**
+between two computers; and a one-click **network report** for tickets.
+
+</td>
+</tr>
 </table>
 
 > [!NOTE]
@@ -140,7 +212,10 @@ service. Settings are changed with the system's own tools (`netsh`,
 > The most requested items — one-click **IP profiles**, **MAC spoofing with restore**, **saved Wi-Fi
 > passwords with QR sharing**, a **"who's on my Wi-Fi"** scanner with vendors and new-device alerts, a guided
 > **connectivity check**, and the engineer basics (ping, traceroute, DNS, ports, subnets, WoL) — are combined
-> here, on **Windows, macOS and Linux**.
+> here, on **Windows, macOS and Linux**. Version 0.2 adds what field engineers carry separate tools for:
+> **LLDP/CDP** port discovery (LDWin, PortFinder, a LinkSprinter), **rogue DHCP** detection, **MTR/PingPlotter**-style
+> path analysis, a multi-host **ping monitor**, **Tftpd64**-style TFTP and syslog servers, an **iperf**-style
+> throughput test, a **PuTTY**-style serial console, TLS and WHOIS checks, and netstat, route and hosts tools.
 
 ## 🚀 Quick start
 
@@ -163,10 +238,22 @@ service. Settings are changed with the system's own tools (`netsh`,
 | **Adapters** | Every adapter with its status, addresses, DNS, MAC and maker, link speed, MTU and traffic. **Change IP settings**, **Change MAC address**, **Renew IP**, **Turn on/off**, **Undo**. |
 | **Wi-Fi** | The current network in detail; **saved networks with passwords** (show, copy, QR, export); **nearby networks** with a channel chart. |
 | **Devices** | Every device on the network with IP, MAC, maker, name and services; new devices marked; your own names for devices; ping, ports, web page and Wake-on-LAN per device; CSV export. |
+| **Switch port** | The switch, port, VLAN, voice VLAN, PoE and management address of this cable (LLDP/CDP); every DHCP server on the network. |
+| **Monitor** | Ping monitor for many hosts with alerts and export; path analysis (MTR) with a verdict. |
 | **Profiles** | Saved IP settings applied to any adapter in one click; shared with the command line. |
-| **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Wake-on-LAN, MAC lookup. |
+| **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
+| **Servers** | TFTP server, syslog server, throughput test between two computers. |
+| **Console** | Serial console for console cables; SSH and Telnet launcher. |
 
 <table>
+<tr>
+<td width="50%"><img src="assets/app-switch-port.png" alt="The switch port, VLAN and PoE heard through LLDP"><p align="center"><sub>Switch port (LLDP / CDP)</sub></p></td>
+<td width="50%"><img src="assets/app-path.png" alt="Path analysis with loss per router"><p align="center"><sub>Path analysis (MTR)</sub></p></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/app-monitor.png" alt="Ping monitor with several hosts"><p align="center"><sub>Ping monitor</sub></p></td>
+<td width="50%"><img src="assets/app-syslog.png" alt="Syslog server with messages from switches"><p align="center"><sub>Syslog server</sub></p></td>
+</tr>
 <tr>
 <td width="50%"><img src="assets/app-wifi.png" alt="Saved Wi-Fi networks with passwords"><p align="center"><sub>Wi-Fi: saved networks and passwords</sub></p></td>
 <td width="50%"><img src="assets/app-devices.png" alt="Devices on the network"><p align="center"><sub>Devices on your network</sub></p></td>
@@ -264,6 +351,9 @@ netmgr mac Wi-Fi restore                 # the original one
 netmgr wifi passwords                    # saved networks and passwords
 netmgr devices                           # who is on the network
 netmgr diagnose                          # why the internet does not work
+netmgr switch-port                       # switch, port and VLAN of this cable (LLDP/CDP)
+netmgr dhcp-test                         # every DHCP server on the network
+netmgr mtr google.com                    # loss and delay at every router
 ```
 
 <details>
@@ -295,6 +385,19 @@ netmgr vendor B8:27:EB:12:34:56
 netmgr public-ip
 netmgr speedtest
 
+netmgr monitor 10.0.0.1 10.0.0.2 1.1.1.1       # several hosts, live
+netmgr tftp-server ~/TFTP --allow-upload       # firmware and config backups
+netmgr syslog-server                           # device logs
+netmgr throughput server                       # on one computer …
+netmgr throughput 192.168.1.20 --download      # … and the test on the other
+netmgr tls example.com:443                     # certificate, expiry, trust
+netmgr http http://example.com                 # redirects and headers
+netmgr whois AS13335
+netmgr connections --listening                 # which program listens where
+netmgr routes add 10.20.0.0/16 192.168.1.254
+netmgr serial-ports
+netmgr report -o network-report.md
+
 netmgr devices --json > devices.json           # any listing as JSON
 ```
 
@@ -311,6 +414,9 @@ Windows; on macOS and Linux the system asks for your password.
 | **IP & DNS** | `netsh interface ipv4/ipv6` | `networksetup -setmanual / -setdhcp / -setdnsservers` | `nmcli connection modify` (or `ip addr`, `resolvectl`) |
 | **MAC address** | `NetworkAddress` of the adapter's driver key, then adapter restart | `ifconfig ether` (until restart) | NetworkManager `cloned-mac-address` (or `ip link`) |
 | **Wi-Fi passwords** | `netsh wlan export profile key=clear` (XML, any Windows language) | Keychain (`security`), with the system's own prompt | NetworkManager secrets (`nmcli -s`) |
+| **Switch port (LLDP/CDP)** | Built-in packet monitor `pktmon` → pcapng | BPF (`/dev/bpf*`) | `AF_PACKET` socket |
+| **Ping monitor & MTR** | `IcmpSendEcho` | Unprivileged ICMP socket | Unprivileged ICMP socket (`ping_group_range`) |
+| **Connections** | `Get-NetTCPConnection` | `netstat -anv`, `lsof` | `ss` |
 | **Administrator rights** | Asked once at start (manifest) | Password dialog per change | NetworkManager / `pkexec` |
 
 **Device scan.** Every address of the subnet is sent one small UDP packet. To deliver it, the computer first
@@ -319,6 +425,18 @@ The answers fill the system's neighbour table, which is read. Names come from th
 the devices themselves (multicast DNS, as Apple devices, printers and Linux announce themselves) and NetBIOS
 (Windows); makers from the IEEE registry built into the app. A few TCP ports tell printers, NAS, phones and
 computers apart. No administrator rights and no packet capture driver are needed.
+
+**Switch port.** Switches announce themselves on every port — LLDP every 30 seconds, CDP every 60. The app only
+listens: it decodes the system name, port ID and description, the 802.1 port VLAN and VLAN names, the LLDP-MED
+voice VLAN, 802.3 link and PoE, and CDP's native and voice VLANs, platform and management addresses. On macOS and
+Linux the listening is done by `netmgr switch-port`, started with administrator rights.
+
+**DHCP test.** One DHCPDISCOVER is broadcast from the adapter; every DHCPOFFER that arrives within a few seconds is
+listed. No DHCPREQUEST is ever sent, so no address is taken.
+
+**Path analysis.** The routers on the way are found once with the system's traceroute; then each is pinged directly
+every second. Loss that begins at one router and continues to the destination is reported as the problem's
+location; loss at a single router whose successors answer is shown as harmless (routers give pings a low priority).
 
 **DNS lookups** use a small built-in DNS client that asks the chosen server directly (UDP, TCP when the answer
 is truncated), so resolvers can be compared without the system's cache in between.
@@ -335,6 +453,14 @@ is truncated), so resolvers can be compared without the system's cache in betwee
 | `scan` | Device discovery, neighbour tables, device types and services |
 | `dns` | DNS client, reverse names, mDNS and NetBIOS names |
 | `tools` | Ping, traceroute, port check, Wake-on-LAN |
+| `icmp`, `monitor` | Native pings; statistics, path discovery |
+| `discovery` | LLDP / CDP decoding and capture (BPF, AF_PACKET, pktmon) |
+| `dhcp` | DHCP discovery and rogue server detection |
+| `servers` | TFTP server (RFC 1350, 2347–2349), syslog receiver, throughput test |
+| `console` | Serial ports, terminal screen, SSH/Telnet launcher |
+| `web` | TLS certificates, HTTP redirects, WHOIS (RDAP) |
+| `system` | Connections, routes, hosts file |
+| `report` | The network report |
 | `internet` | Public IP, speed test, connection check |
 | `subnet` | Subnet calculator |
 | `mac` | MAC parsing, random addresses, IEEE vendor table |
@@ -385,24 +511,43 @@ Allow Network Manager in **System Settings → Privacy & Security → Local Netw
 </details>
 
 <details>
+<summary><b>Switch port finds nothing.</b></summary>
+
+LLDP and CDP must be on for the switch and its port (they are on by default on most managed switches). Unmanaged
+switches, wall sockets that go straight to a router, and Wi-Fi do not announce anything. Wait the full minute:
+CDP is only sent every 60 seconds.
+
+</details>
+
+<details>
+<summary><b>The TFTP or syslog server does not receive anything.</b></summary>
+
+Allow Network Manager in the firewall (Windows asks when the server starts; on macOS allow incoming connections).
+Check that the device can reach this computer's address — ping it from the device. On Linux, ports below 1024
+need administrator rights.
+
+</details>
+
+<details>
 <summary><b>What does the app send over the internet?</b></summary>
 
 Only what you can see: the public IP lookup (ipinfo.io, can be turned off in Settings), the speed test
-(Cloudflare, when you start it), DNS lookups you make, and the update check (GitHub, can be turned off).
+(Cloudflare, when you start it), DNS, web, TLS and WHOIS (rdap.org) lookups you make, and the update check
+(GitHub, can be turned off).
 Nothing about your networks, devices or passwords is ever sent.
 
 </details>
 
 ## 🗺️ Roadmap
 
-Ideas network engineers asked for that are planned next:
+Done in 0.2: ~~LLDP/CDP~~, ~~serial console and SSH/Telnet~~, ~~continuous host monitoring~~, ~~hosts file
+editor~~, ~~listening ports~~. Next:
 
-- **LLDP / CDP** — which switch and port this cable is plugged into, and its VLAN
-- **Several IP addresses** on one adapter, and IPv6 static settings
-- **Hosts file editor** and **proxy** settings in profiles
-- **Serial console** and **SSH/Telnet** launcher for switches and routers
-- **Continuous monitoring** of hosts (ping monitor) with notifications
-- **Per-app bandwidth** and listening ports
+- **SNMP** walk and interface counters of switches
+- **Several IP addresses** on one adapter, IPv6 static settings, proxy settings in profiles
+- **Packet capture** with filters and pcap export
+- **Bandwidth per program**
+- Saved **SSH sessions** with groups, and a built-in SSH terminal
 - More interface languages
 
 Suggestions are welcome in the [issues](https://github.com/itsmrroot/Network-Manager/issues).

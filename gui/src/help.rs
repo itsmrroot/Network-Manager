@@ -104,12 +104,82 @@ fn guides() -> Vec<Guide> {
             ],
         },
         Guide {
+            icon: icon::TREE_STRUCTURE,
+            title: "Which switch port is this cable on?",
+            steps: vec![
+                "Plug in the cable, open Switch port, choose the wired adapter and click Listen.",
+                "Within a minute the switch's name, the port (e.g. Gi1/0/12), the VLAN, the voice VLAN, PoE and its management address appear. Nothing is sent: the app only listens to what the switch announces (LLDP, CDP).",
+                "Nothing heard? LLDP/CDP may be off on that switch, or it is an unmanaged switch.",
+                "Listening to the cable needs administrator rights: macOS and Linux ask for your password; Windows uses its built-in packet monitor (pktmon).",
+            ],
+        },
+        Guide {
+            icon: icon::BROADCAST,
+            title: "Finding DHCP servers (and rogue ones)",
+            steps: vec![
+                "On the Switch port page, click \"Find DHCP servers\". Every server that answers is listed with the address, router and DNS it hands out.",
+                "Two servers usually mean a rogue one — a home router or a virtual machine host plugged in by mistake. Its address tells you where to look.",
+                "Only a request for an offer is sent: no address is taken and nothing changes on this computer.",
+            ],
+        },
+        Guide {
+            icon: icon::HEARTBEAT,
+            title: "Watching hosts and paths",
+            steps: vec![
+                "Monitor → Ping monitor: add servers, switches or the internet. Each is pinged continuously; you are told when one goes down and comes back. Export the results as CSV.",
+                "Monitor → Path analysis: enter a host to see every router on the way, with its loss and delay, updated every second (like MTR or PingPlotter).",
+                "Loss that starts at one router and continues to the end is real, and shows where the problem is. Loss at a single router only is that router ignoring pings: not a problem.",
+            ],
+        },
+        Guide {
+            icon: icon::HARD_DRIVES,
+            title: "TFTP, syslog and throughput",
+            steps: vec![
+                "Servers → TFTP: choose a folder and click Start. Switches and routers can then copy firmware from it and back up their configuration to it. Example commands are shown.",
+                "Servers → Syslog: click Start and point devices to this computer (logging host <address>). Messages appear live; filter them by severity or text and export them.",
+                "Servers → Throughput: start the server on one computer and the test on another to measure the real speed of a cable, a switch or a Wi-Fi link.",
+                "Allow the app in the firewall when the system asks. On Linux, ports below 1024 (TFTP 69, syslog 514) need administrator rights.",
+            ],
+        },
+        Guide {
+            icon: icon::TERMINAL_WINDOW,
+            title: "Console cables, SSH and Telnet",
+            steps: vec![
+                "Plug in the console cable, open Console, choose the port and click Connect. Most devices use 9600 baud, 8N1, no flow control.",
+                "Click the black screen and type: every key goes to the device, so Tab completion, ? help and Ctrl+Shift+6 work as on a real terminal.",
+                "Send break enters ROMMON for password recovery. Paste sends a whole configuration. Log to file keeps a copy of the session.",
+                "Linux: if the port cannot be opened, add yourself to the dialout group. Windows and macOS may need the cable maker's driver.",
+                "SSH and Telnet open in the system's terminal.",
+            ],
+        },
+        Guide {
+            icon: icon::LOCK,
+            title: "Web, WHOIS, connections, routes and hosts",
+            steps: vec![
+                "Tools → Web & TLS check: a certificate's issuer, names, expiry and trust, the TLS version, every redirect and the security headers.",
+                "Tools → WHOIS: who owns a domain, an IP address or an AS number, with the abuse contact.",
+                "Tools → Connections: which programs listen on which ports, and what they are connected to.",
+                "Tools → Routes: the route table; add a static route to a lab network or delete one.",
+                "Tools → Hosts file: add, turn off or remove entries. A backup of the original file is kept.",
+            ],
+        },
+        Guide {
+            icon: icon::FILE_TEXT,
+            title: "A report for a support ticket",
+            steps: vec![
+                "On the Overview, click \"Network report\". After a few seconds of tests, save the file.",
+                "It contains the computer, the adapters, Wi-Fi, routes, DNS timing, the connection check and how well the router and the internet answer — never Wi-Fi passwords.",
+            ],
+        },
+        Guide {
             icon: icon::TERMINAL_WINDOW,
             title: "The command line",
             steps: vec![
                 "Every download includes netmgr, for scripts and the keyboard. Run netmgr --help to see everything.",
                 "netmgr set-ip Ethernet 192.168.1.50/24 --gateway 192.168.1.1 --dns 1.1.1.1",
                 "netmgr profile apply Office · netmgr wifi passwords · netmgr devices · netmgr diagnose",
+                "netmgr switch-port · netmgr dhcp-test · netmgr mtr google.com · netmgr monitor 10.0.0.1 1.1.1.1",
+                "netmgr tftp-server ~/TFTP --allow-upload · netmgr syslog-server · netmgr tls example.com · netmgr report -o report.md",
                 "Add --json to get results for other programs.",
             ],
         },

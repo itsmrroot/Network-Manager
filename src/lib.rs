@@ -8,13 +8,22 @@
 pub mod adapters;
 pub mod cmd;
 pub mod config;
+pub mod console;
+pub mod dhcp;
+pub mod discovery;
 pub mod dns;
+pub mod icmp;
 pub mod internet;
 pub mod mac;
+pub mod monitor;
 pub mod profiles;
+pub mod report;
 pub mod scan;
+pub mod servers;
 pub mod subnet;
+pub mod system;
 pub mod tools;
+pub mod web;
 pub mod wifi;
 
 pub const POWERED_BY: &str = "Powered by Bashar Salmo";
