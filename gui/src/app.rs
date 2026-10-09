@@ -11,6 +11,7 @@ use netmgr::wifi;
 
 use crate::i18n::{self, tr, trl};
 use crate::jobs::{self, Job};
+use crate::menu;
 use crate::settings::{self, Settings};
 use crate::theme::{self, Palette};
 use crate::update::Updater;
@@ -132,6 +133,7 @@ pub struct App {
     applied: Option<(theme::Accent, f32, settings::ThemeChoice)>,
     language: Option<i18n::Lang>,
     page: Page,
+    menu: menu::MenuBar,
     logo: egui::TextureHandle,
     updater: Updater,
     fitted: bool,
@@ -223,6 +225,7 @@ impl App {
             applied: None,
             language: Some(lang),
             page: Page::Overview,
+            menu: Default::default(),
             logo,
             updater,
             fitted: false,
@@ -248,18 +251,71 @@ impl App {
         }
     }
 
+    /// One step bigger (1), smaller (−1), or back to 100 % (0), in the same
+    /// steps and range as the Settings page.
+    fn zoom(&mut self, step: i32) {
+        let scale = &mut self.shared.settings.ui_scale;
+        *scale = match step {
+            0 => 1.0,
+            s => ((*scale * 10.0).round() / 10.0 + 0.1 * s as f32).clamp(0.8, 1.5),
+        };
+    }
+
+    /// Does what the menu bar or a shortcut asked for.
+    fn run(&mut self, ctx: &egui::Context, c: menu::Command) {
+        use menu::Command as C;
+        match c {
+            C::Page(p) => self.page = p,
+            C::CheckUpdates => {
+                self.page = Page::About;
+                self.updater.check(ctx, true);
+            }
+            C::Undo | C::Redo | C::Cut | C::Copy | C::Paste | C::SelectAll => menu::edit(ctx, c),
+            C::ZoomIn => self.zoom(1),
+            C::ZoomOut => self.zoom(-1),
+            C::ZoomReset => self.zoom(0),
+            C::Theme(t) => self.shared.settings.theme = t,
+            C::CheckConnection => {
+                self.page = Page::Overview;
+                self.overview.check_connection(ctx);
+            }
+            C::RenewIp => {
+                if let Some(a) = self.shared.default_adapter().cloned() {
+                    self.page = Page::Overview;
+                    self.overview.renew(ctx, a);
+                }
+            }
+            C::FlushDns => {
+                self.page = Page::Overview;
+                self.overview.flush_dns(ctx);
+            }
+            C::SpeedTest => {
+                self.page = Page::Overview;
+                self.overview.start_speed(ctx);
+            }
+            C::Scan => {
+                self.page = Page::Devices;
+                self.devices.scan(ctx, &self.shared);
+            }
+            C::Report => {
+                self.page = Page::Overview;
+                self.overview.start_report(ctx, &self.shared);
+            }
+            C::Open(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
+        }
+    }
+
     fn apply_settings(&mut self, ctx: &egui::Context) {
         // Ctrl/Cmd with +, - and 0 change the interface size too, in the same
         // steps and range as the Settings page.
         use egui::gui_zoom::kb_shortcuts as keys;
         let pressed = |k| ctx.input_mut(|i| i.consume_shortcut(&k));
-        let scale = &mut self.shared.settings.ui_scale;
         if pressed(keys::ZOOM_RESET) {
-            *scale = 1.0;
+            self.zoom(0);
         } else if pressed(keys::ZOOM_IN) || pressed(keys::ZOOM_IN_SECONDARY) {
-            *scale = ((*scale * 10.0).round() / 10.0 + 0.1).min(1.5);
+            self.zoom(1);
         } else if pressed(keys::ZOOM_OUT) {
-            *scale = ((*scale * 10.0).round() / 10.0 - 0.1).max(0.8);
+            self.zoom(-1);
         }
         let s = &self.shared.settings;
         let want = (s.accent, s.ui_scale, s.theme);
@@ -371,8 +427,8 @@ impl App {
         ui.horizontal_centered(|ui| {
             ui.add(egui::Image::new(&self.logo).fit_to_exact_size(Vec2::splat(30.0)));
             ui.add_space(4.0);
-            ui.label(theme::semibold(tr("Network"), 17.0).color(white));
-            ui.label(RichText::new(tr("Manager")).color(white.gamma_multiply(0.75)).size(17.0));
+            ui.label(theme::semibold("Network", 17.0).color(white));
+            ui.label(RichText::new("Manager").color(white.gamma_multiply(0.75)).size(17.0));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if self.updater.available().is_some() {
                     self.updater.button(ui, p);
@@ -405,8 +461,8 @@ impl App {
                 ui.add(egui::Image::new(&self.logo).fit_to_exact_size(Vec2::splat(40.0)));
                 ui.vertical(|ui| {
                     ui.add_space(2.0);
-                    ui.label(theme::semibold(tr("Network"), 16.0).color(p.text));
-                    ui.label(RichText::new(tr("Manager")).color(p.weak).size(13.0));
+                    ui.label(theme::semibold("Network", 16.0).color(p.text));
+                    ui.label(RichText::new("Manager").color(p.weak).size(13.0));
                 });
             });
         }
@@ -570,6 +626,9 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         self.fit_to_screen(&ctx);
         self.apply_settings(&ctx);
+        for c in self.menu.commands(&ctx, i18n::current()) {
+            self.run(&ctx, c);
+        }
         self.refresh(&ctx);
         if self.updater.poll(&ctx) {
             // The installer takes over and starts the new version.

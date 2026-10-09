@@ -121,7 +121,9 @@ set on your router.
 The same design as [Deleted Files Recovery](https://github.com/itsmrroot/Recover-Deleted-Files):
 in **English, German, Spanish, French, Turkish, Russian, Arabic and Chinese**,
 with **Midnight** (default), dark and light themes, accent colours, interface size, a
-Help page with step-by-step guides, and **one-click updates**.
+Help page with step-by-step guides, and **one-click updates**. On macOS, a **native menu
+bar** (Edit, View, Go, Network, Window, Help) with the usual shortcuts; ⌘1–⌘9 (Ctrl on
+Windows and Linux) jump between pages.
 
 </td>
 <td valign="top">

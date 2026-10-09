@@ -553,6 +553,7 @@ mod tests {
         include_str!("inspect.rs"),
         include_str!("jobs.rs"),
         include_str!("lan_extra.rs"),
+        include_str!("menu.rs"),
         include_str!("monitor.rs"),
         include_str!("more_tools.rs"),
         include_str!("overview.rs"),

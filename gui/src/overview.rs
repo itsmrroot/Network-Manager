@@ -29,6 +29,55 @@ pub struct Overview {
 }
 
 impl Overview {
+    pub fn start_speed(&mut self, ctx: &egui::Context) {
+        if self.speed.is_some() {
+            return;
+        }
+        let live = Arc::new(Mutex::new((None, 0.0, SpeedResult::default())));
+        self.speed_live = live.clone();
+        self.speed = Some(Job::spawn(ctx, move |_, cancel| {
+            internet::speed_test(cancel, &|phase, v| {
+                if let Ok(mut l) = live.lock() {
+                    l.0 = Some(phase);
+                    l.1 = v;
+                    match phase {
+                        SpeedPhase::Ping => l.2.ping_ms = Some(v),
+                        SpeedPhase::Download => l.2.download_mbps = Some(v),
+                        SpeedPhase::Upload => l.2.upload_mbps = Some(v),
+                    }
+                }
+            })
+        }));
+    }
+
+    pub fn flush_dns(&mut self, ctx: &egui::Context) {
+        if self.fix.is_none() {
+            self.fix = Some(Job::spawn(ctx, |_, _| config::flush_dns().map(|()| tr("The DNS cache was emptied."))));
+        }
+    }
+
+    pub fn renew(&mut self, ctx: &egui::Context, a: netmgr::adapters::Adapter) {
+        if self.fix.is_none() {
+            self.fix =
+                Some(Job::spawn(ctx, move |_, _| config::renew(&a).map(|()| tr("A new address was requested."))));
+        }
+    }
+
+    pub fn start_report(&mut self, ctx: &egui::Context, sh: &Shared) {
+        if self.report.is_some() {
+            return;
+        }
+        let public = sh.settings.lookup_public_ip;
+        self.report =
+            Some(Job::spawn(ctx, move |progress, _| Ok(netmgr::report::build(public, &|s| progress.set(0.0, s)))));
+    }
+
+    pub fn check_connection(&mut self, ctx: &egui::Context) {
+        if self.diagnose.is_none() {
+            self.start_diagnose(ctx);
+        }
+    }
+
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         self.poll(sh);
         ui.horizontal(|ui| {
@@ -41,10 +90,7 @@ impl Overview {
                     .on_hover_text(tr("Save everything about this connection to a file, e.g. for a support ticket"))
                     .clicked()
                 {
-                    let public = sh.settings.lookup_public_ip;
-                    self.report = Some(Job::spawn(ui.ctx(), move |progress, _| {
-                        Ok(netmgr::report::build(public, &|s| progress.set(0.0, s)))
-                    }));
+                    self.start_report(ui.ctx(), sh);
                 }
             });
         });
@@ -197,18 +243,14 @@ impl Overview {
                             .on_hover_text(tr("Forget looked-up names, so they are looked up again"))
                             .clicked()
                         {
-                            self.fix = Some(Job::spawn(ui.ctx(), |_, _| {
-                                config::flush_dns().map(|()| tr("The DNS cache was emptied."))
-                            }));
+                            self.flush_dns(ui.ctx());
                         }
                         if let Some(a) = adapter.clone()
                             && theme::secondary_button(ui, &icon_label(icon::ARROWS_CLOCKWISE, "Renew IP"))
                                 .on_hover_text(tr("Ask the router for a new address"))
                                 .clicked()
                         {
-                            self.fix = Some(Job::spawn(ui.ctx(), move |_, _| {
-                                config::renew(&a).map(|()| tr("A new address was requested."))
-                            }));
+                            self.renew(ui.ctx(), a);
                         }
                     });
                 });
@@ -292,21 +334,7 @@ impl Overview {
                         ))
                         .clicked()
                     {
-                        let live = Arc::new(Mutex::new((None, 0.0, SpeedResult::default())));
-                        self.speed_live = live.clone();
-                        self.speed = Some(Job::spawn(ui.ctx(), move |_, cancel| {
-                            internet::speed_test(cancel, &|phase, v| {
-                                if let Ok(mut l) = live.lock() {
-                                    l.0 = Some(phase);
-                                    l.1 = v;
-                                    match phase {
-                                        SpeedPhase::Ping => l.2.ping_ms = Some(v),
-                                        SpeedPhase::Download => l.2.download_mbps = Some(v),
-                                        SpeedPhase::Upload => l.2.upload_mbps = Some(v),
-                                    }
-                                }
-                            })
-                        }));
+                        self.start_speed(ui.ctx());
                     }
                 });
             });

@@ -15,6 +15,7 @@ mod i18n;
 mod inspect;
 mod jobs;
 mod lan_extra;
+mod menu;
 mod monitor;
 mod more_tools;
 mod notify;
@@ -70,6 +71,13 @@ fn main() -> eframe::Result {
         persist_window,
         renderer: eframe::Renderer::Wgpu,
         centered: true,
+        // The app's own menu bar (menu.rs) replaces winit's default one,
+        // which would otherwise be put back after launch.
+        #[cfg(target_os = "macos")]
+        event_loop_builder: Some(Box::new(|b| {
+            use winit::platform::macos::EventLoopBuilderExtMacOS;
+            b.with_default_menu(false);
+        })),
         ..Default::default()
     };
     eframe::run_native("Network Manager", options, Box::new(|cc| Ok(Box::new(app::App::new(cc)))))

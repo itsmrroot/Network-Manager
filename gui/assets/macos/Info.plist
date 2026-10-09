@@ -5,6 +5,21 @@
 <dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Network Manager finds the devices on your network and shows the addresses of your adapters.</string>
+	<!-- The app's languages: macOS then shows its own menu items (Window,
+	     Writing Tools, Emoji & Symbols) in the same language. -->
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>de</string>
+		<string>es</string>
+		<string>fr</string>
+		<string>tr</string>
+		<string>ru</string>
+		<string>ar</string>
+		<string>zh-Hans</string>
+	</array>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_device-info._tcp</string>

@@ -1,6 +1,6 @@
 [package]
 name = "netmgr"
-version = "0.5.1"
+version = "0.6.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Manage network adapters, IP and MAC addresses, Wi-Fi passwords and the devices on your network"

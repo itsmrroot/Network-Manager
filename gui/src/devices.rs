@@ -160,6 +160,14 @@ impl Devices {
         }
     }
 
+    /// Scans again (from the menu bar), unless a scan is running.
+    pub fn scan(&mut self, ctx: &egui::Context, sh: &Shared) {
+        if self.job.is_none() && sh.default_adapter().is_some() {
+            self.view = View::List;
+            self.start(ctx, sh);
+        }
+    }
+
     fn start(&mut self, ctx: &egui::Context, sh: &Shared) {
         let opts = scan::Options { adapter: None, ports: sh.settings.scan_ports, names: sh.settings.scan_names };
         let live = Arc::new(Mutex::new(Vec::new()));
