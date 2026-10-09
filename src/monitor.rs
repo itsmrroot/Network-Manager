@@ -35,7 +35,7 @@ pub struct Stats {
 }
 
 /// How many results [`Stats::history`] keeps.
-pub const HISTORY: usize = 600;
+pub const HISTORY: usize = 7200;
 
 impl Stats {
     pub fn add(&mut self, rtt: Option<Duration>) {

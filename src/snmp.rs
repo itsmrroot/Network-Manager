@@ -633,3 +633,219 @@ mod tests {
         assert_eq!(uptime(100 * 86400 * 3 + 100 * 61), "3 d 00:01:01");
     }
 }
+
+// ---------------------------------------------------------------- topology
+
+/// A device a switch sees on one of its ports, from LLDP or CDP.
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+pub struct Neighbor {
+    /// This switch's port: "Gi1/0/48".
+    pub local_port: String,
+    pub name: String,
+    /// The neighbor's port.
+    pub port: String,
+    pub description: String,
+    /// Its management address, when it announces one.
+    pub address: Option<IpAddr>,
+    /// "LLDP" or "CDP".
+    pub protocol: &'static str,
+}
+
+/// The rest of an OID after `root`.
+fn suffix<'a>(o: &'a Oid, root: &Oid) -> &'a [u32] {
+    &o.0[root.0.len().min(o.0.len())..]
+}
+
+/// The LLDP and CDP neighbors a switch knows.
+pub fn neighbors(c: &Client) -> Result<Vec<Neighbor>> {
+    use std::collections::BTreeMap;
+    let mut out = Vec::new();
+    // LLDP-MIB: local port names by port number.
+    let loc = Oid::parse("1.0.8802.1.1.2.1.3.7.1")?;
+    let mut local: BTreeMap<u32, String> = BTreeMap::new();
+    for (o, v) in c.walk(&loc.child(4), 2000).unwrap_or_default() {
+        local.insert(o.last(), v.as_text());
+    }
+    for (o, v) in c.walk(&loc.child(3), 2000).unwrap_or_default() {
+        local.entry(o.last()).or_insert_with(|| v.as_text());
+    }
+    // Remote table, indexed by time mark, local port and remote index.
+    let rem = Oid::parse(LLDP_REMOTE)?;
+    let mut rows: BTreeMap<(u32, u32), Neighbor> = BTreeMap::new();
+    for (col, set) in [
+        (7u32, &(|n: &mut Neighbor, v: &Value| n.port = v.as_text()) as &dyn Fn(&mut Neighbor, &Value)),
+        (8, &|n: &mut Neighbor, v: &Value| {
+            if n.port.is_empty() || n.port.contains(':') {
+                n.port = v.as_text()
+            }
+        }),
+        (9, &|n: &mut Neighbor, v: &Value| n.name = v.as_text()),
+        (10, &|n: &mut Neighbor, v: &Value| n.description = v.as_text().lines().next().unwrap_or("").to_string()),
+    ] {
+        let root = rem.child(col);
+        for (o, v) in c.walk(&root, 5000).unwrap_or_default() {
+            let s = suffix(&o, &root);
+            if s.len() < 3 {
+                continue;
+            }
+            let key = (s[1], s[2]);
+            let n = rows.entry(key).or_insert_with(|| Neighbor {
+                local_port: local.get(&s[1]).cloned().unwrap_or_else(|| format!("port {}", s[1])),
+                protocol: "LLDP",
+                ..Default::default()
+            });
+            set(n, &v);
+        }
+    }
+    // Management addresses are in the index of lldpRemManAddrTable:
+    // time mark, local port, remote index, address type, length, bytes.
+    let man = Oid::parse("1.0.8802.1.1.2.1.4.2.1.3")?;
+    for (o, _) in c.walk(&man, 5000).unwrap_or_default() {
+        let s = suffix(&o, &man);
+        if s.len() >= 9 && s[3] == 1 && s[4] == 4 {
+            let ip = Ipv4Addr::new(s[5] as u8, s[6] as u8, s[7] as u8, s[8] as u8);
+            if let Some(n) = rows.get_mut(&(s[1], s[2])) {
+                n.address.get_or_insert(IpAddr::V4(ip));
+            }
+        }
+    }
+    out.extend(rows.into_values());
+    // CISCO-CDP-MIB, indexed by ifIndex and device index.
+    let cdp = Oid::parse("1.3.6.1.4.1.9.9.23.1.2.1.1")?;
+    let mut cdp_rows: BTreeMap<(u32, u32), Neighbor> = BTreeMap::new();
+    for col in [4u32, 5, 6, 7] {
+        let root = cdp.child(col);
+        for (o, v) in c.walk(&root, 5000).unwrap_or_default() {
+            let s = suffix(&o, &root);
+            if s.len() < 2 {
+                continue;
+            }
+            let n = cdp_rows.entry((s[0], s[1])).or_insert_with(|| Neighbor { protocol: "CDP", ..Default::default() });
+            match (col, &v) {
+                (4, Value::Text(b)) if b.len() == 4 => {
+                    n.address = Some(IpAddr::V4(Ipv4Addr::new(b[0], b[1], b[2], b[3])))
+                }
+                (5, _) => n.description = v.as_text().lines().next().unwrap_or("").to_string(),
+                (6, _) => n.name = v.as_text(),
+                (7, _) => n.port = v.as_text(),
+                _ => {}
+            }
+        }
+    }
+    if !cdp_rows.is_empty() {
+        let names = interface_names(c).unwrap_or_default();
+        for ((if_index, _), mut n) in cdp_rows {
+            n.local_port = names.get(&if_index).cloned().unwrap_or_else(|| format!("ifIndex {if_index}"));
+            // A device that speaks both is listed once.
+            if !out.iter().any(|o| o.local_port == n.local_port && o.name.eq_ignore_ascii_case(&n.name)) {
+                out.push(n);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Interface names (ifName, else ifDescr) by ifIndex.
+fn interface_names(c: &Client) -> Result<std::collections::BTreeMap<u32, String>> {
+    let mut names = std::collections::BTreeMap::new();
+    for (o, v) in c.walk(&Oid::parse(IF_TABLE)?.child(2), 5000)? {
+        names.insert(o.last(), v.as_text());
+    }
+    for (o, v) in c.walk(&Oid::parse(IFX_TABLE)?.child(1), 5000).unwrap_or_default() {
+        names.insert(o.last(), v.as_text());
+    }
+    Ok(names)
+}
+
+/// Which port each MAC address was learned on (BRIDGE-MIB forwarding
+/// table): "AA:BB:…" → port name.
+pub fn mac_ports(c: &Client) -> Result<Vec<(String, String)>> {
+    use std::collections::BTreeMap;
+    // Bridge port → ifIndex.
+    let base = Oid::parse("1.3.6.1.2.1.17.1.4.1.2")?;
+    let mut if_of: BTreeMap<u32, u32> = BTreeMap::new();
+    for (o, v) in c.walk(&base, 5000).unwrap_or_default() {
+        if let Some(i) = v.as_u64() {
+            if_of.insert(o.last(), i as u32);
+        }
+    }
+    let names = interface_names(c).unwrap_or_default();
+    let fdb = Oid::parse("1.3.6.1.2.1.17.4.3.1.2")?;
+    let mut out = Vec::new();
+    for (o, v) in c.walk(&fdb, 20_000).unwrap_or_default() {
+        let s = suffix(&o, &fdb);
+        let (Some(port), true) = (v.as_u64(), s.len() == 6) else { continue };
+        let mac = s.iter().map(|b| format!("{:02X}", *b as u8)).collect::<Vec<_>>().join(":");
+        let name =
+            if_of.get(&(port as u32)).and_then(|i| names.get(i)).cloned().unwrap_or_else(|| format!("port {port}"));
+        out.push((mac, name));
+    }
+    Ok(out)
+}
+
+/// A switch or router found by [`crawl`].
+#[derive(Debug, Clone, Serialize)]
+pub struct Switch {
+    pub address: IpAddr,
+    pub system: System,
+    pub neighbors: Vec<Neighbor>,
+    /// MAC address → port, for ports with end devices.
+    pub macs: Vec<(String, String)>,
+}
+
+/// Starts at `seeds` and follows LLDP/CDP neighbors with management
+/// addresses, reading every device that answers SNMP (at most `limit`).
+/// `found` is told each device as it is read.
+pub fn crawl(
+    seeds: &[IpAddr],
+    community: &str,
+    version: Version,
+    limit: usize,
+    stop: &std::sync::atomic::AtomicBool,
+    mut found: impl FnMut(&Switch),
+) -> Vec<Switch> {
+    let mut queue: std::collections::VecDeque<IpAddr> = seeds.iter().copied().collect();
+    let mut seen: std::collections::HashSet<IpAddr> = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    while let Some(ip) = queue.pop_front() {
+        if out.len() >= limit || stop.load(std::sync::atomic::Ordering::Relaxed) {
+            break;
+        }
+        if !seen.insert(ip) {
+            continue;
+        }
+        let Ok(c) = Client::new(&ip.to_string(), community, version) else { continue };
+        let Ok(system) = system(&c) else { continue };
+        let neighbors = neighbors(&c).unwrap_or_default();
+        for n in &neighbors {
+            if let Some(a) = n.address
+                && !seen.contains(&a)
+            {
+                queue.push_back(a);
+            }
+        }
+        let macs = mac_ports(&c).unwrap_or_default();
+        let s = Switch { address: ip, system, neighbors, macs };
+        found(&s);
+        out.push(s);
+    }
+    out
+}
+
+#[cfg(test)]
+mod live_tests {
+    /// Against a local SNMP simulator, when one is running
+    /// (NETMGR_TEST_SNMP=127.0.0.1:16163,community).
+    #[test]
+    fn simulator() {
+        let Ok(v) = std::env::var("NETMGR_TEST_SNMP") else { return };
+        let (host, community) = v.split_once(',').unwrap();
+        let c = super::Client::new(host, community, super::Version::V2c).unwrap();
+        let n = super::neighbors(&c).unwrap();
+        println!("{n:#?}");
+        assert!(n.iter().any(|n| n.name == "edge-router" && n.local_port == "Gi1/0/1" && n.address.is_some()));
+        let m = super::mac_ports(&c).unwrap();
+        println!("{m:?}");
+        assert!(m.iter().any(|(mac, port)| mac == "02:1A:2B:3C:4D:5E" && port == "Gi1/0/2"));
+    }
+}

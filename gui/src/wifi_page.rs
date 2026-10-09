@@ -29,6 +29,7 @@ pub struct WifiPage {
     qr: Option<(String, Vec<Vec<bool>>, Option<String>)>,
     search: String,
     tab: Tab,
+    roaming: crate::roaming::Roaming,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -36,9 +37,17 @@ enum Tab {
     #[default]
     Saved,
     Nearby,
+    Signal,
 }
 
 impl WifiPage {
+    /// Development aid: the signal tab with sample data.
+    #[cfg(debug_assertions)]
+    pub fn show_signal(&mut self) {
+        self.tab = Tab::Signal;
+        self.roaming.demo();
+    }
+
     /// Development aid: sample networks for README screenshots.
     #[cfg(debug_assertions)]
     pub fn demo(&mut self) {
@@ -78,7 +87,11 @@ impl WifiPage {
                 ui,
                 p,
                 &mut self.tab,
-                &[(Tab::Saved, icon::KEY, tr("Saved networks")), (Tab::Nearby, icon::BROADCAST, tr("Nearby networks"))],
+                &[
+                    (Tab::Saved, icon::KEY, tr("Saved networks")),
+                    (Tab::Nearby, icon::BROADCAST, tr("Nearby networks")),
+                    (Tab::Signal, icon::WAVE_SINE, tr("Signal and roaming")),
+                ],
             );
             ui.add_space(8.0);
             match self.tab {
@@ -89,6 +102,7 @@ impl WifiPage {
                     }
                     self.nearby_card(ui, p)
                 }
+                Tab::Signal => self.roaming.ui(ui, p),
             }
             ui.add_space(20.0);
         });
@@ -512,7 +526,7 @@ impl WifiPage {
                 .column(Column::remainder().at_least(180.0).clip(true))
                 .column(Column::exact(130.0))
                 .column(Column::exact(90.0))
-                .column(Column::exact(80.0))
+                .column(Column::exact(210.0))
                 .column(Column::remainder().at_least(120.0).clip(true))
                 .header(26.0, |mut h| {
                     for t in [tr("Network"), tr("Signal"), tr("Channel"), tr("Band"), tr("Security")] {
@@ -549,7 +563,18 @@ impl WifiPage {
                             ui.label(n.channel.map_or("—".into(), |c| c.to_string()));
                         });
                         row.col(|ui| {
-                            ui.label(RichText::new(n.band.as_deref().unwrap_or("—")).color(p.weak).size(13.0));
+                            // "5 GHz · 80 MHz · Wi-Fi 6", as far as the system tells.
+                            let generation = n.standard.as_deref().map(|s| {
+                                s.split_once("(Wi-Fi ")
+                                    .map_or(s.to_string(), |(_, g)| format!("Wi-Fi {}", g.trim_end_matches(')')))
+                            });
+                            let parts: Vec<String> =
+                                [n.band.clone(), n.width.clone(), generation].into_iter().flatten().collect();
+                            let text = if parts.is_empty() { "—".to_string() } else { parts.join(" · ") };
+                            let r = ui.label(RichText::new(text).color(p.weak).size(13.0));
+                            if let Some(s) = &n.standard {
+                                r.on_hover_text(s);
+                            }
                         });
                         row.col(|ui| {
                             ui.label(

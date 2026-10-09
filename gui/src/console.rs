@@ -17,6 +17,7 @@ use crate::theme::{self, Palette, icon_label};
 enum View {
     Serial,
     Remote,
+    Backups,
 }
 
 /// An SSH or Telnet session in a tab.
@@ -28,6 +29,7 @@ struct Open {
 
 pub struct Console {
     view: View,
+    backups: crate::backups::Backups,
     open: Vec<Open>,
     active: usize,
     next_id: u64,
@@ -49,6 +51,7 @@ impl Default for Console {
     fn default() -> Self {
         Self {
             view: View::Serial,
+            backups: Default::default(),
             open: Vec::new(),
             active: 0,
             next_id: 0,
@@ -119,6 +122,7 @@ impl Console {
             &[
                 (View::Serial, icon::USB, tr("Serial console")),
                 (View::Remote, icon::TERMINAL_WINDOW, tr("SSH and Telnet")),
+                (View::Backups, icon::CLOUD_ARROW_DOWN, tr("Backups")),
             ],
         );
         ui.add_space(8.0);
@@ -129,6 +133,7 @@ impl Console {
                 self.terminal(ui, p, sh);
             }
             View::Remote => self.remote_ui(ui, p, sh),
+            View::Backups => self.backups.ui(ui, p, sh),
         }
         self.edit_window(ui.ctx(), p, sh);
     }
@@ -145,6 +150,7 @@ impl Console {
             host: host.into(),
             port: 0,
             user: user.into(),
+            backup_command: String::new(),
         };
         sh.settings.sessions = vec![
             s("core-sw1", "Building A", Protocol::Ssh, "10.10.0.2", "admin"),
@@ -472,6 +478,31 @@ impl Console {
                         ui.label(tr("User"));
                         ui.add(egui::TextEdit::singleline(&mut s.user).hint_text("admin").desired_width(240.0));
                         ui.end_row();
+                        ui.label(tr("Backup"));
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut s.backup_command)
+                                    .hint_text(tr("command that prints the configuration"))
+                                    .desired_width(200.0),
+                            );
+                            egui::ComboBox::from_id_salt("backup-cmd").selected_text("").width(30.0).show_ui(
+                                ui,
+                                |ui| {
+                                    for (label, command) in netmgr::backup::COMMANDS {
+                                        if ui
+                                            .selectable_label(
+                                                s.backup_command == command,
+                                                format!("{label}: {command}"),
+                                            )
+                                            .clicked()
+                                        {
+                                            s.backup_command = command.into();
+                                        }
+                                    }
+                                },
+                            );
+                        });
+                        ui.end_row();
                     }
                 });
                 ui.add_space(6.0);
@@ -508,9 +539,15 @@ impl Console {
             sh.settings
                 .sessions
                 .sort_by(|a, b| (&a.group, a.name.to_lowercase()).cmp(&(&b.group, b.name.to_lowercase())));
+            if let Err(e) = netmgr::remote::save(&sh.settings.sessions) {
+                sh.fail(trl("The sessions could not be saved."), &e);
+            }
         } else if delete {
             if let Some(i) = index.filter(|&i| i < sh.settings.sessions.len()) {
                 sh.settings.sessions.remove(i);
+                if let Err(e) = netmgr::remote::save(&sh.settings.sessions) {
+                    sh.fail(trl("The sessions could not be saved."), &e);
+                }
             }
         } else if keep {
             self.editing = Some((index, s));

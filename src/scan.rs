@@ -504,3 +504,95 @@ mod tests {
         assert_eq!(d.kind(), DeviceKind::Router);
     }
 }
+
+// ---------------------------------------------------------------- addresses
+
+/// Is an address in use, and by what?
+#[derive(Debug, Clone, Serialize)]
+pub struct AddressCheck {
+    pub ip: Ipv4Addr,
+    /// Answered ping.
+    pub answers: bool,
+    /// The hardware addresses seen for it; two or more is a conflict.
+    pub macs: Vec<Mac>,
+    pub vendor: Option<String>,
+    pub name: Option<String>,
+    pub open_ports: Vec<u16>,
+}
+
+impl AddressCheck {
+    /// No sign of anything at this address.
+    pub fn free(&self) -> bool {
+        !self.answers && self.macs.is_empty() && self.open_ports.is_empty()
+    }
+
+    pub fn conflict(&self) -> bool {
+        self.macs.len() > 1
+    }
+}
+
+/// Checks `ip` before it is given to a device: pings it several times and
+/// looks at which hardware address answers each time (two different ones
+/// mean two devices share the address), then tries a few common ports for
+/// devices that ignore ping.
+pub fn check_address(ip: Ipv4Addr) -> Result<AddressCheck> {
+    let mut macs: Vec<Mac> = Vec::new();
+    let mut answers = false;
+    for _ in 0..4 {
+        if matches!(crate::icmp::ping(IpAddr::V4(ip), Duration::from_millis(700)), Ok(Some(_))) {
+            answers = true;
+        }
+        for (a, m) in neighbours().unwrap_or_default() {
+            if a == ip && !m.is_broadcast() && !macs.contains(&m) {
+                macs.push(m);
+            }
+        }
+        std::thread::sleep(Duration::from_millis(150));
+    }
+    let open_ports = open_ports(ip, &[22, 23, 80, 443, 445, 515, 631, 3389, 8080, 9100], Duration::from_millis(400));
+    let vendor = macs.first().and_then(|m| m.vendor()).map(str::to_string);
+    let name = if answers || !macs.is_empty() || !open_ports.is_empty() {
+        dns::device_name(ip, &dns::system_servers())
+    } else {
+        None
+    };
+    Ok(AddressCheck { ip, answers, macs, vendor, name, open_ports })
+}
+
+/// The addresses of `network/prefix` nobody used in a scan, as ranges.
+pub fn free_ranges(network: Ipv4Addr, prefix: u8, used: &[Ipv4Addr]) -> Vec<(Ipv4Addr, Ipv4Addr)> {
+    let Ok(s) = crate::subnet::Subnet::new(network, prefix) else { return Vec::new() };
+    if s.hosts < 2 {
+        return Vec::new();
+    }
+    let used: std::collections::HashSet<u32> = used.iter().map(|a| u32::from(*a)).collect();
+    let mut out = Vec::new();
+    let mut start: Option<u32> = None;
+    let (first, last) = (u32::from(s.first), u32::from(s.last));
+    for a in first..=last {
+        if used.contains(&a) {
+            if let Some(b) = start.take() {
+                out.push((Ipv4Addr::from(b), Ipv4Addr::from(a - 1)));
+            }
+        } else if start.is_none() {
+            start = Some(a);
+        }
+    }
+    if let Some(b) = start {
+        out.push((Ipv4Addr::from(b), Ipv4Addr::from(last)));
+    }
+    out
+}
+
+#[cfg(test)]
+mod address_tests {
+    use super::*;
+
+    #[test]
+    fn free_ranges_between_devices() {
+        let ip = |d| Ipv4Addr::new(192, 168, 1, d);
+        let r = free_ranges(ip(0), 24, &[ip(1), ip(2), ip(10), ip(254)]);
+        assert_eq!(r, [(ip(3), ip(9)), (ip(11), ip(253))]);
+        assert_eq!(free_ranges(ip(0), 30, &[]), [(ip(1), ip(2))]);
+    }
+}

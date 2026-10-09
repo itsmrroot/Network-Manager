@@ -48,6 +48,9 @@ pub struct Saved {
     /// 0: the protocol's usual port.
     pub port: u16,
     pub user: String,
+    /// The command that prints the configuration ("show running-config");
+    /// empty: not backed up.
+    pub backup_command: String,
 }
 
 impl Saved {
@@ -76,8 +79,30 @@ impl Saved {
             Some((h, p)) if !h.contains(':') && p.parse::<u16>().is_ok() => (h.to_string(), p.parse().unwrap_or(0)),
             _ => (rest.trim_matches(['[', ']']).to_string(), 0),
         };
-        Saved { name: host.clone(), group: String::new(), protocol, host, port, user }
+        Saved { name: host.clone(), protocol, host, port, user, ..Default::default() }
     }
+}
+
+fn sessions_file() -> std::path::PathBuf {
+    crate::profiles::config_dir().join("sessions.json")
+}
+
+/// The saved sessions, shared by the app and the command line.
+pub fn load() -> Result<Vec<Saved>> {
+    match std::fs::read_to_string(sessions_file()) {
+        Ok(text) => serde_json::from_str(&text).context("sessions.json is damaged"),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(e.into()),
+    }
+}
+
+pub fn save(list: &[Saved]) -> Result<()> {
+    let path = sessions_file();
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(path, serde_json::to_string_pretty(list)?)?;
+    Ok(())
 }
 
 enum Link {
@@ -126,17 +151,11 @@ impl Remote {
         let child = pty.slave.spawn_command(cmd).context("could not start ssh")?;
         drop(pty.slave);
         let reader = pty.master.try_clone_reader()?;
-        let writer = pty.master.take_writer()?;
+        let writer = Arc::new(Mutex::new(pty.master.take_writer()?));
         let ended = Arc::new(AtomicBool::new(false));
         let (tx, rx) = channel();
-        pump(reader, tx, ended.clone(), None);
-        Ok(Remote {
-            received: rx,
-            writer: Arc::new(Mutex::new(writer)),
-            link: Link::Pty { master: pty.master, child },
-            ended,
-            telnet: false,
-        })
+        pump(reader, tx, ended.clone(), writer.clone(), false);
+        Ok(Remote { received: rx, writer, link: Link::Pty { master: pty.master, child }, ended, telnet: false })
     }
 
     fn telnet(host: &str, port: u16) -> Result<Remote> {
@@ -148,7 +167,7 @@ impl Remote {
         let writer = Arc::new(Mutex::new(writer));
         let ended = Arc::new(AtomicBool::new(false));
         let (tx, rx) = channel();
-        pump(Box::new(stream.try_clone()?), tx, ended.clone(), Some(writer.clone()));
+        pump(Box::new(stream.try_clone()?), tx, ended.clone(), writer.clone(), true);
         Ok(Remote { received: rx, writer, link: Link::Telnet { stream }, ended, telnet: true })
     }
 
@@ -197,13 +216,19 @@ impl Drop for Remote {
     }
 }
 
-/// Reads until the end, passing data on; Telnet option negotiation is
-/// answered through `telnet` and removed from the data.
+/// Asked by Windows' pseudo-terminal before it shows anything: "where is
+/// the cursor?" (ESC [ 6 n). It waits for the answer.
+pub const CURSOR_QUESTION: &[u8] = b"\x1b[6n";
+pub const CURSOR_ANSWER: &[u8] = b"\x1b[1;1R";
+
+/// Reads until the end, passing data on; Telnet option negotiation and the
+/// terminal's cursor question are answered through `writer`.
 fn pump(
     mut reader: Box<dyn Read + Send>,
     tx: Sender<Vec<u8>>,
     ended: Arc<AtomicBool>,
-    telnet: Option<Arc<Mutex<Box<dyn Write + Send>>>>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
+    telnet: bool,
 ) {
     std::thread::spawn(move || {
         let mut buf = vec![0u8; 16384];
@@ -213,16 +238,23 @@ fn pump(
                 Ok(0) | Err(_) => break,
                 Ok(n) => n,
             };
-            let data = if let Some(w) = &telnet {
+            let data = if telnet {
                 let (data, reply) = nvt.filter(&buf[..n]);
                 if !reply.is_empty()
-                    && let Ok(mut w) = w.lock()
+                    && let Ok(mut w) = writer.lock()
                 {
                     let _ = w.write_all(&reply);
                 }
                 data
             } else {
-                buf[..n].to_vec()
+                let data = &buf[..n];
+                if data.windows(CURSOR_QUESTION.len()).any(|w| w == CURSOR_QUESTION)
+                    && let Ok(mut w) = writer.lock()
+                {
+                    let _ = w.write_all(CURSOR_ANSWER);
+                    let _ = w.flush();
+                }
+                data.to_vec()
             };
             if !data.is_empty() && tx.send(data).is_err() {
                 break;

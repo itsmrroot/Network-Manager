@@ -56,6 +56,8 @@ pub struct Monitor {
     programs: crate::programs::Programs,
     capture: crate::capture_page::Capture,
     input: String,
+    /// Seconds the history bars show.
+    window: u64,
     hosts: Arc<Mutex<Vec<Host>>>,
     running: Option<Arc<AtomicBool>>,
     interval: Arc<AtomicU64>,
@@ -71,6 +73,7 @@ impl Default for Monitor {
     fn default() -> Self {
         Self {
             tab: Tab::Hosts,
+            window: 300,
             programs: Default::default(),
             capture: Default::default(),
             input: String::new(),
@@ -112,12 +115,20 @@ fn ms(v: Option<f64>) -> String {
     v.map_or("—".into(), |v| if v < 10.0 { format!("{v:.1} ms") } else { format!("{v:.0} ms") })
 }
 
-/// Latency bars with losses in red, newest on the right.
-fn history(ui: &mut Ui, p: &Palette, h: &std::collections::VecDeque<Option<f64>>, size: Vec2) {
+/// Latency bars with losses in red, newest on the right: the last `count`
+/// results (0: one per bar), several to a bar when they do not fit.
+fn history(ui: &mut Ui, p: &Palette, h: &std::collections::VecDeque<Option<f64>>, size: Vec2, count: usize) {
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     ui.painter().rect_filled(rect, CornerRadius::same(4), p.card_alt);
-    let n = (size.x / 3.0) as usize;
-    let recent: Vec<Option<f64>> = h.iter().rev().take(n).rev().copied().collect();
+    let n = ((size.x / 3.0) as usize).max(1);
+    let per = if count == 0 { 1 } else { count.div_ceil(n).max(1) };
+    let window: Vec<Option<f64>> = h.iter().rev().take(n * per).rev().copied().collect();
+    // A bar is red when any result in it was lost, else its slowest reply.
+    let recent: Vec<Option<f64>> = window
+        .rchunks(per)
+        .rev()
+        .map(|c| if c.iter().any(Option::is_none) { None } else { c.iter().flatten().copied().reduce(f64::max) })
+        .collect();
     let top = recent.iter().flatten().copied().fold(1.0, f64::max);
     let w = rect.width() / n as f32;
     let start = rect.right() - recent.len() as f32 * w;
@@ -278,18 +289,28 @@ impl Monitor {
         }
     }
 
-    pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
-        // Alerts when a host goes down or comes back.
+    /// Alerts when a host goes down or comes back, on any page.
+    pub fn poll(&mut self, ctx: &egui::Context, sh: &mut Shared) {
         let new_events: Vec<(String, String, bool)> =
             self.events.lock().map(|e| e.iter().skip(self.seen_events).cloned().collect()).unwrap_or_default();
         self.seen_events += new_events.len();
-        if let Some((_, host, up)) = new_events.last() {
-            sh.toast(if *up {
+        for (_, host, up) in &new_events {
+            let text = if *up {
                 trf("{host} is reachable again.", &[("host", host)])
             } else {
                 trf("{host} is down.", &[("host", host)])
-            });
+            };
+            if sh.settings.notifications {
+                crate::notify::send(tr("Network Manager"), &text);
+            }
+            sh.toast(text);
         }
+        if self.running.is_some() {
+            ctx.request_repaint_after(Duration::from_secs(1));
+        }
+    }
+
+    pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         if self.running() {
             ui.ctx().request_repaint_after(Duration::from_millis(500));
         }
@@ -316,6 +337,7 @@ impl Monitor {
 
     fn hosts_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         let mut add = None;
+        let mut add_all: Vec<String> = Vec::new();
         ui.horizontal(|ui| {
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.input)
@@ -328,6 +350,17 @@ impl Monitor {
                 add = Some(std::mem::take(&mut self.input));
             }
             egui::ComboBox::from_id_salt("quick-hosts").selected_text(tr("Quick add")).width(120.0).show_ui(ui, |ui| {
+                let mine = sh.settings.saved_hosts.clone();
+                if mine.len() > 1
+                    && ui.selectable_label(false, format!("{}  {}", icon::STAR, tr("All my hosts"))).clicked()
+                {
+                    add_all = mine.iter().map(|h| h.address.clone()).collect();
+                }
+                for h in &mine {
+                    if ui.selectable_label(false, format!("{}  {} ({})", icon::STAR, h.name, h.address)).clicked() {
+                        add = Some(h.address.clone());
+                    }
+                }
                 if let Some(g) = sh.default_adapter().and_then(|a| a.gateway)
                     && ui.selectable_label(false, trf("Router ({address})", &[("address", &g)])).clicked()
                 {
@@ -360,6 +393,18 @@ impl Monitor {
                     }
                 });
             self.interval.store(secs, Ordering::Relaxed);
+            let label = |w: u64| {
+                if w >= 3600 {
+                    trf("Last {n} h", &[("n", &(w / 3600))])
+                } else {
+                    trf("Last {n} min", &[("n", &(w / 60))])
+                }
+            };
+            egui::ComboBox::from_id_salt("window").selected_text(label(self.window)).width(110.0).show_ui(ui, |ui| {
+                for w in [300, 1800, 7200] {
+                    ui.selectable_value(&mut self.window, w, label(w));
+                }
+            });
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let has = self.hosts.lock().map(|h| !h.is_empty()).unwrap_or(false);
                 if self.running.is_some() {
@@ -382,6 +427,9 @@ impl Monitor {
                 }
             });
         });
+        for text in add_all {
+            self.add(sh, &text);
+        }
         if let Some(text) = add {
             self.add(sh, &text);
             if self.running.is_none() {
@@ -446,7 +494,8 @@ impl Monitor {
                             });
                             ui.add_space(6.0);
                             let w = ui.available_width();
-                            history(ui, p, &h.stats.history, Vec2::new(w, 34.0));
+                            let every = self.interval.load(Ordering::Relaxed).max(1);
+                            history(ui, p, &h.stats.history, Vec2::new(w, 34.0), (self.window / every) as usize);
                         });
                     }
                 });
@@ -752,7 +801,7 @@ impl Monitor {
                             });
                         }
                         row.col(|ui| {
-                            history(ui, p, &s.history, Vec2::new(140.0, 20.0));
+                            history(ui, p, &s.history, Vec2::new(140.0, 20.0), 0);
                         });
                     });
                 });

@@ -332,3 +332,130 @@ mod tests {
         assert!(r[0].open);
     }
 }
+
+// ---------------------------------------------------------------- MTU
+
+/// Did a packet of that size get through?
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Fits {
+    Yes,
+    /// Too big for this computer's adapter or a router on the way.
+    TooBig,
+    /// No answer: too big and dropped silently, or lost.
+    NoAnswer,
+}
+
+/// The system ping with "don't fragment" and `payload` bytes of data.
+pub fn mtu_ping_command(ip: Ipv4Addr, payload: u16) -> (&'static str, Vec<String>) {
+    let (ip, size) = (ip.to_string(), payload.to_string());
+    let args: Vec<&str> = if cfg!(windows) {
+        vec!["-n", "1", "-w", "1000", "-f", "-l", &size, &ip]
+    } else if cfg!(target_os = "macos") {
+        vec!["-c", "1", "-t", "1", "-D", "-s", &size, &ip]
+    } else {
+        vec!["-c", "1", "-W", "1", "-M", "do", "-s", &size, &ip]
+    };
+    ("ping", args.into_iter().map(String::from).collect())
+}
+
+/// What one try's output means.
+pub fn mtu_ping_result(success: bool, output: &str) -> Fits {
+    let o = output.to_lowercase();
+    if o.contains("too long") || o.contains("fragment") || o.contains("frag needed") || o.contains("too big") {
+        Fits::TooBig
+    } else if success && (!cfg!(windows) || o.contains("ttl=")) {
+        Fits::Yes
+    } else {
+        Fits::NoAnswer
+    }
+}
+
+fn mtu_try(ip: Ipv4Addr, payload: u16) -> Result<Fits> {
+    let (program, args) = mtu_ping_command(ip, payload);
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = cmd::output(program, &args)?;
+    Ok(mtu_ping_result(out.success, &format!("{}\n{}", out.stdout, out.stderr)))
+}
+
+/// The result of a path MTU test.
+#[derive(Debug, Clone, Serialize)]
+pub struct Mtu {
+    pub host: Ipv4Addr,
+    /// The largest packet that gets through whole, in bytes (IPv4).
+    pub mtu: u16,
+    /// Did the largest tried size get through (jumbo frames)?
+    pub at_most: bool,
+}
+
+/// Finds the largest packet that reaches `host` without being split, by
+/// pinging with "don't fragment" (IPv4: payload + 28 bytes of headers).
+/// `step` is told each size tried and whether it got through.
+pub fn path_mtu(host: &str, cancel: &AtomicBool, mut step: impl FnMut(u16, Fits)) -> Result<Mtu> {
+    let ip = match resolve(host, 0)?.ip() {
+        IpAddr::V4(v4) => v4,
+        IpAddr::V6(_) => (host, 0)
+            .to_socket_addrs()?
+            .find_map(|a| match a.ip() {
+                IpAddr::V4(v4) => Some(v4),
+                _ => None,
+            })
+            .with_context(|| format!("{host} has no IPv4 address"))?,
+    };
+    let first = mtu_try(ip, 32)?;
+    ensure!(first == Fits::Yes, "{host} does not answer ping, so its MTU cannot be measured");
+    // Lost replies look like "too big": a size counts as too big only when
+    // it fails twice.
+    let fits = |size: u16, step: &mut dyn FnMut(u16, Fits)| -> Result<bool> {
+        let mut r = mtu_try(ip, size)?;
+        if r == Fits::NoAnswer {
+            r = mtu_try(ip, size)?;
+        }
+        step(size, r);
+        Ok(r == Fits::Yes)
+    };
+    // The usual answer first: 1500 (Ethernet) means 1472 bytes of data.
+    let (mut lo, mut hi) = (32u16, 8972u16);
+    if fits(1472, &mut step)? {
+        if !fits(1473, &mut step)? {
+            return Ok(Mtu { host: ip, mtu: 1500, at_most: false });
+        }
+        lo = 1473;
+    } else {
+        hi = 1471;
+    }
+    while lo < hi {
+        ensure!(!cancel.load(Ordering::Relaxed), "stopped");
+        let mid = lo + (hi - lo).div_ceil(2);
+        if fits(mid, &mut step)? {
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    Ok(Mtu { host: ip, mtu: lo + 28, at_most: lo == 8972 })
+}
+
+#[cfg(test)]
+mod mtu_tests {
+    use super::*;
+
+    #[test]
+    fn understands_ping() {
+        assert_eq!(mtu_ping_result(false, "ping: sendto: Message too long"), Fits::TooBig);
+        assert_eq!(mtu_ping_result(false, "Packet needs to be fragmented but DF set."), Fits::TooBig);
+        assert_eq!(
+            mtu_ping_result(false, "From 10.0.0.1 icmp_seq=1 Frag needed and DF set (mtu = 1400)"),
+            Fits::TooBig
+        );
+        assert_eq!(mtu_ping_result(false, "1 packets transmitted, 0 received"), Fits::NoAnswer);
+        if !cfg!(windows) {
+            assert_eq!(mtu_ping_result(true, "64 bytes from 1.1.1.1: icmp_seq=0 ttl=57"), Fits::Yes);
+        }
+    }
+
+    #[test]
+    fn commands() {
+        let (_, args) = mtu_ping_command(Ipv4Addr::new(192, 0, 2, 1), 1472);
+        assert!(args.contains(&"1472".to_string()) && args.contains(&"192.0.2.1".to_string()));
+    }
+}

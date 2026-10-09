@@ -29,6 +29,8 @@ pub enum Tab {
     Subnet,
     Planner,
     Snmp,
+    Time,
+    Mtu,
     Wol,
     MacLookup,
     Web,
@@ -62,6 +64,8 @@ pub struct Tools {
     lookup: String,
     planner: crate::planner::Planner,
     snmp: crate::snmp_tool::SnmpTool,
+    time: crate::more_tools::TimeTool,
+    mtu: crate::more_tools::MtuTool,
     inspect: crate::inspect::Inspect,
 }
 
@@ -91,6 +95,8 @@ impl Default for Tools {
             lookup: String::new(),
             planner: Default::default(),
             snmp: Default::default(),
+            time: Default::default(),
+            mtu: Default::default(),
             inspect: Default::default(),
         }
     }
@@ -113,7 +119,7 @@ impl Tools {
             Tab::Web => self.inspect.open_web(host),
             Tab::Whois => self.inspect.open_whois(host),
             Tab::Snmp => self.snmp.open(host),
-            Tab::Planner | Tab::Connections | Tab::Routes | Tab::Hosts => {}
+            Tab::Planner | Tab::Time | Tab::Mtu | Tab::Connections | Tab::Routes | Tab::Hosts => {}
             _ => self.host = host.to_string(),
         }
     }
@@ -172,6 +178,8 @@ impl Tools {
                 (Tab::Subnet, icon::CALCULATOR, tr("Subnet calculator")),
                 (Tab::Planner, icon::TREE_STRUCTURE, tr("Network planner")),
                 (Tab::Snmp, icon::HARD_DRIVES, "SNMP"),
+                (Tab::Time, icon::CLOCK, tr("Time (NTP)")),
+                (Tab::Mtu, icon::RULER, "MTU"),
                 (Tab::Wol, icon::POWER, tr("Wake-on-LAN")),
                 (Tab::MacLookup, icon::FINGERPRINT, tr("MAC lookup")),
                 (Tab::Web, icon::LOCK, tr("Web & TLS check")),
@@ -190,6 +198,8 @@ impl Tools {
             Tab::Subnet => self.subnet_tab(ui, p, sh),
             Tab::Planner => self.planner.ui(ui, p, sh),
             Tab::Snmp => self.snmp.ui(ui, p, sh),
+            Tab::Time => self.time.ui(ui, p, sh),
+            Tab::Mtu => self.mtu.ui(ui, p, sh),
             Tab::Wol => self.wol_tab(ui, p, sh),
             Tab::MacLookup => self.mac_tab(ui, p),
             Tab::Web => self.inspect.web_tab(ui, p, sh),
@@ -201,26 +211,8 @@ impl Tools {
     }
 
     /// The address field with the recent hosts and quick picks.
-    fn host_field(&mut self, ui: &mut Ui, sh: &Shared, hint: &str) -> bool {
-        let r = ui.add(egui::TextEdit::singleline(&mut self.host).hint_text(hint).desired_width(280.0));
-        let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-        let mut picks: Vec<(String, String)> = Vec::new();
-        if let Some(g) = sh.default_adapter().and_then(|a| a.gateway) {
-            picks.push((trf("Router ({address})", &[("address", &g)]), g.to_string()));
-        }
-        picks.push((tr("Cloudflare (1.1.1.1)").into(), "1.1.1.1".into()));
-        picks.push((tr("Google (google.com)").into(), "google.com".into()));
-        for h in &sh.settings.recent_hosts {
-            picks.push((h.clone(), h.clone()));
-        }
-        egui::ComboBox::from_id_salt("host-picks").selected_text(tr("Recent")).width(110.0).show_ui(ui, |ui| {
-            for (label, value) in picks {
-                if ui.selectable_label(false, label).clicked() {
-                    self.host = value;
-                }
-            }
-        });
-        enter
+    fn host_field(&mut self, ui: &mut Ui, sh: &mut Shared, hint: &str) -> bool {
+        host_input(ui, sh, &mut self.host, "host-picks", hint)
     }
 
     fn ping_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
@@ -803,4 +795,57 @@ fn console(ui: &mut Ui, p: &Palette, lines: &[String], running: bool, empty: &st
                 });
         });
     });
+}
+
+/// An address field with the shared host list, the router, well-known
+/// hosts and recent ones, and a star to add the address to the list.
+/// Returns true when Enter was pressed.
+pub fn host_input(ui: &mut Ui, sh: &mut Shared, host: &mut String, id: &str, hint: &str) -> bool {
+    let r = ui.add(egui::TextEdit::singleline(host).hint_text(hint).desired_width(260.0));
+    let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+    let mut picks: Vec<(String, String)> = Vec::new();
+    for h in &sh.settings.saved_hosts {
+        picks.push((format!("{}  {}  ({})", icon::STAR, h.name, h.address), h.address.clone()));
+    }
+    if let Some(g) = sh.default_adapter().and_then(|a| a.gateway) {
+        picks.push((trf("Router ({address})", &[("address", &g)]), g.to_string()));
+    }
+    picks.push((tr("Cloudflare (1.1.1.1)").into(), "1.1.1.1".into()));
+    picks.push((tr("Google (google.com)").into(), "google.com".into()));
+    for h in &sh.settings.recent_hosts {
+        if !sh.settings.saved_hosts.iter().any(|s| &s.address == h) {
+            picks.push((h.clone(), h.clone()));
+        }
+    }
+    egui::ComboBox::from_id_salt(id).selected_text(tr("Hosts")).width(110.0).show_ui(ui, |ui| {
+        for (label, value) in picks {
+            if ui.selectable_label(false, label).clicked() {
+                *host = value;
+            }
+        }
+    });
+    let address = host.trim().to_string();
+    let saved = sh.settings.saved_hosts.iter().any(|s| s.address == address);
+    if !address.is_empty()
+        && ui
+            .add(
+                egui::Button::new(RichText::new(icon::STAR).color(if saved {
+                    egui::Color32::from_rgb(250, 204, 21)
+                } else {
+                    ui.visuals().weak_text_color()
+                }))
+                .frame(false),
+            )
+            .on_hover_text(if saved { tr("In my hosts (rename or remove in Settings)") } else { tr("Add to my hosts") })
+            .clicked()
+        && !saved
+    {
+        sh.settings.saved_hosts.push(crate::settings::SavedHost { name: address.clone(), address });
+    }
+    enter
+}
+
+/// [`host_input`] with the usual hint.
+pub fn host_picker(ui: &mut Ui, sh: &mut Shared, host: &mut String, id: &str) -> bool {
+    host_input(ui, sh, host, id, tr("Address or name, e.g. 192.168.1.1"))
 }

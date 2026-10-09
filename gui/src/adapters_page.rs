@@ -448,6 +448,7 @@ impl AdaptersPage {
                     adapter: ed.adapter.name.clone(),
                     settings: s.clone(),
                     note: String::new(),
+                    extras: Default::default(),
                 }) {
                     Ok(()) => sh.toast(trf("Saved as profile \"{name}\".", &[("name", &name)])),
                     Err(e) => sh.fail(trl("The profile could not be saved."), &e),

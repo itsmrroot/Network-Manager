@@ -140,11 +140,7 @@ impl SnmpTool {
             );
             ui.add_space(8.0);
             ui.horizontal_wrapped(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.host)
-                        .hint_text(tr("Address or name, e.g. 192.168.1.1"))
-                        .desired_width(220.0),
-                );
+                crate::tools::host_picker(ui, sh, &mut self.host, "snmp-host");
                 ui.label(RichText::new(tr("Community")).color(p.weak));
                 ui.add(egui::TextEdit::singleline(&mut self.community).password(true).desired_width(120.0));
                 ui.selectable_value(&mut self.version, Version::V2c, "v2c");

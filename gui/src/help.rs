@@ -266,6 +266,79 @@ fn guides() -> Vec<Guide> {
             ],
         },
         Guide {
+            icon: icon::CLOUD_ARROW_DOWN,
+            title: tr("Back up switch configurations"),
+            steps: vec![
+                trl(
+                    "Console → SSH and Telnet: save each switch as a session and, under Backup, choose its kind (Cisco, Juniper, Aruba, MikroTik and others).",
+                ),
+                trl(
+                    "Console → Backups: click Back up. A copy is kept only when the configuration changed; choose a device to see what changed, line by line.",
+                ),
+                trl(
+                    "To back up every night, schedule the command line: netmgr backup (with --password-stdin when the devices ask for a password).",
+                ),
+            ],
+        },
+        Guide {
+            icon: icon::TREE_STRUCTURE,
+            title: tr("Draw a map of the network"),
+            steps: vec![
+                trl("Devices → Map shows the devices of the last scan under your router."),
+                trl(
+                    "Enter the SNMP community and click Read switches: the switches appear with the ports between them, and each device moves under the switch port it is plugged into. Copy as Mermaid puts the map into your documentation.",
+                ),
+            ],
+        },
+        Guide {
+            icon: icon::CHECK_SQUARE,
+            title: tr("Find a free address or an IP conflict"),
+            steps: vec![
+                trl("Devices → Free addresses lists the addresses nobody answered from in the last scan."),
+                trl(
+                    "Is this address free? pings an address several times and watches which device answers: two different devices mean an IP conflict.",
+                ),
+            ],
+        },
+        Guide {
+            icon: icon::CLOCK,
+            title: tr("Check the clock and the MTU"),
+            steps: vec![
+                trl("Tools → Time (NTP) compares this computer's clock with public time servers and your own."),
+                trl(
+                    "Tools → MTU finds the largest packet that gets through to a host: below 1500 bytes there is a VPN, tunnel or DSL line on the way.",
+                ),
+            ],
+        },
+        Guide {
+            icon: icon::BROADCAST,
+            title: tr("Find printers, AirPlay and other services"),
+            steps: vec![trl(
+                "Devices → Services (Bonjour) lists what devices announce: printers and scanners, AirPlay, Chromecast, file shares, smart-home hubs, with their addresses.",
+            )],
+        },
+        Guide {
+            icon: icon::WAVE_SINE,
+            title: tr("Find weak Wi-Fi spots"),
+            steps: vec![trl(
+                "Wi-Fi → Signal and roaming draws the signal while you walk around and lists every change of access point.",
+            )],
+        },
+        Guide {
+            icon: icon::STACK,
+            title: tr("Switch proxy, printer and drives with a profile"),
+            steps: vec![trl(
+                "Profiles → Edit → Also switch: a profile can set the proxy, the default printer and network drives along with the IP settings — the office's, or home's.",
+            )],
+        },
+        Guide {
+            icon: icon::BELL,
+            title: tr("My hosts and notifications"),
+            steps: vec![trl(
+                "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Tools turns desktop notifications on or off.",
+            )],
+        },
+        Guide {
             icon: icon::CHART_BAR,
             title: tr("Which program is using the network?"),
             steps: vec![

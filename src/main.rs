@@ -181,6 +181,35 @@ enum Cmd {
         #[arg(long, default_value_t = 500)]
         max_mb: u64,
     },
+    /// Compare this computer's clock with time servers (NTP).
+    Time {
+        /// Servers to ask (default: well-known public ones).
+        servers: Vec<String>,
+    },
+    /// The largest packet that reaches a host without being split (path MTU).
+    Mtu { host: String },
+    /// Services devices announce on the local network (Bonjour / mDNS).
+    Bonjour {
+        /// Seconds to listen.
+        #[arg(long, default_value_t = 4)]
+        seconds: u64,
+    },
+    /// Back up the configuration of the saved sessions that have a backup command.
+    Backup {
+        /// Only these sessions (names).
+        names: Vec<String>,
+        /// Read the password for the devices from standard input.
+        #[arg(long)]
+        password_stdin: bool,
+    },
+    /// Is an IPv4 address free, in use, or used by two devices (IP conflict)?
+    CheckIp { address: Ipv4Addr },
+    /// LLDP and CDP neighbors, and learned MAC addresses, of a switch (SNMP).
+    Neighbors {
+        host: String,
+        #[arg(long, short, default_value = "public")]
+        community: String,
+    },
     /// Wake a computer with Wake-on-LAN.
     Wol { mac: String },
     /// Who makes a device, from its MAC address.
@@ -684,6 +713,170 @@ fn run(cli: Cli) -> Result<()> {
                         let s = netmgr::capture::decode(link, &f.data);
                         println!("  {:<6} {} → {}  {}", s.protocol, s.source, s.destination, s.info);
                     }
+                }
+            }
+        }
+        Cmd::Time { servers } => {
+            let list: Vec<String> = if servers.is_empty() {
+                netmgr::ntp::SERVERS.iter().map(|(_, h)| h.to_string()).collect()
+            } else {
+                servers
+            };
+            let results: Vec<(String, Result<netmgr::ntp::Reading>)> = std::thread::scope(|s| {
+                let handles: Vec<_> = list
+                    .iter()
+                    .map(|h| (h.clone(), s.spawn(move || netmgr::ntp::query(h, Duration::from_secs(3)))))
+                    .collect();
+                handles
+                    .into_iter()
+                    .map(|(h, j)| (h, j.join().unwrap_or_else(|_| Err(anyhow::anyhow!("failed")))))
+                    .collect()
+            });
+            if json {
+                let v: Vec<serde_json::Value> = results
+                    .iter()
+                    .map(|(h, r)| match r {
+                        Ok(r) => serde_json::json!({"server": h, "reading": r}),
+                        Err(e) => serde_json::json!({"server": h, "error": format!("{e:#}")}),
+                    })
+                    .collect();
+                return print_json(&v);
+            }
+            println!("{:<22} {:>14} {:>9} {:>8}  Reference", "Server", "This clock", "Delay", "Stratum");
+            for (h, r) in &results {
+                match r {
+                    Ok(r) => println!(
+                        "{:<22} {:>14} {:>7.0} ms {:>8}  {}",
+                        h,
+                        netmgr::ntp::describe_offset(r.offset),
+                        r.delay * 1000.0,
+                        r.stratum,
+                        r.reference
+                    ),
+                    Err(e) => println!("{h:<22} {e:#}"),
+                }
+            }
+        }
+        Cmd::Mtu { host } => {
+            let stop = AtomicBool::new(false);
+            let r = tools::path_mtu(&host, &stop, |size, fits| {
+                if !json {
+                    let what = match fits {
+                        tools::Fits::Yes => "fits",
+                        tools::Fits::TooBig => "too big",
+                        tools::Fits::NoAnswer => "no answer",
+                    };
+                    println!("  {:>5} bytes  {what}", size + 28);
+                }
+            })?;
+            if json {
+                return print_json(&r);
+            }
+            println!("Path MTU to {} ({}): {} bytes{}", host, r.host, r.mtu, if r.at_most { " or more" } else { "" });
+        }
+        Cmd::Bonjour { seconds } => {
+            let list = netmgr::mdns::browse(Duration::from_secs(seconds))?;
+            if json {
+                return print_json(&list);
+            }
+            for s in &list {
+                let what = netmgr::mdns::describe(&s.kind);
+                let addrs: Vec<String> = s.addresses.iter().map(|a| a.to_string()).collect();
+                println!(
+                    "{:<28} {:<26} {}:{}  {}",
+                    s.name,
+                    if what.is_empty() { s.kind.as_str() } else { what },
+                    s.host,
+                    s.port,
+                    addrs.join(" ")
+                );
+            }
+            println!("{} services", list.len());
+        }
+        Cmd::Backup { names, password_stdin } => {
+            let password = if password_stdin {
+                let mut line = String::new();
+                std::io::stdin().read_line(&mut line)?;
+                Some(line.trim_end_matches(['\r', '\n']).to_string())
+            } else {
+                None
+            };
+            let list: Vec<_> = netmgr::remote::load()?
+                .into_iter()
+                .filter(|s| !s.backup_command.trim().is_empty())
+                .filter(|s| names.is_empty() || names.iter().any(|n| n.eq_ignore_ascii_case(&s.name)))
+                .collect();
+            if list.is_empty() {
+                bail!("no saved session has a backup command (set one in the app: Console → SSH and Telnet → Edit)");
+            }
+            let mut failed = 0;
+            for s in &list {
+                let r = netmgr::backup::fetch(s, password.as_deref())
+                    .and_then(|text| netmgr::backup::store(&s.name, &text, std::time::SystemTime::now()));
+                match r {
+                    Ok(netmgr::backup::Outcome::First) => println!("{:<24} first copy saved", s.name),
+                    Ok(netmgr::backup::Outcome::Unchanged) => println!("{:<24} unchanged", s.name),
+                    Ok(netmgr::backup::Outcome::Changed { added, removed }) => {
+                        println!("{:<24} changed: +{added} -{removed} lines", s.name)
+                    }
+                    Err(e) => {
+                        failed += 1;
+                        println!("{:<24} failed: {e:#}", s.name);
+                    }
+                }
+            }
+            println!("Copies are in {}", netmgr::backup::folder().display());
+            if failed > 0 {
+                bail!("{failed} of {} backups failed", list.len());
+            }
+        }
+        Cmd::CheckIp { address } => {
+            let r = scan::check_address(address)?;
+            if json {
+                return print_json(&r);
+            }
+            if r.conflict() {
+                let macs: Vec<String> = r.macs.iter().map(|m| m.to_string()).collect();
+                println!("IP CONFLICT: {} devices answer for {address}: {}", r.macs.len(), macs.join(", "));
+            } else if r.free() {
+                println!("{address} looks free: nothing answered.");
+            } else {
+                println!("{address} is in use.");
+                if let Some(m) = r.macs.first() {
+                    println!("  MAC     {m}  {}", r.vendor.as_deref().unwrap_or(""));
+                }
+                if let Some(n) = &r.name {
+                    println!("  Name    {n}");
+                }
+                if !r.open_ports.is_empty() {
+                    let p: Vec<String> = r.open_ports.iter().map(u16::to_string).collect();
+                    println!("  Ports   {}", p.join(", "));
+                }
+            }
+        }
+        Cmd::Neighbors { host, community } => {
+            let c = snmp::Client::new(&host, &community, snmp::Version::V2c)?;
+            let n = snmp::neighbors(&c)?;
+            let macs = snmp::mac_ports(&c).unwrap_or_default();
+            if json {
+                return print_json(&serde_json::json!({"neighbors": n, "macs": macs}));
+            }
+            println!("{:<16} {:<24} {:<18} {:<16} Protocol", "Local port", "Neighbor", "Its port", "Address");
+            for x in &n {
+                println!(
+                    "{:<16} {:<24} {:<18} {:<16} {}",
+                    x.local_port,
+                    x.name,
+                    x.port,
+                    x.address.map(|a| a.to_string()).unwrap_or_default(),
+                    x.protocol
+                );
+            }
+            if !macs.is_empty() {
+                println!();
+                println!("{:<18} Port", "MAC address");
+                for (m, p) in &macs {
+                    println!("{m:<18} {p}");
                 }
             }
         }
@@ -1265,6 +1458,7 @@ fn profile_cmd(c: ProfileCmd, json: bool) -> Result<()> {
                 adapter: a.name.clone(),
                 settings: IpSettings::current(&a),
                 note: String::new(),
+                extras: Default::default(),
             };
             println!("Saved \"{name}\": {}", p.settings.summary());
             profiles::upsert(p)?;

@@ -28,6 +28,19 @@ pub struct Devices {
     search: String,
     label: String,
     scanned: bool,
+    view: View,
+    map: crate::lan_extra::NetMap,
+    free: crate::lan_extra::FreeAddresses,
+    bonjour: crate::lan_extra::Bonjour,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum View {
+    #[default]
+    List,
+    Map,
+    Free,
+    Services,
 }
 
 pub fn kind_icon(k: DeviceKind) -> &'static str {
@@ -49,6 +62,17 @@ pub fn kind_icon(k: DeviceKind) -> &'static str {
 impl Devices {
     /// Development aid: sample devices for README screenshots.
     #[cfg(debug_assertions)]
+    /// Development aid: shows one of the tabs for screenshots.
+    #[cfg(debug_assertions)]
+    pub fn show(&mut self, tab: &str) {
+        self.view = match tab {
+            "map" => View::Map,
+            "free" => View::Free,
+            "bonjour" => View::Services,
+            _ => View::List,
+        };
+    }
+
     pub fn demo(&mut self) {
         let d = |ip: &str, mac: &str, name: Option<&str>, ports: &[u16], me: bool, gw: bool| {
             let mac: netmgr::mac::Mac = mac.parse().unwrap_or(netmgr::mac::Mac([2, 0, 0, 0, 0, 1]));
@@ -80,6 +104,8 @@ impl Devices {
         });
         self.scanned = true;
         self.new.insert("F0:EF:86:01:02:03".into());
+        self.map.demo();
+        self.bonjour.demo();
         self.selected = Some([192, 168, 1, 50].into());
     }
 
@@ -112,11 +138,15 @@ impl Devices {
                         }
                     }
                     if !self.new.is_empty() {
-                        sh.toast(trn(
+                        let text = trn(
                             self.new.len() as u64,
                             "1 new device on your network.",
                             "{n} new devices on your network.",
-                        ));
+                        );
+                        if sh.settings.notifications {
+                            crate::notify::send(tr("Network Manager"), &text);
+                        }
+                        sh.toast(text);
                     }
                 }
                 Err(e) => sh.fail(trl("The network could not be scanned."), &e),
@@ -227,6 +257,24 @@ impl Devices {
                 trl("Not connected to a network: there is nothing to scan."),
             );
             return;
+        }
+        theme::tabs(
+            ui,
+            p,
+            &mut self.view,
+            &[
+                (View::List, icon::LIST, tr("Devices")),
+                (View::Map, icon::TREE_STRUCTURE, tr("Map")),
+                (View::Free, icon::CHECK_SQUARE, tr("Free addresses")),
+                (View::Services, icon::BROADCAST, tr("Services (Bonjour)")),
+            ],
+        );
+        ui.add_space(8.0);
+        match self.view {
+            View::List => {}
+            View::Map => return self.map.ui(ui, p, sh, &self.devices),
+            View::Free => return self.free.ui(ui, p, sh, &self.devices, self.range.as_ref()),
+            View::Services => return self.bonjour.ui(ui, p, sh),
         }
 
         ui.add(

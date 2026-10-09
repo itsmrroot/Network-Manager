@@ -216,7 +216,7 @@ pub fn build_query(id: u16, name: &str, qtype: u16, recursion: bool) -> Result<V
 
 /// Reads a (possibly compressed) name at `pos`; returns it and the position
 /// after it.
-fn read_name(msg: &[u8], mut pos: usize) -> Result<(String, usize)> {
+pub(crate) fn read_name(msg: &[u8], mut pos: usize) -> Result<(String, usize)> {
     let mut labels = Vec::new();
     let mut end = None;
     let mut jumps = 0;
@@ -241,7 +241,7 @@ fn read_name(msg: &[u8], mut pos: usize) -> Result<(String, usize)> {
     Ok((labels.join("."), end.unwrap_or(pos)))
 }
 
-fn u16_at(msg: &[u8], pos: usize) -> Result<u16> {
+pub(crate) fn u16_at(msg: &[u8], pos: usize) -> Result<u16> {
     Ok(u16::from_be_bytes(msg.get(pos..pos + 2).context("truncated")?.try_into()?))
 }
 

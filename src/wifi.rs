@@ -66,6 +66,10 @@ pub struct Nearby {
     pub band: Option<String>,
     pub security: Option<String>,
     pub connected: bool,
+    /// "80 MHz", when the system tells.
+    pub width: Option<String>,
+    /// "802.11ax (Wi-Fi 6)", when the system tells.
+    pub standard: Option<String>,
 }
 
 /// dBm to a 0–100 quality: −100 dBm is 0, −50 dBm and better is 100.
@@ -339,6 +343,9 @@ mod imp {
                     n.channel = v.parse().ok();
                 } else if kl.starts_with("band") {
                     n.band = Some(v.replace("GHz", " GHz").replace("  ", " "));
+                } else if v.starts_with("802.11") {
+                    // "Radio type" (translated on other languages; the value is not).
+                    n.standard = Some(standard_name(&v));
                 }
             }
         }
@@ -508,7 +515,7 @@ mod imp {
     }
 
     fn entry(n: &Value, connected: bool) -> Nearby {
-        let (channel, band, _) = channel(n["spairport_network_channel"].as_str().unwrap_or(""));
+        let (channel, band, width) = channel(n["spairport_network_channel"].as_str().unwrap_or(""));
         let rssi = n["spairport_signal_noise"]
             .as_str()
             .and_then(|s| s.split('/').next())
@@ -521,6 +528,8 @@ mod imp {
             band,
             security: security(&n["spairport_security_mode"]),
             connected,
+            width,
+            standard: n["spairport_network_phymode"].as_str().map(standard_name),
         }
     }
 
@@ -600,6 +609,8 @@ mod imp {
                     band: Some(freq_band(&f[4], channel)),
                     security: Some(f[7].clone()).filter(|s| !s.is_empty() && s != "--"),
                     connected: f[0] == "*",
+                    width: None,
+                    standard: None,
                 }
             })
             .collect())

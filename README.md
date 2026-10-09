@@ -243,6 +243,60 @@ macOS and Linux.
 
 </td>
 </tr>
+<tr>
+<td valign="top">
+
+### 🗄️ Configuration backups
+Saves the running configuration of your **switches, routers and firewalls**
+over SSH (Cisco, Juniper, Aruba, Arista, MikroTik, FortiGate…), keeps a copy
+**only when something changed**, and shows **what changed, line by line**.
+Schedule `netmgr backup` to run every night.
+
+</td>
+<td valign="top">
+
+### 🗺️ Network map
+Your router, switches and devices as a **tree**: switches found over SNMP by
+following **LLDP/CDP neighbors**, each device placed under the **switch port**
+it is plugged into. Copy it as **Mermaid** for your documentation.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🎯 Free addresses & IP conflicts
+Which addresses of the subnet are free, and **"is this address free?"** before
+you give a device a fixed IP — with **IP conflict** detection when two devices
+answer for the same address.
+
+</td>
+<td valign="top">
+
+### 🕐 Time, MTU & Bonjour
+**NTP check** of this computer's clock against public and your own time
+servers; **path MTU** test for VPN and tunnel trouble; a **Bonjour / mDNS
+browser** for printers, AirPlay, Chromecast, file shares and smart-home hubs.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 📡 Wi-Fi signal & roaming
+The **signal over time** while you walk around, every **change of access
+point**, and channel width and Wi-Fi generation of nearby networks.
+
+</td>
+<td valign="top">
+
+### ⭐ Profiles, hosts & alerts
+Profiles also switch the **proxy, default printer and network drives**. **My
+hosts** are offered in every tool; **desktop notifications** when a host goes
+down or a new device joins; ping history of 5 min, 30 min or 2 h.
+
+</td>
+</tr>
 </table>
 
 > [!NOTE]
@@ -256,6 +310,9 @@ macOS and Linux.
 > **LLDP/CDP** port discovery (LDWin, PortFinder, a LinkSprinter), **rogue DHCP** detection, **MTR/PingPlotter**-style
 > path analysis, a multi-host **ping monitor**, **Tftpd64**-style TFTP and syslog servers, an **iperf**-style
 > throughput test, a **PuTTY**-style serial console, TLS and WHOIS checks, and netstat, route and hosts tools.
+> Version 0.5 adds **configuration backups** with differences, a **network map**, **free-address and IP
+> conflict** checks, **NTP**, **path MTU**, a **Bonjour browser**, **Wi-Fi roaming**, proxy, printer and drives
+> in **profiles**, a shared **host list** and **desktop notifications**.
 > Version 0.4 adds a **VLSM network planner** with switch configuration, an **SNMP** browser, **saved SSH and
 > Telnet sessions** in a built-in terminal, **packet capture** with pcap files, and **traffic per program**.
 
@@ -278,14 +335,14 @@ macOS and Linux.
 |---|---|
 | **Overview** | Connected network and signal, local and public IP (with provider and location), router, DNS, link speed, MAC address, live traffic, **Check connection**, **Renew IP**, **Flush DNS**, speed test. |
 | **Adapters** | Every adapter with its status, addresses, DNS, MAC and maker, link speed, MTU and traffic. **Change IP settings**, **Change MAC address**, **Renew IP**, **Turn on/off**, **Undo**. |
-| **Wi-Fi** | The current network in detail; **saved networks with passwords** (show, copy, QR, export); **nearby networks** with a channel chart. |
-| **Devices** | Every device on the network with IP, MAC, maker, name and services; new devices marked; your own names for devices; ping, ports, web page and Wake-on-LAN per device; CSV export. |
+| **Wi-Fi** | The current network in detail; **saved networks with passwords** (show, copy, QR, export); **nearby networks** with a channel chart, width and Wi-Fi generation; **signal and roaming** over time. |
+| **Devices** | Every device on the network with IP, MAC, maker, name and services; new devices marked; your own names for devices; ping, ports, web page and Wake-on-LAN per device; CSV export; **network map**; **free addresses** and IP conflict check; **Bonjour services**. |
 | **Switch port** | The switch, port, VLAN, voice VLAN, PoE and management address of this cable (LLDP/CDP); every DHCP server on the network. |
 | **Monitor** | Ping monitor for many hosts with alerts and export; path analysis (MTR) with a verdict; traffic per program; packet capture with filters and pcap files. |
 | **Profiles** | Saved IP settings applied to any adapter in one click; shared with the command line. |
-| **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Network planner, SNMP, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
+| **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Network planner, SNMP, Time (NTP), MTU, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
 | **Servers** | TFTP server, syslog server, throughput test between two computers. |
-| **Console** | Serial console for console cables; SSH and Telnet sessions in tabs, with saved sessions in groups. |
+| **Console** | Serial console for console cables; SSH and Telnet sessions in tabs, with saved sessions in groups; **configuration backups** with differences. |
 
 <table>
 <tr>
@@ -297,19 +354,26 @@ macOS and Linux.
 <td width="50%"><img src="assets/app-syslog.png" alt="Syslog server with messages from switches"><p align="center"><sub>Syslog server</sub></p></td>
 </tr>
 <tr>
+<td width="50%"><img src="assets/app-map.png" alt="Network map with switches, ports and devices"><p align="center"><sub>Network map</sub></p></td>
+<td width="50%"><img src="assets/app-signal.png" alt="Wi-Fi signal over time with roaming"><p align="center"><sub>Wi-Fi signal and roaming</sub></p></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/app-bonjour.png" alt="Bonjour services on the network"><p align="center"><sub>Bonjour services</sub></p></td>
 <td width="50%"><img src="assets/app-planner.png" alt="Network planner with rooms, IoT and guest networks"><p align="center"><sub>Network planner</sub></p></td>
+</tr>
+<tr>
 <td width="50%"><img src="assets/app-snmp.png" alt="SNMP: a switch's ports with state and errors"><p align="center"><sub>SNMP</sub></p></td>
-</tr>
-<tr>
 <td width="50%"><img src="assets/app-ssh.png" alt="Saved SSH and Telnet sessions with a terminal"><p align="center"><sub>SSH and Telnet sessions</sub></p></td>
+</tr>
+<tr>
 <td width="50%"><img src="assets/app-capture.png" alt="Packet capture with decoded packets"><p align="center"><sub>Packet capture</sub></p></td>
-</tr>
-<tr>
 <td width="50%"><img src="assets/app-wifi.png" alt="Saved Wi-Fi networks with passwords"><p align="center"><sub>Wi-Fi: saved networks and passwords</sub></p></td>
-<td width="50%"><img src="assets/app-devices.png" alt="Devices on the network"><p align="center"><sub>Devices on your network</sub></p></td>
 </tr>
 <tr>
+<td width="50%"><img src="assets/app-devices.png" alt="Devices on the network"><p align="center"><sub>Devices on your network</sub></p></td>
 <td width="50%"><img src="assets/app-adapters.png" alt="Adapter details"><p align="center"><sub>Adapters</sub></p></td>
+</tr>
+<tr>
 <td width="50%"><img src="assets/app-overview-light.png" alt="Overview in light mode"><p align="center"><sub>Light mode</sub></p></td>
 </tr>
 </table>
@@ -436,6 +500,12 @@ netmgr plan Room=12x25 IoT=150 --config juniper --ipv6 ula   # also aruba, mikro
 netmgr snmp 10.0.0.2 -c public                  # name, uptime and every port
 netmgr snmp 10.0.0.2 --walk 1.0.8802.1.1.2.1.4  # LLDP neighbors (any OID)
 sudo netmgr capture -i en0 --seconds 30 -o lab.pcap   # pcap for Wireshark
+netmgr backup                                   # configs of saved sessions; only changes are kept
+netmgr neighbors 10.0.0.2 -c public             # LLDP/CDP neighbors and MAC table of a switch
+netmgr check-ip 192.168.1.50                    # free, in use, or an IP conflict?
+netmgr time                                     # this clock against public NTP servers
+netmgr mtu vpn.example.com                      # path MTU
+netmgr bonjour                                  # printers, AirPlay, Chromecast, shares…
 netmgr wol AA:BB:CC:DD:EE:FF
 netmgr vendor B8:27:EB:12:34:56
 netmgr public-ip
@@ -523,7 +593,11 @@ is truncated), so resolvers can be compared without the system's cache in betwee
 | `snmp` | SNMP v1/v2c client: system, interfaces, walks |
 | `capture` | Packet capture, pcap files and packet descriptions |
 | `traffic` | Traffic per program |
-| `remote` | SSH (system client in a pseudo-terminal) and built-in Telnet |
+| `remote` | SSH (system client in a pseudo-terminal) and built-in Telnet; saved sessions |
+| `backup` | Configuration backups over SSH, change detection and differences |
+| `ntp` | SNTP client: clock offset, delay, stratum |
+| `mdns` | Bonjour / mDNS service browser |
+| `extras` | Proxy, default printer and network drives for profiles |
 | `mac` | MAC parsing, random addresses, IEEE vendor table |
 | `profiles` | Saved profiles shared by the app and the command line |
 | `cmd` | Running system tools, with administrator rights when needed |
@@ -601,14 +675,15 @@ Nothing about your networks, devices or passwords is ever sent.
 
 ## 🗺️ Roadmap
 
-Done in 0.4: ~~network planner~~, ~~SNMP~~, ~~packet capture with pcap export~~, ~~traffic per program~~,
-~~saved SSH sessions and a built-in terminal~~. Done in 0.3: ~~interface in eight languages~~. Done in 0.2:
-~~LLDP/CDP~~, ~~serial console~~, ~~continuous host monitoring~~, ~~hosts file editor~~, ~~listening ports~~. Next:
+Done in 0.5: ~~configuration backups~~, ~~network map~~, ~~IP conflicts and free addresses~~, ~~NTP and MTU~~,
+~~Bonjour~~, ~~Wi-Fi roaming~~, ~~proxy, printer and drives in profiles~~, ~~shared host list~~, ~~notifications~~.
+Done in 0.4: ~~network planner~~, ~~SNMP~~, ~~packet capture~~, ~~traffic per program~~, ~~built-in SSH terminal~~.
+Next:
 
-- **Several IP addresses** on one adapter, IPv6 static settings, proxy settings in profiles
+- **Several IP addresses** on one adapter, IPv6 static settings
 - **SNMPv3** and SNMP traps
-- **Configuration backups** of many switches at once over SSH, with differences between versions
-- **Network map** drawn from LLDP and CDP neighbors
+- **Scheduled backups** inside the app, and pushing a configuration to many switches
+- **Wi-Fi heat maps** on a floor plan
 
 Suggestions are welcome in the [issues](https://github.com/itsmrroot/Network-Manager/issues).
 

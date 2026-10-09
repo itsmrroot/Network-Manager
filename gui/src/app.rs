@@ -167,7 +167,16 @@ pub const MIN_SIZE: [f32; 2] = [860.0, 560.0];
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let settings: Settings = cc.storage.and_then(|s| eframe::get_value(s, SETTINGS_KEY)).unwrap_or_default();
+        let mut settings: Settings = cc.storage.and_then(|s| eframe::get_value(s, SETTINGS_KEY)).unwrap_or_default();
+        // Saved sessions live in sessions.json, shared with `netmgr backup`;
+        // 0.4 kept them in the settings.
+        match netmgr::remote::load() {
+            Ok(list) if !list.is_empty() => settings.sessions = list,
+            Ok(_) if !settings.sessions.is_empty() => {
+                let _ = netmgr::remote::save(&settings.sessions);
+            }
+            _ => {}
+        }
         let lang = i18n::set_language(settings.language);
         theme::install_fonts(&cc.egui_ctx, lang);
         // Zoom shortcuts are handled as changes of the interface size setting.
@@ -478,6 +487,7 @@ impl App {
         // Background work of pages that are not shown keeps going.
         let ctx = ui.ctx().clone();
         self.devices.poll(&ctx, sh);
+        self.monitor.poll(&ctx, sh);
         self.tools.poll(sh);
         self.console.poll();
         if let Some(nav) = sh.nav.take() {
@@ -710,7 +720,7 @@ impl App {
             return;
         }
         t.frames += 1;
-        let pages: [(Page, &str, u32); 19] = [
+        let pages: [(Page, &str, u32); 23] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -730,6 +740,10 @@ impl App {
             (Page::Console, "17-ssh", 120),
             (Page::Monitor, "18-programs", 700),
             (Page::Monitor, "19-capture", 60),
+            (Page::Devices, "20-map", 40),
+            (Page::Devices, "21-bonjour", 40),
+            (Page::Tools, "22-time", 400),
+            (Page::Wifi, "23-signal", 60),
         ];
         // NETMGR_TOUR_LIGHT: the light theme instead.
         if t.frames == 1 && t.step == 0 && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {
@@ -816,6 +830,18 @@ impl App {
             }
             if name == "15-planner" {
                 self.tools.open(tools::Tab::Planner, "");
+            }
+            if name == "20-map" {
+                self.devices.show("map");
+            }
+            if name == "21-bonjour" {
+                self.devices.show("bonjour");
+            }
+            if name == "22-time" {
+                self.tools.open(tools::Tab::Time, "");
+            }
+            if name == "23-signal" {
+                self.wifi_page.show_signal();
             }
             if name == "18-programs" {
                 self.monitor.show_programs();

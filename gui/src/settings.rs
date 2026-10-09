@@ -28,6 +28,14 @@ impl ThemeChoice {
     }
 }
 
+/// A host in the shared list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct SavedHost {
+    pub name: String,
+    pub address: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -61,8 +69,12 @@ pub struct Settings {
     pub tftp_folder: String,
     pub serial_port: String,
     pub serial: netmgr::console::LineSettings,
-    /// Saved SSH and Telnet sessions.
+    /// Saved SSH and Telnet sessions (moved to sessions.json in 0.5).
     pub sessions: Vec<netmgr::remote::Saved>,
+    /// Hosts offered in every tool: name and address.
+    pub saved_hosts: Vec<SavedHost>,
+    /// Desktop notifications for monitored hosts and new devices.
+    pub notifications: bool,
     // Network planner
     /// What the planner showed last; `None` until it is first opened.
     pub planner: Option<netmgr::plan::Input>,
@@ -91,6 +103,8 @@ impl Default for Settings {
             serial_port: String::new(),
             serial: Default::default(),
             sessions: Vec::new(),
+            saved_hosts: Vec::new(),
+            notifications: true,
             planner: None,
             saved_plans: BTreeMap::new(),
             plan_vendor: Default::default(),
@@ -246,7 +260,38 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
                 if ui.add_enabled(n > 0, egui::Button::new(trf("Clear {n}", &[("n", &n)]))).clicked() {
                     s.recent_hosts.clear();
                 }
+            });            row(
+                ui,
+                p,
+                tr("Notifications"),
+                trl("A desktop notification when a watched host goes down or comes back, and when a new device joins the network."),
+                |ui| toggle(ui, &mut s.notifications),
+            );
+            ui.add_space(8.0);
+            ui.label(theme::semibold(tr("My hosts"), 15.0).color(p.text));
+            ui.label(
+                RichText::new(tr("Offered in every tool. Add one with the star next to an address field."))
+                    .color(p.weak)
+                    .size(13.0),
+            );
+            ui.add_space(4.0);
+            let mut remove = None;
+            egui::Grid::new("my-hosts").num_columns(3).spacing([10.0, 6.0]).show(ui, |ui| {
+                for (i, h) in s.saved_hosts.iter_mut().enumerate() {
+                    ui.add(egui::TextEdit::singleline(&mut h.name).hint_text(tr("Name")).desired_width(200.0));
+                    ui.add(egui::TextEdit::singleline(&mut h.address).hint_text(tr("Address")).desired_width(200.0));
+                    if ui.small_button(icon::TRASH).on_hover_text(tr("Delete")).clicked() {
+                        remove = Some(i);
+                    }
+                    ui.end_row();
+                }
             });
+            if let Some(i) = remove {
+                s.saved_hosts.remove(i);
+            }
+            if ui.button(icon_label(icon::PLUS, "Add")).clicked() {
+                s.saved_hosts.push(SavedHost::default());
+            }
         });
         ui.add_space(14.0);
 
@@ -280,6 +325,7 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
                     original_macs: std::mem::take(&mut s.original_macs),
                     saved_plans: std::mem::take(&mut s.saved_plans),
                     sessions: std::mem::take(&mut s.sessions),
+                    saved_hosts: std::mem::take(&mut s.saved_hosts),
                     ..Settings::default()
                 };
             }

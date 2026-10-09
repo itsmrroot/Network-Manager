@@ -29,6 +29,9 @@ struct Editor {
     adapter: String,
     note: String,
     form: IpForm,
+    extras: netmgr::extras::Extras,
+    /// The computer's printers, read when the editor opens.
+    printers: Vec<String>,
     error: Option<String>,
 }
 
@@ -73,6 +76,8 @@ impl Profiles {
                         adapter: a.as_ref().map(|a| a.name.clone()).unwrap_or_default(),
                         note: String::new(),
                         form: IpForm::new(&IpSettings { mode: Ipv4Mode::Dhcp, dns: Vec::new() }, a.as_ref()),
+                        extras: Default::default(),
+                        printers: netmgr::extras::printers(),
                         error: None,
                     });
                 }
@@ -87,6 +92,8 @@ impl Profiles {
                         adapter: a.name.clone(),
                         note: String::new(),
                         form: IpForm::new(&IpSettings::current(&a), Some(&a)),
+                        extras: Default::default(),
+                        printers: netmgr::extras::printers(),
                         error: None,
                     });
                 }
@@ -139,6 +146,8 @@ impl Profiles {
                                     adapter: prof.adapter.clone(),
                                     note: prof.note.clone(),
                                     form: IpForm::new(&prof.settings, a),
+                                    extras: prof.extras.clone(),
+                                    printers: netmgr::extras::printers(),
                                     error: None,
                                 });
                             }
@@ -214,7 +223,11 @@ impl Profiles {
                 ui.end_row();
             });
             ui.add_space(10.0);
-            ed.form.show(ui, p);
+            egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.6).show(ui, |ui| {
+                ed.form.show(ui, p);
+                ui.add_space(8.0);
+                extras_ui(ui, p, &mut ed.extras, &ed.printers);
+            });
             if let Some(e) = &ed.error {
                 ui.add_space(6.0);
                 theme::notice(ui, p, p.danger, icon::WARNING_CIRCLE, e);
@@ -232,6 +245,7 @@ impl Profiles {
                                     adapter: ed.adapter.clone(),
                                     settings: s,
                                     note: ed.note.trim().to_string(),
+                                    extras: ed.extras.clone(),
                                 })
                             }
                             Err(e) => ed.error = Some(e),
@@ -316,4 +330,85 @@ fn summary(s: &IpSettings) -> String {
         let dns: Vec<String> = s.dns.iter().map(std::net::IpAddr::to_string).collect();
         format!("{ip} · {}", trf("DNS {servers}", &[("servers", &dns.join(", "))]))
     }
+}
+
+/// The proxy, default printer and network drives a profile switches too.
+fn extras_ui(ui: &mut Ui, p: &Palette, x: &mut netmgr::extras::Extras, printers: &[String]) {
+    use netmgr::extras::{Drive, ProxyMode};
+    let set = !x.is_empty();
+    egui::CollapsingHeader::new(RichText::new(tr("Also switch: proxy, printer, network drives")).color(p.text))
+        .default_open(set)
+        .show(ui, |ui| {
+            egui::Grid::new("profile-extras").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+                ui.label(tr("Proxy"));
+                ui.horizontal_wrapped(|ui| {
+                    ui.selectable_value(&mut x.proxy, ProxyMode::Keep, tr("Leave as it is"));
+                    ui.selectable_value(&mut x.proxy, ProxyMode::Off, tr("No proxy"));
+                    ui.selectable_value(&mut x.proxy, ProxyMode::Manual, tr("Proxy server"));
+                    ui.selectable_value(&mut x.proxy, ProxyMode::Script, tr("Setup script (PAC)"));
+                });
+                ui.end_row();
+                match x.proxy {
+                    ProxyMode::Manual => {
+                        ui.label("");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut x.proxy_server)
+                                .hint_text(tr("proxy.example.com:8080"))
+                                .desired_width(260.0),
+                        );
+                        ui.end_row();
+                        ui.label(tr("Go direct to"));
+                        ui.add(
+                            egui::TextEdit::singleline(&mut x.proxy_bypass)
+                                .hint_text(tr("e.g. *.local, 10.*, intranet.example.com"))
+                                .desired_width(260.0),
+                        );
+                        ui.end_row();
+                    }
+                    ProxyMode::Script => {
+                        ui.label("");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut x.proxy_script)
+                                .hint_text("http://wpad.example.com/proxy.pac")
+                                .desired_width(260.0),
+                        );
+                        ui.end_row();
+                    }
+                    _ => {}
+                }
+                ui.label(tr("Default printer"));
+                let shown = if x.printer.is_empty() { tr("Leave as it is").to_string() } else { x.printer.clone() };
+                egui::ComboBox::from_id_salt("profile-printer").selected_text(shown).width(260.0).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut x.printer, String::new(), tr("Leave as it is"));
+                    for name in printers {
+                        ui.selectable_value(&mut x.printer, name.clone(), name);
+                    }
+                });
+                ui.end_row();
+            });
+            ui.add_space(6.0);
+            ui.label(RichText::new(tr("Network drives")).color(p.text));
+            let mut remove = None;
+            for (i, d) in x.drives.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    if cfg!(windows) {
+                        ui.add(egui::TextEdit::singleline(&mut d.letter).hint_text("Z:").desired_width(40.0));
+                    }
+                    ui.add(
+                        egui::TextEdit::singleline(&mut d.path)
+                            .hint_text(if cfg!(windows) { "\\\\server\\share" } else { "smb://server/share" })
+                            .desired_width(300.0),
+                    );
+                    if ui.small_button(icon::TRASH).on_hover_text(tr("Delete")).clicked() {
+                        remove = Some(i);
+                    }
+                });
+            }
+            if let Some(i) = remove {
+                x.drives.remove(i);
+            }
+            if ui.button(icon_label(icon::PLUS, "Add a network drive")).clicked() {
+                x.drives.push(Drive::default());
+            }
+        });
 }

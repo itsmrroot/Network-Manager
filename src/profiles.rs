@@ -19,11 +19,18 @@ pub struct Profile {
     pub settings: IpSettings,
     #[serde(default)]
     pub note: String,
+    /// Proxy, default printer and network drives.
+    #[serde(default)]
+    pub extras: crate::extras::Extras,
 }
 
 impl Profile {
     pub fn apply(&self, a: &Adapter) -> Result<()> {
-        config::apply(a, &self.settings)
+        config::apply(a, &self.settings)?;
+        if !self.extras.is_empty() {
+            self.extras.apply(a).context("the IP settings were applied, but not everything else")?;
+        }
+        Ok(())
     }
 }
 
