@@ -46,6 +46,8 @@ fn icon() -> egui::IconData {
 }
 
 fn main() -> eframe::Result {
+    // Changed only by the development tour.
+    #[allow(unused_mut)]
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Network Manager")
         .with_app_id("netmgr")

@@ -73,6 +73,7 @@ impl Devices {
         };
     }
 
+    #[cfg(debug_assertions)]
     pub fn demo(&mut self) {
         let d = |ip: &str, mac: &str, name: Option<&str>, ports: &[u16], me: bool, gw: bool| {
             let mac: netmgr::mac::Mac = mac.parse().unwrap_or(netmgr::mac::Mac([2, 0, 0, 0, 0, 1]));
