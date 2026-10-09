@@ -106,7 +106,7 @@ pub fn save(list: &[Saved]) -> Result<()> {
 }
 
 enum Link {
-    Pty { master: Box<dyn MasterPty + Send>, child: Box<dyn Child + Send + Sync> },
+    Pty { master: Box<dyn MasterPty + Send>, child: Mutex<Box<dyn Child + Send + Sync>> },
     Telnet { stream: TcpStream },
 }
 
@@ -155,7 +155,13 @@ impl Remote {
         let ended = Arc::new(AtomicBool::new(false));
         let (tx, rx) = channel();
         pump(reader, tx, ended.clone(), writer.clone(), false);
-        Ok(Remote { received: rx, writer, link: Link::Pty { master: pty.master, child }, ended, telnet: false })
+        Ok(Remote {
+            received: rx,
+            writer,
+            link: Link::Pty { master: pty.master, child: Mutex::new(child) },
+            ended,
+            telnet: false,
+        })
     }
 
     fn telnet(host: &str, port: u16) -> Result<Remote> {
@@ -197,9 +203,20 @@ impl Remote {
         }
     }
 
-    /// Has the other side closed the session (or ssh exited)?
+    /// Has the other side closed the session (or ssh exited)? Windows keeps
+    /// the terminal's output open after ssh exits, so ssh itself is asked too.
     pub fn ended(&self) -> bool {
-        self.ended.load(Ordering::Relaxed)
+        if self.ended.load(Ordering::Relaxed) {
+            return true;
+        }
+        if let Link::Pty { child, .. } = &self.link
+            && let Ok(mut c) = child.lock()
+            && matches!(c.try_wait(), Ok(Some(_)))
+        {
+            self.ended.store(true, Ordering::Relaxed);
+            return true;
+        }
+        false
     }
 }
 
@@ -207,7 +224,9 @@ impl Drop for Remote {
     fn drop(&mut self) {
         match &mut self.link {
             Link::Pty { child, .. } => {
-                let _ = child.kill();
+                if let Ok(c) = child.get_mut() {
+                    let _ = c.kill();
+                }
             }
             Link::Telnet { stream } => {
                 let _ = stream.shutdown(Shutdown::Both);
@@ -389,12 +408,17 @@ mod tests {
         let s = Saved { host: "127.0.0.1".into(), port: 1, ..Default::default() };
         let r = Remote::open(&s, 24, 80).unwrap();
         let mut text = Vec::new();
-        while let Ok(d) = r.received.recv_timeout(Duration::from_secs(10)) {
-            text.extend(d);
+        let started = std::time::Instant::now();
+        while started.elapsed() < Duration::from_secs(20) {
+            if let Ok(d) = r.received.recv_timeout(Duration::from_millis(200)) {
+                text.extend(d);
+            }
+            if r.ended() && String::from_utf8_lossy(&text).contains("port 1") {
+                break;
+            }
         }
         let text = String::from_utf8_lossy(&text);
         assert!(text.contains("port 1"), "{text}");
-        std::thread::sleep(Duration::from_millis(200));
         assert!(r.ended());
     }
 }
