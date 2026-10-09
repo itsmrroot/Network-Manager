@@ -710,7 +710,7 @@ impl App {
             return;
         }
         t.frames += 1;
-        let pages: [(Page, &str, u32); 14] = [
+        let pages: [(Page, &str, u32); 15] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -725,6 +725,7 @@ impl App {
             (Page::Help, "12-help", 20),
             (Page::About, "13-about", 20),
             (Page::Monitor, "14-path", 20),
+            (Page::Tools, "15-planner", 20),
         ];
         // NETMGR_TOUR_LIGHT: the light theme instead.
         if t.frames == 1 && t.step == 0 && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {
@@ -808,6 +809,9 @@ impl App {
             self.page = page;
             if name == "14-path" {
                 self.monitor.show_path();
+            }
+            if name == "15-planner" {
+                self.tools.open(tools::Tab::Planner, "");
             }
         }
         if t.frames > wait {

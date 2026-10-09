@@ -520,6 +520,7 @@ mod tests {
         include_str!("jobs.rs"),
         include_str!("monitor.rs"),
         include_str!("overview.rs"),
+        include_str!("planner.rs"),
         include_str!("profiles.rs"),
         include_str!("servers.rs"),
         include_str!("settings.rs"),

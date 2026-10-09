@@ -213,6 +213,21 @@ fn guides() -> Vec<Guide> {
             ],
         },
         Guide {
+            icon: icon::TREE_STRUCTURE,
+            title: tr("Plan the subnets of a building"),
+            steps: vec![
+                trl(
+                    "Tools → Network planner: add a line per group of devices — for example 12 rooms of 25 PCs, 150 IoT devices, 200 Wi-Fi guests.",
+                ),
+                trl(
+                    "Leave the address space empty to get the smallest block that fits, or enter yours, such as 10.10.0.0/16. Room to grow adds spare addresses to every subnet.",
+                ),
+                trl(
+                    "Copy the table, export it as CSV, or copy the switch configuration: VLANs, gateway interfaces and DHCP pools, ready to paste.",
+                ),
+            ],
+        },
+        Guide {
             icon: icon::LOCK,
             title: tr("Web, WHOIS, connections, routes and hosts"),
             steps: vec![

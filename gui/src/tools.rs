@@ -27,6 +27,7 @@ pub enum Tab {
     Dns,
     Ports,
     Subnet,
+    Planner,
     Wol,
     MacLookup,
     Web,
@@ -58,6 +59,7 @@ pub struct Tools {
     wol_mac: String,
     wol_ip: String,
     lookup: String,
+    planner: crate::planner::Planner,
     inspect: crate::inspect::Inspect,
 }
 
@@ -85,6 +87,7 @@ impl Default for Tools {
             wol_mac: String::new(),
             wol_ip: String::new(),
             lookup: String::new(),
+            planner: Default::default(),
             inspect: Default::default(),
         }
     }
@@ -101,7 +104,7 @@ impl Tools {
             Tab::MacLookup => self.lookup = host.to_string(),
             Tab::Web => self.inspect.open_web(host),
             Tab::Whois => self.inspect.open_whois(host),
-            Tab::Connections | Tab::Routes | Tab::Hosts => {}
+            Tab::Planner | Tab::Connections | Tab::Routes | Tab::Hosts => {}
             _ => self.host = host.to_string(),
         }
     }
@@ -158,6 +161,7 @@ impl Tools {
                 (Tab::Dns, icon::LIST_MAGNIFYING_GLASS, tr("DNS lookup")),
                 (Tab::Ports, icon::DOOR_OPEN, tr("Port check")),
                 (Tab::Subnet, icon::CALCULATOR, tr("Subnet calculator")),
+                (Tab::Planner, icon::TREE_STRUCTURE, tr("Network planner")),
                 (Tab::Wol, icon::POWER, tr("Wake-on-LAN")),
                 (Tab::MacLookup, icon::FINGERPRINT, tr("MAC lookup")),
                 (Tab::Web, icon::LOCK, tr("Web & TLS check")),
@@ -174,6 +178,7 @@ impl Tools {
             Tab::Dns => self.dns_tab(ui, p, sh),
             Tab::Ports => self.ports_tab(ui, p, sh),
             Tab::Subnet => self.subnet_tab(ui, p, sh),
+            Tab::Planner => self.planner.ui(ui, p, sh),
             Tab::Wol => self.wol_tab(ui, p, sh),
             Tab::MacLookup => self.mac_tab(ui, p),
             Tab::Web => self.inspect.web_tab(ui, p, sh),
@@ -558,6 +563,14 @@ impl Tools {
                     .hint_text(tr("192.168.1.10/24 or 10.0.0.5 255.255.0.0"))
                     .desired_width(320.0),
             );
+            ui.add_space(8.0);
+            if ui
+                .button(icon_label(icon::TREE_STRUCTURE, "Plan subnets for rooms, PCs and IoT…"))
+                .on_hover_text(tr("Network planner"))
+                .clicked()
+            {
+                self.tab = Tab::Planner;
+            }
         });
         ui.add_space(10.0);
         let parsed = Subnet::parse(&self.subnet);

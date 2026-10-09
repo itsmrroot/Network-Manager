@@ -16,6 +16,7 @@ pub mod icmp;
 pub mod internet;
 pub mod mac;
 pub mod monitor;
+pub mod plan;
 pub mod profiles;
 pub mod report;
 pub mod scan;

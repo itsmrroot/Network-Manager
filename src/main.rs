@@ -12,7 +12,7 @@ use netmgr::dns::{self, RecordType};
 use netmgr::mac::Mac;
 use netmgr::profiles::{self, Profile};
 use netmgr::subnet::Subnet;
-use netmgr::{internet, scan, tools, wifi};
+use netmgr::{internet, plan, scan, tools, wifi};
 
 #[derive(Parser)]
 #[command(
@@ -117,6 +117,30 @@ enum Cmd {
         /// List the subnets of this length, e.g. 26.
         #[arg(long)]
         split: Option<u8>,
+    },
+    /// Plan subnets for groups of devices: netmgr plan 10.10.0.0/16 Rooms=12x25 IoT=150 Guests=200
+    Plan {
+        /// The address space to divide, e.g. 10.10.0.0/16 (default: the smallest 10.x block that fits).
+        #[arg(long, short)]
+        space: Option<String>,
+        /// NAME=DEVICES, or NAME=COUNTxDEVICES for several networks of the same size.
+        #[arg(required = true)]
+        groups: Vec<String>,
+        /// Extra room for growth, in percent.
+        #[arg(long, default_value_t = 20)]
+        growth: u32,
+        /// VLAN of the first network (0: no VLANs).
+        #[arg(long, default_value_t = 10)]
+        vlan: u16,
+        /// Between consecutive VLANs.
+        #[arg(long, default_value_t = 10)]
+        vlan_step: u16,
+        /// Print the configuration for Cisco IOS switches and routers instead.
+        #[arg(long)]
+        cisco: bool,
+        /// Print CSV instead.
+        #[arg(long)]
+        csv: bool,
     },
     /// Wake a computer with Wake-on-LAN.
     Wol { mac: String },
@@ -496,6 +520,48 @@ fn run(cli: Cli) -> Result<()> {
                 println!();
                 for (i, sub) in s.split(p, 256)?.iter().enumerate() {
                     println!("{:>4}. {}/{:<3} {} – {}", i + 1, sub.network, sub.prefix, sub.first, sub.last);
+                }
+            }
+        }
+        Cmd::Plan { space, groups, growth, vlan, vlan_step, cisco, csv } => {
+            let groups = groups.iter().map(|g| plan::Group::parse(g)).collect::<Result<Vec<_>>>()?;
+            let opt = plan::Options { growth, first_vlan: vlan, vlan_step };
+            let space = match space {
+                Some(s) => Subnet::parse(&s)?,
+                None => Subnet::new(Ipv4Addr::new(10, 0, 0, 0), plan::size(&groups, &opt).1.max(8))?,
+            };
+            let p = match plan::plan(&space, &groups, &opt) {
+                Ok(p) => p,
+                Err(plan::PlanError::Empty) => bail!("give at least one network with devices, e.g. Office=40"),
+                Err(plan::PlanError::TooSmall { needed, prefix }) => bail!(
+                    "these networks need {needed} addresses (a /{prefix}), but {}/{} has {}",
+                    space.network,
+                    space.prefix,
+                    1u64 << (32 - space.prefix)
+                ),
+            };
+            if json {
+                return print_json(&p);
+            }
+            if cisco {
+                print!("{}", p.cisco());
+            } else if csv {
+                print!("{}", p.csv());
+            } else {
+                print!("{}", p.table());
+                let room = 1u64 << (32 - space.prefix);
+                println!(
+                    "\n{} networks in {}/{}: {} of {} addresses used ({}%).",
+                    p.networks.len(),
+                    space.network,
+                    space.prefix,
+                    p.used,
+                    room,
+                    p.used * 100 / room
+                );
+                if !p.free.is_empty() {
+                    let free: Vec<String> = p.free.iter().map(|s| format!("{}/{}", s.network, s.prefix)).collect();
+                    println!("Free: {}", free.join(", "));
                 }
             }
         }

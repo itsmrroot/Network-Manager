@@ -14,6 +14,7 @@ mod inspect;
 mod jobs;
 mod monitor;
 mod overview;
+mod planner;
 mod profiles;
 mod servers;
 mod settings;

@@ -101,6 +101,7 @@ stops at the step that fails and says what to do — including hotel and café
 **Ping** with live chart, loss and jitter · **Traceroute** · **DNS lookup** of any
 record at any server, with **side-by-side comparison** of public resolvers ·
 **Port check** with presets · **Subnet calculator** with VLSM splitting ·
+**Network planner** (rooms, PCs, IoT, guests → subnets, VLANs and switch config) ·
 **Wake-on-LAN** · **MAC vendor lookup**.
 
 </td>
@@ -242,7 +243,7 @@ between two computers; and a one-click **network report** for tickets.
 | **Switch port** | The switch, port, VLAN, voice VLAN, PoE and management address of this cable (LLDP/CDP); every DHCP server on the network. |
 | **Monitor** | Ping monitor for many hosts with alerts and export; path analysis (MTR) with a verdict. |
 | **Profiles** | Saved IP settings applied to any adapter in one click; shared with the command line. |
-| **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
+| **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Network planner, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
 | **Servers** | TFTP server, syslog server, throughput test between two computers. |
 | **Console** | Serial console for console cables; SSH and Telnet launcher. |
 
@@ -382,6 +383,8 @@ netmgr lookup example.com MX --compare         # this computer's DNS vs Cloudfla
 netmgr lookup 8.8.8.8 PTR
 netmgr ports 192.168.1.20 22,80,443,8000-8100
 netmgr subnet 10.20.0.0/22 --split 24
+netmgr plan Room=12x25 IoT=150 "Guest Wi-Fi"=200 --space 10.10.0.0/16   # one subnet per group
+netmgr plan Room=12x25 IoT=150 --cisco          # VLANs, gateways and DHCP pools to paste
 netmgr wol AA:BB:CC:DD:EE:FF
 netmgr vendor B8:27:EB:12:34:56
 netmgr public-ip
@@ -465,6 +468,7 @@ is truncated), so resolvers can be compared without the system's cache in betwee
 | `report` | The network report |
 | `internet` | Public IP, speed test, connection check |
 | `subnet` | Subnet calculator |
+| `plan` | Network planner: subnets, VLANs and switch configuration for groups of devices |
 | `mac` | MAC parsing, random addresses, IEEE vendor table |
 | `profiles` | Saved profiles shared by the app and the command line |
 | `cmd` | Running system tools, with administrator rights when needed |
