@@ -9,6 +9,7 @@ mod app;
 mod console;
 mod devices;
 mod help;
+mod i18n;
 mod inspect;
 mod jobs;
 mod monitor;
@@ -19,6 +20,7 @@ mod settings;
 mod switchport;
 mod theme;
 mod tools;
+mod translations;
 mod update;
 mod wifi_page;
 

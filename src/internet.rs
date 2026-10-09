@@ -180,15 +180,34 @@ pub fn speed_test(cancel: &AtomicBool, live: &dyn Fn(SpeedPhase, f64)) -> Result
     Ok(result)
 }
 
-/// One step of the connection check.
+/// One step of the connection check. Its texts are fixed English sentences
+/// (with `{v}` for a value), so that the desktop app can translate them.
 #[derive(Debug, Clone, Serialize)]
 pub struct Check {
     pub title: &'static str,
     pub ok: bool,
-    /// What was found.
-    pub detail: String,
+    /// What was found: a sentence with `{v}` standing for [`Check::value`].
+    pub template: &'static str,
+    pub value: String,
     /// What to do about it, when it failed.
-    pub advice: Option<String>,
+    pub advice: Option<&'static str>,
+}
+
+impl Check {
+    /// What was found, in English.
+    pub fn detail(&self) -> String {
+        self.template.replace("{v}", &self.value)
+    }
+}
+
+fn check(
+    title: &'static str,
+    ok: bool,
+    template: &'static str,
+    value: impl ToString,
+    advice: Option<&'static str>,
+) -> Check {
+    Check { title, ok, template, value: value.to_string(), advice }
 }
 
 /// Checks the connection step by step — adapter, address, router, DNS,
@@ -208,62 +227,61 @@ pub fn diagnose(step: &dyn Fn(&Check)) -> Vec<Check> {
     let adapter: Option<Adapter> =
         adapters.iter().find(|a| a.default).or_else(|| adapters.iter().find(|a| a.up)).cloned();
     let Some(a) = adapter else {
-        push(Check {
-            title: "Network adapter",
-            ok: false,
-            detail: "No adapter is connected to a network.".into(),
-            advice: Some("Plug in the network cable or join a Wi-Fi network. If Wi-Fi is off, turn it on.".into()),
-        });
+        push(check(
+            "Network adapter",
+            false,
+            "No adapter is connected to a network.",
+            "",
+            Some("Plug in the network cable or join a Wi-Fi network. If Wi-Fi is off, turn it on."),
+        ));
         return out;
     };
-    if !push(Check {
-        title: "Network adapter",
-        ok: a.up,
-        detail: format!("{} ({})", a.name, a.kind.label()),
-        advice: (!a.up).then(|| "The adapter is not connected: check the cable or join a Wi-Fi network.".into()),
-    }) {
+    if !push(check(
+        "Network adapter",
+        a.up,
+        "{v}",
+        format!("{} ({})", a.name, a.kind.label()),
+        (!a.up).then_some("The adapter is not connected: check the cable or join a Wi-Fi network."),
+    )) {
         return out;
     }
 
     // 2. An address from the router.
     let ip = a.main_ipv4();
     let ok = ip.is_some() && !a.self_assigned();
-    if !push(Check {
-        title: "IP address",
+    let (template, value) = match ip {
+        Some((ip, p)) if ok => ("{v}", format!("{ip}/{p}")),
+        Some((ip, _)) => ("{v} — given by the computer itself", ip.to_string()),
+        None => ("No address", String::new()),
+    };
+    if !push(check(
+        "IP address",
         ok,
-        detail: match ip {
-            Some((ip, p)) if ok => format!("{ip}/{p}"),
-            Some((ip, _)) => format!("{ip} — given by the computer itself"),
-            None => "No address".into(),
-        },
-        advice: (!ok).then(|| {
-            "The router did not give this computer an address. Restart the router, then click \"Renew IP\". \
-             If the address was set by hand, check it."
-                .into()
-        }),
-    }) {
+        template,
+        value,
+        (!ok).then_some(
+            "The router did not give this computer an address. Restart the router, then click \"Renew IP\". If the address was set by hand, check it.",
+        ),
+    )) {
         return out;
     }
 
     // 3. The router answers.
     let gateway = a.gateway;
     let reachable = gateway.is_some_and(reach);
-    if !push(Check {
-        title: "Router",
-        ok: reachable,
-        detail: match gateway {
-            Some(g) if reachable => format!("{g} answers"),
-            Some(g) => format!("{g} does not answer"),
-            None => "No router (gateway) is set".into(),
-        },
-        advice: (!reachable).then(|| {
-            if gateway.is_none() {
-                "Without a gateway, nothing outside this network can be reached. Use automatic settings (DHCP) or enter the router's address.".into()
-            } else {
-                "The router does not answer. Restart it; for Wi-Fi, move closer to it.".into()
-            }
-        }),
-    }) {
+    let (template, value) = match gateway {
+        Some(g) if reachable => ("{v} answers", g.to_string()),
+        Some(g) => ("{v} does not answer", g.to_string()),
+        None => ("No router (gateway) is set", String::new()),
+    };
+    let advice = match (reachable, gateway) {
+        (true, _) => None,
+        (false, None) => Some(
+            "Without a gateway, nothing outside this network can be reached. Use automatic settings (DHCP) or enter the router's address.",
+        ),
+        (false, Some(_)) => Some("The router does not answer. Restart it; for Wi-Fi, move closer to it."),
+    };
+    if !push(check("Router", reachable, template, value, advice)) {
         return out;
     }
 
@@ -278,21 +296,21 @@ pub fn diagnose(step: &dyn Fn(&Check)) -> Vec<Check> {
     let system_ok =
         std::net::ToSocketAddrs::to_socket_addrs(&("www.google.com", 443)).is_ok_and(|mut a| a.next().is_some());
     let dns_ok = resolved.is_some() || system_ok;
-    if !push(Check {
-        title: "DNS (names)",
-        ok: dns_ok,
-        detail: match resolved {
-            Some((s, ms)) => format!("{s} answers in {ms} ms"),
-            None if system_ok => "Names are found".into(),
-            None => format!(
-                "No answer from {}",
-                if servers.is_empty() { "any DNS server".into() } else { servers.iter().map(IpAddr::to_string).collect::<Vec<_>>().join(", ") }
-            ),
-        },
-        advice: (!dns_ok).then(|| {
-            "Websites cannot be found by name. Click \"Flush DNS\", or set a public DNS server such as Cloudflare (1.1.1.1) in Adapters → Change IP settings.".into()
-        }),
-    }) {
+    let (template, value) = match resolved {
+        Some((s, ms)) => ("{v} ms", format!("{s}: {ms}")),
+        None if system_ok => ("Names are found", String::new()),
+        None if servers.is_empty() => ("No DNS server answers", String::new()),
+        None => ("No answer from {v}", servers.iter().map(IpAddr::to_string).collect::<Vec<_>>().join(", ")),
+    };
+    if !push(check(
+        "DNS (names)",
+        dns_ok,
+        template,
+        value,
+        (!dns_ok).then_some(
+            "Websites cannot be found by name. Click \"Flush DNS\", or set a public DNS server such as Cloudflare (1.1.1.1) in Adapters → Change IP settings.",
+        ),
+    )) {
         return out;
     }
 
@@ -303,21 +321,29 @@ pub fn diagnose(step: &dyn Fn(&Check)) -> Vec<Check> {
         .call()
         .ok()
         .map(|r| r.status().as_u16());
-    let (ok, detail, advice) = match (tcp, portal) {
-        (_, Some(204)) => (true, "Connected to the internet".to_string(), None),
-        (_, Some(code)) => (
+    let c = match (tcp, portal) {
+        (_, Some(204)) => check("Internet", true, "Connected to the internet", "", None),
+        (_, Some(code)) => check(
+            "Internet",
             false,
-            format!("A login page is in the way (answer {code})"),
-            Some("This network wants you to sign in (hotel, airport, café). Open any website in your browser to see its login page.".to_string()),
+            "A login page is in the way (answer {v})",
+            code,
+            Some(
+                "This network wants you to sign in (hotel, airport, café). Open any website in your browser to see its login page.",
+            ),
         ),
-        (true, None) => (true, "Connected (web check blocked)".to_string(), None),
-        (false, None) => (
+        (true, None) => check("Internet", true, "Connected (web check blocked)", "", None),
+        (false, None) => check(
+            "Internet",
             false,
-            "The internet does not answer".to_string(),
-            Some("The router is reachable but the internet is not: restart the router or modem. If it stays like this, your provider may have an outage.".to_string()),
+            "The internet does not answer",
+            "",
+            Some(
+                "The router is reachable but the internet is not: restart the router or modem. If it stays like this, your provider may have an outage.",
+            ),
         ),
     };
-    push(Check { title: "Internet", ok, detail, advice });
+    push(c);
     out
 }
 

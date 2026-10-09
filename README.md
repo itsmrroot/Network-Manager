@@ -118,7 +118,8 @@ set on your router.
 
 ### 🖥️ Modern desktop app
 The same design as [Deleted Files Recovery](https://github.com/itsmrroot/Recover-Deleted-Files):
-**Midnight** (default), dark and light themes, accent colours, interface size, a
+in **English, German, Spanish, French, Turkish, Russian, Arabic and Chinese**,
+with **Midnight** (default), dark and light themes, accent colours, interface size, a
 Help page with step-by-step guides, and **one-click updates**.
 
 </td>
@@ -264,7 +265,8 @@ between two computers; and a one-click **network report** for tickets.
 </tr>
 </table>
 
-**Settings** (saved automatically): theme (Midnight / dark / light / system), accent colour, interface size,
+**Settings** (saved automatically): language (system / English / Deutsch / Español / Français / Türkçe /
+Русский / العربية / 简体中文), theme (Midnight / dark / light / system), accent colour, interface size,
 showing virtual adapters, finding device names and services during scans, forgetting known devices, pings per
 test, the public IP lookup and the update check.
 
@@ -282,7 +284,7 @@ Every installer contains the desktop app **and** the command line (`netmgr`). Al
 
 1. Double-click the downloaded file. If Windows shows **"Windows protected your PC"**, click **More info → Run
    anyway** (the app is new and not code-signed yet).
-2. Click **Next → Install**, and **Yes** when Windows asks for permission.
+2. Pick your language, click **Next → Install** and **Yes** when Windows asks for permission.
 3. Open **Start menu → Network Manager** and click **Yes** for administrator rights (needed to change network
    settings and read Wi-Fi passwords).
 
@@ -540,7 +542,7 @@ Nothing about your networks, devices or passwords is ever sent.
 
 ## 🗺️ Roadmap
 
-Done in 0.2: ~~LLDP/CDP~~, ~~serial console and SSH/Telnet~~, ~~continuous host monitoring~~, ~~hosts file
+Done in 0.3: ~~interface in eight languages~~. Done in 0.2: ~~LLDP/CDP~~, ~~serial console and SSH/Telnet~~, ~~continuous host monitoring~~, ~~hosts file
 editor~~, ~~listening ports~~. Next:
 
 - **SNMP** walk and interface counters of switches
@@ -548,7 +550,6 @@ editor~~, ~~listening ports~~. Next:
 - **Packet capture** with filters and pcap export
 - **Bandwidth per program**
 - Saved **SSH sessions** with groups, and a built-in SSH terminal
-- More interface languages
 
 Suggestions are welcome in the [issues](https://github.com/itsmrroot/Network-Manager/issues).
 
@@ -572,6 +573,8 @@ pushed (see [`.github/workflows/release.yml`](.github/workflows/release.yml)).
 **Powered by Bashar Salmo**
 
 Released under the [MIT License](LICENSE). MAC vendor names from the
-[IEEE Registration Authority](https://standards.ieee.org/products-programs/regauth/).
+[IEEE Registration Authority](https://standards.ieee.org/products-programs/regauth/). The desktop app bundles
+[Noto Sans Arabic](https://github.com/notofonts/arabic) and [Noto Sans SC](https://github.com/notofonts/noto-cjk)
+under the SIL Open Font License ([Arabic](gui/assets/fonts/OFL.txt), [SC](gui/assets/fonts/OFL-NotoSansSC.txt)).
 
 </div>

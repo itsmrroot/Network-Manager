@@ -1,6 +1,6 @@
 [package]
 name = "netmgr-gui"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Desktop app for Network Manager"
@@ -17,11 +17,14 @@ egui_extras = "0.36.2"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 log = "0.4.34"
 netdev = "0.46.3"
-netmgr = { version = "0.2.0", path = ".." }
+netmgr = { version = "0.3.0", path = ".." }
 rfd = "0.17.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 sha2 = "0.11.0"
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
+sys-locale = "0.3.2"
+unicode-bidi = "0.3.18"
 ureq = "3.4.2"
 
 [build-dependencies]
@@ -47,6 +50,10 @@ license-file = "../LICENSE"
 icons = ["assets/netmgr.icns", "assets/netmgr.ico", "assets/icon.png"]
 # The command line comes along for scripting and keyboard use.
 binaries = [{ path = "netmgr-gui", main = true }, { path = "netmgr", main = false }]
+resources = [
+    { src = "assets/fonts/OFL.txt", target = "OFL-NotoSansArabic.txt" },
+    { src = "assets/fonts/OFL-NotoSansSC.txt", target = "OFL-NotoSansSC.txt" },
+]
 
 [package.metadata.packager.macos]
 minimum-system-version = "10.15"
@@ -61,6 +68,8 @@ info-plist-path = "assets/macos/Info.plist"
 [package.metadata.packager.nsis]
 # The app needs administrator rights to change settings, so it installs for all users.
 installMode = "perMachine"
+languages = ["English", "German", "Spanish", "French", "Turkish", "Russian", "Arabic", "SimpChinese"]
+display-language-selector = true
 
 [package.metadata.packager.deb]
 # wgpu draws with Vulkan or OpenGL; pkexec asks for the password for
@@ -79,6 +88,8 @@ assets = [
     { source = "gui/assets/linux/netmgr.desktop", dest = "/usr/share/applications/netmgr.desktop", mode = "644" },
     { source = "gui/assets/icon.png", dest = "/usr/share/icons/hicolor/256x256/apps/netmgr.png", mode = "644" },
     { source = "LICENSE", dest = "/usr/share/licenses/netmgr/LICENSE", mode = "644", doc = true },
+    { source = "gui/assets/fonts/OFL.txt", dest = "/usr/share/licenses/netmgr/OFL-NotoSansArabic.txt", mode = "644", doc = true },
+    { source = "gui/assets/fonts/OFL-NotoSansSC.txt", dest = "/usr/share/licenses/netmgr/OFL-NotoSansSC.txt", mode = "644", doc = true },
 ]
 
 [package.metadata.generate-rpm.requires]

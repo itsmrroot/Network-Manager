@@ -25,6 +25,7 @@ use netmgr::adapters::format_bytes as format_size;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+use crate::i18n::{tr, trf, trl, trlf};
 use crate::jobs::{Job, Progress};
 use crate::theme::{self, Palette, icon_label};
 
@@ -211,7 +212,7 @@ pub fn download(release: &Release, progress: &Progress, cancel: &AtomicBool) -> 
     std::fs::create_dir_all(&dir)?;
     let path = dir.join(&asset.name);
 
-    progress.set(0.0, "Downloading the update");
+    progress.set(0.0, tr("Downloading the update"));
     let mut response = agent().get(&asset.url).call().context("could not download the update")?;
     let mut body = response.body_mut().with_config().limit(asset.size + 1).reader();
     let mut file = File::create(&path)?;
@@ -229,7 +230,7 @@ pub fn download(release: &Release, progress: &Progress, cancel: &AtomicBool) -> 
         file.write_all(&buf[..n])?;
         hash.update(&buf[..n]);
         total += n as u64;
-        progress.set(total as f32 / asset.size.max(1) as f32, "Downloading the update");
+        progress.set(total as f32 / asset.size.max(1) as f32, tr("Downloading the update"));
     }
     file.sync_all()?;
     drop(file);
@@ -328,9 +329,7 @@ rm -rf {app} && mv {staged} {app} && open {app}"#
             let install = if k == Kind::Deb {
                 "apt-get install -y --allow-downgrades \"$1\""
             } else {
-                "if command -v dnf >/dev/null; then dnf install -y \"$1\"; \
-                 elif command -v zypper >/dev/null; then zypper --non-interactive install --allow-unsigned-rpm \"$1\"; \
-                 else rpm -U \"$1\"; fi"
+                "if command -v dnf >/dev/null; then dnf install -y \"$1\"; elif command -v zypper >/dev/null; then zypper --non-interactive install --allow-unsigned-rpm \"$1\"; else rpm -U \"$1\"; fi"
             };
             let sudo = if netmgr::cmd::is_admin() { "" } else { "pkexec " };
             let exe = std::env::current_exe()?;
@@ -396,7 +395,9 @@ impl Updater {
                     self.dialog |= manual;
                 }
                 Ok(None) => self.latest = true,
-                Err(e) if manual => self.error = Some(format!("Could not check for updates: {e:#}")),
+                Err(e) if manual => {
+                    self.error = Some(trf("Could not check for updates: {error}", &[("error", &format!("{e:#}"))]))
+                }
                 Err(e) => log::info!("update check failed: {e:#}"),
             }
         }
@@ -409,7 +410,10 @@ impl Updater {
                     match result.and_then(|file| install(&file)) {
                         Ok(()) => return true,
                         Err(_) if cancelled => {}
-                        Err(e) => self.error = Some(format!("The update could not be installed: {e:#}")),
+                        Err(e) => {
+                            self.error =
+                                Some(trf("The update could not be installed: {error}", &[("error", &format!("{e:#}"))]))
+                        }
                     }
                 }
             }
@@ -425,7 +429,7 @@ impl Updater {
     /// The button that announces an update, for the top bar or the sidebar.
     pub fn button(&mut self, ui: &mut Ui, p: &Palette) {
         let Some(version) = self.available() else { return };
-        let label = format!("{}  Update to {version}", icon::ARROW_CIRCLE_UP);
+        let label = format!("{}  {}", icon::ARROW_CIRCLE_UP, trf("Update to {version}", &[("version", &version)]));
         if theme::primary_button(ui, p, &label, true).clicked() {
             self.dialog = true;
         }
@@ -443,9 +447,9 @@ impl Updater {
             }
             if busy {
                 ui.spinner();
-                ui.label(RichText::new("Checking for updates…").color(p.weak));
+                ui.label(RichText::new(tr("Checking for updates…")).color(p.weak));
             } else if let Some(version) = self.available() {
-                let text = format!("Version {version} is available.");
+                let text = trf("Version {version} is available.", &[("version", &version)]);
                 if ui.link(RichText::new(text).color(p.accent)).clicked() {
                     self.dialog = true;
                 }
@@ -475,12 +479,12 @@ impl Updater {
             ui.set_width(460.0);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(icon::ARROW_CIRCLE_UP).size(26.0).color(p.accent));
-                ui.label(theme::semibold("Update available", 18.0).color(p.text));
+                ui.label(theme::semibold(tr("Update available"), 18.0).color(p.text));
             });
             ui.add_space(8.0);
             theme::paragraph(
                 ui,
-                &format!("Version {} is available. You have version {}.", release.version, current()),
+                &trlf("Version {version} is available. You have version {current}.", &[("version", &release.version), ("current", &current())]),
                 14.5,
                 p.text,
             );
@@ -496,14 +500,14 @@ impl Updater {
                 ui.add(bar);
                 ui.label(
                     RichText::new(match release.asset.as_ref() {
-                        Some(a) => format!("Downloading… {} of {}", format_size((state.fraction.unwrap_or(0.0) as f64 * a.size as f64) as u64), format_size(a.size)),
-                        None => "Downloading…".to_string(),
+                        Some(a) => trf("Downloading… {done} of {total}", &[("done", &format_size((state.fraction.unwrap_or(0.0) as f64 * a.size as f64) as u64)), ("total", &format_size(a.size))]),
+                        None => tr("Downloading…").to_string(),
                     })
                     .color(p.weak),
                 );
                 ui.add_space(8.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if theme::secondary_button(ui, "Cancel").clicked() {
+                    if theme::secondary_button(ui, tr("Cancel")).clicked() {
                         job.stop();
                     }
                 });
@@ -513,19 +517,19 @@ impl Updater {
             if !release.installable() {
                 theme::paragraph(
                     ui,
-                    "This copy of the app was not installed with an installer, so it is updated by downloading the new version.",
+                    trl("This copy of the app was not installed with an installer, so it is updated by downloading the new version."),
                     14.5,
                     p.weak,
                 );
             } else {
-                theme::paragraph(ui, "The app will close, install the update and start again.", 14.5, p.weak);
+                theme::paragraph(ui, trl("The app will close, install the update and start again."), 14.5, p.weak);
                 if cfg!(target_os = "macos") {
-                    theme::paragraph(ui, "macOS may ask for Local Network access again after the update.", 14.5, p.weak);
+                    theme::paragraph(ui, trl("macOS may ask for Local Network access again after the update."), 14.5, p.weak);
                 }
             }
             if busy {
                 ui.add_space(4.0);
-                theme::paragraph(ui, "Finish the current task first.", 14.5, p.warning);
+                theme::paragraph(ui, trl("Finish the current task first."), 14.5, p.warning);
             }
             if let Some(e) = &self.error {
                 ui.add_space(4.0);
@@ -534,16 +538,16 @@ impl Updater {
             ui.add_space(12.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if release.installable() {
-                    if theme::primary_button(ui, p, &format!("  {}  ", "Update now"), !busy).clicked() {
+                    if theme::primary_button(ui, p, &format!("  {}  ", tr("Update now")), !busy).clicked() {
                         self.error = None;
                         let r = release.clone();
                         self.download = Some(Job::spawn(ui.ctx(), move |progress, cancel| download(&r, progress, cancel)));
                     }
-                } else if theme::primary_button(ui, p, &format!("  {}  ", "Open download page"), true).clicked() {
+                } else if theme::primary_button(ui, p, &format!("  {}  ", tr("Open download page")), true).clicked() {
                     ui.ctx().open_url(egui::OpenUrl::new_tab(&release.page));
                     self.dialog = false;
                 }
-                if theme::secondary_button(ui, "Later").clicked() {
+                if theme::secondary_button(ui, tr("Later")).clicked() {
                     self.dialog = false;
                 }
             });

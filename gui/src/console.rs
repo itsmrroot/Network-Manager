@@ -9,6 +9,7 @@ use egui_phosphor::regular as icon;
 use netmgr::console::{self as nc, Flow, Parity, PortInfo, Screen, Session};
 
 use crate::app::Shared;
+use crate::i18n::{tr, trf, trl, trlf};
 use crate::theme::{self, Palette, icon_label};
 
 pub struct Console {
@@ -56,7 +57,7 @@ impl Console {
             && let Err(e) = s.send(bytes)
         {
             self.session = None;
-            sh.fail("The console cable stopped answering.", &e);
+            sh.fail(trl("The console cable stopped answering."), &e);
         }
     }
 
@@ -68,8 +69,8 @@ impl Console {
         theme::page_title(
             ui,
             p,
-            "Console",
-            "Configure switches and routers over a console cable, or open SSH and Telnet sessions.",
+            tr("Console"),
+            tr("Configure switches and routers over a console cable, or open SSH and Telnet sessions."),
         );
         self.toolbar(ui, p, sh);
         ui.add_space(8.0);
@@ -83,7 +84,7 @@ impl Console {
                 let connected = self.session.is_some();
                 ui.add_enabled_ui(!connected, |ui| {
                     let shown = if sh.settings.serial_port.is_empty() {
-                        "Choose a port".to_string()
+                        tr("Choose a port").to_string()
                     } else {
                         sh.settings.serial_port.clone()
                     };
@@ -96,23 +97,23 @@ impl Console {
                             );
                         }
                         if self.ports.is_empty() {
-                            ui.label("No serial ports: plug in the console cable");
+                            ui.label(tr("No serial ports: plug in the console cable"));
                         }
                     });
                     if ui
                         .add(egui::Button::new(icon::ARROWS_CLOCKWISE).frame(false))
-                        .on_hover_text("Look for ports again")
+                        .on_hover_text(tr("Look for ports again"))
                         .clicked()
                     {
                         self.ports = nc::ports();
                     }
                     let s = &mut sh.settings.serial;
                     egui::ComboBox::from_id_salt("baud")
-                        .selected_text(format!("{} baud", s.baud))
+                        .selected_text(trf("{n} baud", &[("n", &s.baud)]))
                         .width(110.0)
                         .show_ui(ui, |ui| {
                             for b in nc::BAUD_RATES {
-                                ui.selectable_value(&mut s.baud, b, format!("{b} baud"));
+                                ui.selectable_value(&mut s.baud, b, trf("{n} baud", &[("n", &b)]));
                             }
                         });
                     let parity = match s.parity {
@@ -139,13 +140,13 @@ impl Console {
                         });
                     egui::ComboBox::from_id_salt("flow")
                         .selected_text(match s.flow {
-                            Flow::None => "No flow control",
+                            Flow::None => tr("No flow control"),
                             Flow::Software => "XON/XOFF",
                             Flow::Hardware => "RTS/CTS",
                         })
                         .width(130.0)
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut s.flow, Flow::None, "No flow control");
+                            ui.selectable_value(&mut s.flow, Flow::None, tr("No flow control"));
                             ui.selectable_value(&mut s.flow, Flow::Software, "XON/XOFF");
                             ui.selectable_value(&mut s.flow, Flow::Hardware, "RTS/CTS");
                         });
@@ -157,16 +158,16 @@ impl Console {
                     }
                     if ui
                         .button(icon_label(icon::LIGHTNING, "Send break"))
-                        .on_hover_text("For password recovery (ROMMON) on Cisco and others")
+                        .on_hover_text(tr("For password recovery (ROMMON) on Cisco and others"))
                         .clicked()
                         && let Some(s) = &self.session
                         && let Err(e) = s.send_break()
                     {
-                        sh.fail("The break could not be sent.", &e);
+                        sh.fail(trl("The break could not be sent."), &e);
                     }
                     if ui
                         .button(icon_label(icon::CLIPBOARD_TEXT, "Paste"))
-                        .on_hover_text("Send the clipboard (for example a configuration)")
+                        .on_hover_text(tr("Send the clipboard (for example a configuration)"))
                         .clicked()
                     {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
@@ -186,20 +187,25 @@ impl Console {
                             self.focused = true;
                             self.screen.feed(
                                 format!(
-                                    "\r\n[Connected to {} at {} baud — press Enter]\r\n",
-                                    sh.settings.serial_port, sh.settings.serial.baud
+                                    "\r\n[{}]\r\n",
+                                    trlf(
+                                        "Connected to {port} at {baud} baud — press Enter",
+                                        &[("port", &sh.settings.serial_port), ("baud", &sh.settings.serial.baud)]
+                                    )
                                 )
                                 .as_bytes(),
                             );
                         }
-                        Err(e) => sh.fail("The port could not be opened.", &e),
+                        Err(e) => sh.fail(trl("The port could not be opened."), &e),
                     }
                 }
                 if ui.button(icon_label(icon::BROOM, "Clear")).clicked() {
                     self.screen = Screen::default();
                 }
                 let logging = self.log.is_some();
-                if ui.button(icon_label(icon::FLOPPY_DISK, if logging { "Stop log" } else { "Log to file…" })).clicked()
+                if ui
+                    .button(icon_label(icon::FLOPPY_DISK, if logging { tr("Stop log") } else { tr("Log to file…") }))
+                    .clicked()
                 {
                     if logging {
                         self.log = None;
@@ -209,7 +215,7 @@ impl Console {
                                 let _ = f.write_all(self.screen.text().as_bytes());
                                 self.log = Some(f);
                             }
-                            Err(e) => sh.fail("The log file could not be created.", &e.into()),
+                            Err(e) => sh.fail(trl("The log file could not be created."), &e.into()),
                         }
                     }
                 }
@@ -219,11 +225,11 @@ impl Console {
                 ui.label(RichText::new(icon::TERMINAL_WINDOW).color(p.accent));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.host)
-                        .hint_text("user@192.168.1.1 or a name")
+                        .hint_text(tr("user@192.168.1.1 or a name"))
                         .desired_width(220.0),
                 );
                 ui.selectable_value(&mut self.telnet, false, "SSH");
-                ui.selectable_value(&mut self.telnet, true, "Telnet");
+                ui.selectable_value(&mut self.telnet, true, tr("Telnet"));
                 if ui
                     .add_enabled(
                         !self.host.trim().is_empty(),
@@ -239,7 +245,7 @@ impl Console {
                     };
                     sh.settings.remember_host(&host);
                     if let Err(e) = nc::open_terminal(&command) {
-                        sh.fail("The terminal could not be opened.", &e);
+                        sh.fail(trl("The terminal could not be opened."), &e);
                     }
                 }
             });
@@ -263,11 +269,11 @@ impl Console {
                 egui::ScrollArea::vertical().auto_shrink(false).stick_to_bottom(true).show(ui, |ui| {
                     if self.screen.lines.is_empty() {
                         let hint = if connected {
-                            "Connected. Click here and type."
+                            tr("Connected. Click here and type.")
                         } else if self.ports.is_empty() {
-                            "Plug in the console cable (USB or a USB-serial adapter); install its driver if the system does not list it, then click ⟳."
+                            tr("Plug in the console cable (USB or a USB-serial adapter); install its driver if the system does not list it, then click ⟳.")
                         } else {
-                            "Choose the port and click Connect. Most switches and routers use 9600 baud, 8N1, no flow control."
+                            tr("Choose the port and click Connect. Most switches and routers use 9600 baud, 8N1, no flow control.")
                         };
                         ui.label(RichText::new(hint).color(p.weak));
                     }

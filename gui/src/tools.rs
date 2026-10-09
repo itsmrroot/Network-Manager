@@ -12,6 +12,7 @@ use netmgr::subnet::Subnet;
 use netmgr::tools::{self as nt, PingStats, PortResult};
 
 use crate::app::Shared;
+use crate::i18n::{tr, tr_dyn, trf, trl};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -121,7 +122,7 @@ impl Tools {
         if let Some(r) = jobs::finished(&mut self.ping)
             && let Err(e) = r
         {
-            sh.fail("Ping could not run.", &e);
+            sh.fail(trl("Ping could not run."), &e);
         }
         if let Some(job) = &self.trace {
             self.trace_lines = job.progress.snapshot().lines;
@@ -129,41 +130,41 @@ impl Tools {
         if let Some(r) = jobs::finished(&mut self.trace)
             && let Err(e) = r
         {
-            sh.fail("Traceroute could not run.", &e);
+            sh.fail(trl("Traceroute could not run."), &e);
         }
         if let Some(r) = jobs::finished(&mut self.dns) {
             match r {
                 Ok(v) => self.dns_results = v,
-                Err(e) => sh.fail("The lookup failed.", &e),
+                Err(e) => sh.fail(trl("The lookup failed."), &e),
             }
         }
         if let Some(r) = jobs::finished(&mut self.port_job) {
             match r {
                 Ok(v) => self.port_results = Some(v),
-                Err(e) => sh.fail("The ports could not be checked.", &e),
+                Err(e) => sh.fail(trl("The ports could not be checked."), &e),
             }
         }
     }
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
-        theme::page_title(ui, p, "Tools", "Everyday network tools, in one place.");
+        theme::page_title(ui, p, tr("Tools"), tr("Everyday network tools, in one place."));
         theme::tabs(
             ui,
             p,
             &mut self.tab,
             &[
-                (Tab::Ping, icon::PULSE, "Ping"),
-                (Tab::Trace, icon::PATH, "Traceroute"),
-                (Tab::Dns, icon::LIST_MAGNIFYING_GLASS, "DNS lookup"),
-                (Tab::Ports, icon::DOOR_OPEN, "Port check"),
-                (Tab::Subnet, icon::CALCULATOR, "Subnet calculator"),
-                (Tab::Wol, icon::POWER, "Wake-on-LAN"),
-                (Tab::MacLookup, icon::FINGERPRINT, "MAC lookup"),
-                (Tab::Web, icon::LOCK, "Web & TLS check"),
+                (Tab::Ping, icon::PULSE, tr("Ping")),
+                (Tab::Trace, icon::PATH, tr("Traceroute")),
+                (Tab::Dns, icon::LIST_MAGNIFYING_GLASS, tr("DNS lookup")),
+                (Tab::Ports, icon::DOOR_OPEN, tr("Port check")),
+                (Tab::Subnet, icon::CALCULATOR, tr("Subnet calculator")),
+                (Tab::Wol, icon::POWER, tr("Wake-on-LAN")),
+                (Tab::MacLookup, icon::FINGERPRINT, tr("MAC lookup")),
+                (Tab::Web, icon::LOCK, tr("Web & TLS check")),
                 (Tab::Whois, icon::IDENTIFICATION_CARD, "WHOIS"),
-                (Tab::Connections, icon::PLUGS, "Connections"),
-                (Tab::Routes, icon::SIGNPOST, "Routes"),
-                (Tab::Hosts, icon::NOTE_PENCIL, "Hosts file"),
+                (Tab::Connections, icon::PLUGS, tr("Connections")),
+                (Tab::Routes, icon::SIGNPOST, tr("Routes")),
+                (Tab::Hosts, icon::NOTE_PENCIL, tr("Hosts file")),
             ],
         );
         ui.add_space(10.0);
@@ -189,14 +190,14 @@ impl Tools {
         let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
         let mut picks: Vec<(String, String)> = Vec::new();
         if let Some(g) = sh.default_adapter().and_then(|a| a.gateway) {
-            picks.push((format!("Router ({g})"), g.to_string()));
+            picks.push((trf("Router ({address})", &[("address", &g)]), g.to_string()));
         }
-        picks.push(("Cloudflare (1.1.1.1)".into(), "1.1.1.1".into()));
-        picks.push(("Google (google.com)".into(), "google.com".into()));
+        picks.push((tr("Cloudflare (1.1.1.1)").into(), "1.1.1.1".into()));
+        picks.push((tr("Google (google.com)").into(), "google.com".into()));
         for h in &sh.settings.recent_hosts {
             picks.push((h.clone(), h.clone()));
         }
-        egui::ComboBox::from_id_salt("host-picks").selected_text("Recent").width(110.0).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("host-picks").selected_text(tr("Recent")).width(110.0).show_ui(ui, |ui| {
             for (label, value) in picks {
                 if ui.selectable_label(false, label).clicked() {
                     self.host = value;
@@ -209,9 +210,9 @@ impl Tools {
     fn ping_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         let mut start = false;
         ui.horizontal(|ui| {
-            start = self.host_field(ui, sh, "Address or name, e.g. 192.168.1.1");
-            ui.add(egui::DragValue::new(&mut sh.settings.ping_count).range(0..=1000).prefix("Count: "))
-                .on_hover_text("0 pings until you click Stop");
+            start = self.host_field(ui, sh, tr("Address or name, e.g. 192.168.1.1"));
+            ui.add(egui::DragValue::new(&mut sh.settings.ping_count).range(0..=1000).prefix(tr("Count: ")))
+                .on_hover_text(tr("0 pings until you click Stop"));
             if let Some(job) = &self.ping {
                 if theme::danger_button(ui, p, &icon_label(icon::STOP, "Stop")).clicked() {
                     job.stop();
@@ -240,13 +241,13 @@ impl Tools {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 40.0;
                 let ms = |v: Option<f64>| v.map_or("—".to_string(), |v| format!("{v:.1} ms"));
-                theme::stat(ui, p, "Sent", &stats.sent.to_string());
-                theme::stat(ui, p, "Received", &stats.received.to_string());
-                theme::stat(ui, p, "Lost", &format!("{:.0} %", stats.loss_percent()));
-                theme::stat(ui, p, "Fastest", &ms(stats.min()));
-                theme::stat(ui, p, "Average", &ms(stats.avg()));
-                theme::stat(ui, p, "Slowest", &ms(stats.max()));
-                theme::stat(ui, p, "Jitter", &ms(stats.jitter()));
+                theme::stat(ui, p, tr("Sent"), &stats.sent.to_string());
+                theme::stat(ui, p, tr("Received"), &stats.received.to_string());
+                theme::stat(ui, p, tr("Lost"), &format!("{:.0} %", stats.loss_percent()));
+                theme::stat(ui, p, tr("Fastest"), &ms(stats.min()));
+                theme::stat(ui, p, tr("Average"), &ms(stats.avg()));
+                theme::stat(ui, p, tr("Slowest"), &ms(stats.max()));
+                theme::stat(ui, p, tr("Jitter"), &ms(stats.jitter()));
             });
             ui.add_space(8.0);
             let times: Vec<f64> = stats.times.iter().rev().take(120).rev().copied().collect();
@@ -254,13 +255,13 @@ impl Tools {
             theme::sparkline(ui, &times, p.accent, Vec2::new(w, 70.0), None);
         });
         ui.add_space(10.0);
-        console(ui, p, &self.ping_lines, self.ping.is_some(), "Results appear here.");
+        console(ui, p, &self.ping_lines, self.ping.is_some(), tr("Results appear here."));
     }
 
     fn trace_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         let mut start = false;
         ui.horizontal(|ui| {
-            start = self.host_field(ui, sh, "Address or name, e.g. google.com");
+            start = self.host_field(ui, sh, tr("Address or name, e.g. google.com"));
             if let Some(job) = &self.trace {
                 if theme::danger_button(ui, p, &icon_label(icon::STOP, "Stop")).clicked() {
                     job.stop();
@@ -281,12 +282,14 @@ impl Tools {
         ui.add_space(6.0);
         theme::paragraph(
             ui,
-            "Shows every router between this computer and the address, and how long each takes to answer. * means a router did not answer, which is often normal.",
+            trl(
+                "Shows every router between this computer and the address, and how long each takes to answer. * means a router did not answer, which is often normal.",
+            ),
             12.5,
             p.weak,
         );
         ui.add_space(8.0);
-        console(ui, p, &self.trace_lines, self.trace.is_some(), "The route appears here, one router per line.");
+        console(ui, p, &self.trace_lines, self.trace.is_some(), tr("The route appears here, one router per line."));
     }
 
     fn dns_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
@@ -300,7 +303,7 @@ impl Tools {
         ui.horizontal(|ui| {
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.dns_name)
-                    .hint_text("Name, e.g. example.com (or an IP for PTR)")
+                    .hint_text(tr("Name, e.g. example.com (or an IP for PTR)"))
                     .desired_width(280.0),
             );
             start |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -312,17 +315,20 @@ impl Tools {
                     }
                 },
             );
-            ui.label(RichText::new("at").color(p.weak));
-            let shown =
-                if self.dns_server.is_empty() { "This computer's DNS".to_string() } else { self.dns_server.clone() };
+            ui.label(RichText::new(tr("at")).color(p.weak));
+            let shown = if self.dns_server.is_empty() {
+                tr("This computer's DNS").to_string()
+            } else {
+                self.dns_server.clone()
+            };
             egui::ComboBox::from_id_salt("dns-server").selected_text(shown).width(170.0).show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.dns_server, String::new(), "This computer's DNS");
+                ui.selectable_value(&mut self.dns_server, String::new(), tr("This computer's DNS"));
                 for (n, ip) in dns::PUBLIC_RESOLVERS {
                     ui.selectable_value(&mut self.dns_server, ip.to_string(), format!("{n} ({ip})"));
                 }
             });
-            ui.checkbox(&mut self.dns_compare, "Compare with public DNS")
-                .on_hover_text("Ask Cloudflare, Google, Quad9 and OpenDNS too — handy after changing a record");
+            ui.checkbox(&mut self.dns_compare, tr("Compare with public DNS"))
+                .on_hover_text(tr("Ask Cloudflare, Google, Quad9 and OpenDNS too — handy after changing a record"));
             if self.dns.is_some() {
                 ui.spinner();
             } else if theme::primary_button(
@@ -342,10 +348,10 @@ impl Tools {
                 Ok(ip) => servers.push((ip.to_string(), ip)),
                 Err(_) => {
                     if let Some(s) = system.first() {
-                        servers.push((format!("This computer ({s})"), *s));
+                        servers.push((trf("This computer ({address})", &[("address", s)]), *s));
                     } else {
                         servers.push((
-                            "Cloudflare (1.1.1.1)".into(),
+                            tr("Cloudflare (1.1.1.1)").into(),
                             "1.1.1.1".parse().unwrap_or(IpAddr::from([1, 1, 1, 1])),
                         ));
                     }
@@ -386,7 +392,7 @@ impl Tools {
             if self.dns_results.is_empty() {
                 theme::card(ui, p, |ui| {
                     ui.set_width(ui.available_width());
-                    theme::paragraph(ui, "Looks up the records of a name directly at a DNS server: addresses (A, AAAA), mail servers (MX), text records (TXT), name servers (NS) and more.", 14.0, p.weak);
+                    theme::paragraph(ui, trl("Looks up the records of a name directly at a DNS server: addresses (A, AAAA), mail servers (MX), text records (TXT), name servers (NS) and more."), 14.0, p.weak);
                 });
             }
             let mut copied = false;
@@ -402,13 +408,13 @@ impl Tools {
                                 ui.label(RichText::new(format!("{} ms", a.millis)).color(p.weak).size(13.0));
                             }
                             Err(_) => {
-                                theme::pill(ui, p, "No answer", p.danger);
+                                theme::pill(ui, p, tr("No answer"), p.danger);
                             }
                         }
                     });
                     match r {
                         Ok(a) if a.records.is_empty() => {
-                            ui.label(RichText::new(if a.status == "NXDOMAIN" { "This name does not exist." } else { "No records of this type." }).color(p.weak));
+                            ui.label(RichText::new(if a.status == "NXDOMAIN" { tr("This name does not exist.") } else { tr("No records of this type.") }).color(p.weak));
                         }
                         Ok(a) => {
                             egui::Grid::new(("dns", label)).num_columns(3).spacing([18.0, 4.0]).show(ui, |ui| {
@@ -416,7 +422,7 @@ impl Tools {
                                     ui.label(RichText::new(&rec.kind).monospace().color(p.accent));
                                     ui.label(RichText::new(format!("{}s", rec.ttl)).color(p.weak).size(12.5));
                                     let resp = ui.add(egui::Label::new(RichText::new(&rec.data).monospace().color(p.text)).sense(egui::Sense::click()));
-                                    if resp.on_hover_text("Click to copy").clicked() {
+                                    if resp.on_hover_text(tr("Click to copy")).clicked() {
                                         ui.ctx().copy_text(rec.data.clone());
                                         copied = true;
                                     }
@@ -432,7 +438,7 @@ impl Tools {
                 ui.add_space(8.0);
             }
             if copied {
-                sh.toast("Copied.");
+                sh.toast(tr("Copied."));
             }
         });
     }
@@ -440,7 +446,7 @@ impl Tools {
     fn ports_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         let mut start = false;
         ui.horizontal(|ui| {
-            start = self.host_field(ui, sh, "Address or name");
+            start = self.host_field(ui, sh, tr("Address or name"));
             if let Some(job) = &self.port_job {
                 if theme::danger_button(ui, p, &icon_label(icon::STOP, "Stop")).clicked() {
                     job.stop();
@@ -452,17 +458,17 @@ impl Tools {
             }
         });
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Ports").color(p.weak));
+            ui.label(RichText::new(tr("Ports")).color(p.weak));
             ui.add(
                 egui::TextEdit::singleline(&mut self.ports).hint_text("22, 80, 443, 8000-8100").desired_width(360.0),
             );
-            egui::ComboBox::from_id_salt("port-presets").selected_text("Presets").width(110.0).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("port-presets").selected_text(tr("Presets")).width(110.0).show_ui(ui, |ui| {
                 for (name, list) in nt::PORT_PRESETS {
-                    if ui.selectable_label(false, *name).clicked() {
+                    if ui.selectable_label(false, tr_dyn(name)).clicked() {
                         self.ports = list.to_string();
                     }
                 }
-                if ui.selectable_label(false, "First 1024").clicked() {
+                if ui.selectable_label(false, tr("First 1024")).clicked() {
                     self.ports = "1-1024".into();
                 }
             });
@@ -493,7 +499,9 @@ impl Tools {
             let Some((ip, results)) = &self.port_results else {
                 theme::paragraph(
                     ui,
-                    "Checks which services of a device or server accept connections (TCP). Only check devices you own or may test.",
+                    trl(
+                        "Checks which services of a device or server accept connections (TCP). Only check devices you own or may test.",
+                    ),
                     14.0,
                     p.weak,
                 );
@@ -502,11 +510,17 @@ impl Tools {
             let open: Vec<&PortResult> = results.iter().filter(|r| r.open).collect();
             ui.horizontal(|ui| {
                 ui.label(
-                    theme::semibold(format!("{} of {} ports open on {ip}", open.len(), results.len()), 16.0)
-                        .color(p.text),
+                    theme::semibold(
+                        trf(
+                            "{open} of {total} ports open on {address}",
+                            &[("open", &open.len()), ("total", &results.len()), ("address", ip)],
+                        ),
+                        16.0,
+                    )
+                    .color(p.text),
                 );
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.checkbox(&mut self.show_closed, "Show closed");
+                    ui.checkbox(&mut self.show_closed, tr("Show closed"));
                 });
             });
             ui.add_space(6.0);
@@ -515,9 +529,9 @@ impl Tools {
                     for r in results.iter().filter(|r| r.open || self.show_closed) {
                         ui.label(RichText::new(r.port.to_string()).monospace().color(p.text));
                         if r.open {
-                            theme::pill(ui, p, "Open", p.success);
+                            theme::pill(ui, p, tr("Open"), p.success);
                         } else {
-                            theme::pill(ui, p, "Closed", p.weak);
+                            theme::pill(ui, p, tr("Closed"), p.weak);
                         }
                         ui.label(RichText::new(r.service).color(p.weak));
                         ui.label(
@@ -541,7 +555,7 @@ impl Tools {
         ui.horizontal(|ui| {
             ui.add(
                 egui::TextEdit::singleline(&mut self.subnet)
-                    .hint_text("192.168.1.10/24 or 10.0.0.5 255.255.0.0")
+                    .hint_text(tr("192.168.1.10/24 or 10.0.0.5 255.255.0.0"))
                     .desired_width(320.0),
             );
         });
@@ -556,18 +570,24 @@ impl Tools {
                 Ok(s) => {
                     let mut copied = false;
                     egui::Grid::new("subnet").num_columns(2).spacing([28.0, 8.0]).show(ui, |ui| {
-                        copied |= theme::info_row(ui, p, "Network", &format!("{}/{}", s.network, s.prefix), true);
-                        copied |= theme::info_row(ui, p, "Subnet mask", &s.mask.to_string(), true);
-                        copied |= theme::info_row(ui, p, "Wildcard", &s.wildcard.to_string(), true);
-                        copied |= theme::info_row(ui, p, "Broadcast", &s.broadcast.to_string(), true);
+                        copied |= theme::info_row(ui, p, tr("Network"), &format!("{}/{}", s.network, s.prefix), true);
+                        copied |= theme::info_row(ui, p, tr("Subnet mask"), &s.mask.to_string(), true);
+                        copied |= theme::info_row(ui, p, tr("Wildcard"), &s.wildcard.to_string(), true);
+                        copied |= theme::info_row(ui, p, tr("Broadcast"), &s.broadcast.to_string(), true);
                         copied |=
-                            theme::info_row(ui, p, "Usable addresses", &format!("{} – {}", s.first, s.last), true);
-                        copied |= theme::info_row(ui, p, "Number of hosts", &s.hosts.to_string(), false);
-                        copied |= theme::info_row(ui, p, "Mask in binary", &s.mask_binary(), true);
-                        copied |= theme::info_row(ui, p, "Kind", &format!("{}, class {}", s.scope(), s.class()), false);
+                            theme::info_row(ui, p, tr("Usable addresses"), &format!("{} – {}", s.first, s.last), true);
+                        copied |= theme::info_row(ui, p, tr("Number of hosts"), &s.hosts.to_string(), false);
+                        copied |= theme::info_row(ui, p, tr("Mask in binary"), &s.mask_binary(), true);
+                        copied |= theme::info_row(
+                            ui,
+                            p,
+                            tr("Kind"),
+                            &trf("{scope}, class {class}", &[("scope", &tr_dyn(s.scope())), ("class", &s.class())]),
+                            false,
+                        );
                     });
                     if copied {
-                        sh.toast("Copied.");
+                        sh.toast(tr("Copied."));
                     }
                 }
             }
@@ -582,11 +602,14 @@ impl Tools {
                     self.split = (s.prefix + 2).min(32);
                 }
                 ui.horizontal(|ui| {
-                    ui.label(theme::semibold("Split into", 15.0).color(p.text));
+                    ui.label(theme::semibold(tr("Split into"), 15.0).color(p.text));
                     ui.add(egui::Slider::new(&mut self.split, (s.prefix + 1)..=32).prefix("/"));
                     let count = 1u64 << (self.split - s.prefix);
                     let each = Subnet::new(s.network, self.split).map(|x| x.hosts).unwrap_or(0);
-                    ui.label(RichText::new(format!("{count} subnets of {each} hosts")).color(p.weak));
+                    ui.label(
+                        RichText::new(trf("{count} subnets of {each} hosts", &[("count", &count), ("each", &each)]))
+                            .color(p.weak),
+                    );
                 });
                 if let Ok(parts) = s.split(self.split, 256) {
                     egui::ScrollArea::vertical().max_height(ui.available_height().max(120.0)).show(ui, |ui| {
@@ -597,7 +620,7 @@ impl Tools {
                                 );
                                 ui.label(RichText::new(format!("{} – {}", x.first, x.last)).monospace().color(p.weak));
                                 ui.label(
-                                    RichText::new(format!("broadcast {}", x.broadcast))
+                                    RichText::new(trf("broadcast {address}", &[("address", &x.broadcast)]))
                                         .monospace()
                                         .color(p.weak)
                                         .size(12.5),
@@ -606,7 +629,7 @@ impl Tools {
                             }
                         });
                         if (1u64 << (self.split - s.prefix)) > 256 {
-                            ui.label(RichText::new("The first 256 are shown.").color(p.weak).size(12.5));
+                            ui.label(RichText::new(tr("The first 256 are shown.")).color(p.weak).size(12.5));
                         }
                     });
                 }
@@ -619,21 +642,23 @@ impl Tools {
             ui.set_width(ui.available_width());
             theme::paragraph(
                 ui,
-                "Turns on a computer over the network. Wake-on-LAN must be enabled in its BIOS/UEFI and network adapter settings, and it must be connected by cable.",
+                trl(
+                    "Turns on a computer over the network. Wake-on-LAN must be enabled in its BIOS/UEFI and network adapter settings, and it must be connected by cable.",
+                ),
                 14.0,
                 p.weak,
             );
             ui.add_space(10.0);
             egui::Grid::new("wol").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-                ui.label("MAC address");
+                ui.label(tr("MAC address"));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.wol_mac).hint_text("AA:BB:CC:DD:EE:FF").desired_width(220.0),
                 );
                 ui.end_row();
-                ui.label("Send to");
+                ui.label(tr("Send to"));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.wol_ip)
-                        .hint_text("optional: broadcast or host IP")
+                        .hint_text(tr("optional: broadcast or host IP"))
                         .desired_width(220.0),
                 );
                 ui.end_row();
@@ -645,8 +670,8 @@ impl Tools {
             {
                 let target = self.wol_ip.trim().parse().ok();
                 match nt::wake(m, target) {
-                    Ok(()) => sh.toast(format!("Wake-on-LAN sent to {m}.")),
-                    Err(e) => sh.fail("The packet could not be sent.", &e),
+                    Ok(()) => sh.toast(trf("Wake-on-LAN sent to {mac}.", &[("mac", &m)])),
+                    Err(e) => sh.fail(trl("The packet could not be sent."), &e),
                 }
             }
         });
@@ -655,7 +680,7 @@ impl Tools {
     fn mac_tab(&mut self, ui: &mut Ui, p: &Palette) {
         ui.add(
             egui::TextEdit::singleline(&mut self.lookup)
-                .hint_text("A MAC address, e.g. B8:27:EB:12:34:56")
+                .hint_text(tr("A MAC address, e.g. B8:27:EB:12:34:56"))
                 .desired_width(320.0),
         );
         ui.add_space(10.0);
@@ -664,40 +689,46 @@ impl Tools {
             match self.lookup.parse::<Mac>() {
                 Err(_) if self.lookup.trim().is_empty() => theme::paragraph(
                     ui,
-                    "Finds the maker of a network device from the first half of its MAC address (IEEE registry, built in — nothing is sent anywhere).",
+                    trl(
+                        "Finds the maker of a network device from the first half of its MAC address (IEEE registry, built in — nothing is sent anywhere).",
+                    ),
                     14.0,
                     p.weak,
                 ),
                 Err(_) => {
-                    ui.label(RichText::new("Write it as 6 pairs of hex digits.").color(p.warning));
+                    ui.label(RichText::new(tr("Write it as 6 pairs of hex digits.")).color(p.warning));
                 }
                 Ok(m) => {
                     egui::Grid::new("maclookup").num_columns(2).spacing([24.0, 8.0]).show(ui, |ui| {
-                        theme::info_row(ui, p, "Address", &m.to_string(), true);
+                        theme::info_row(ui, p, tr("Address"), &m.to_string(), true);
                         let maker = if m.is_local() {
-                            "None: a private or made-up address".to_string()
+                            tr("None: a private or made-up address").to_string()
                         } else {
-                            m.vendor().unwrap_or("Not in the registry").to_string()
+                            m.vendor().unwrap_or(tr("Not in the registry")).to_string()
                         };
-                        theme::info_row(ui, p, "Maker", &maker, false);
+                        theme::info_row(ui, p, tr("Maker"), &maker, false);
                         theme::info_row(
                             ui,
                             p,
-                            "Kind",
-                            if m.is_multicast() { "Multicast (a group, not a device)" } else { "Unicast (one device)" },
+                            tr("Kind"),
+                            if m.is_multicast() {
+                                tr("Multicast (a group, not a device)")
+                            } else {
+                                tr("Unicast (one device)")
+                            },
                             false,
                         );
                         theme::info_row(
                             ui,
                             p,
-                            "Assigned",
-                            if m.is_local() { "Locally, by software" } else { "By the manufacturer" },
+                            tr("Assigned"),
+                            if m.is_local() { tr("Locally, by software") } else { tr("By the manufacturer") },
                             false,
                         );
                         theme::info_row(
                             ui,
                             p,
-                            "Other forms",
+                            tr("Other forms"),
                             &format!("{}\n{}\n{}", m.dashes(), m.plain(), cisco(m)),
                             true,
                         );

@@ -9,6 +9,7 @@ use egui_phosphor::regular as icon;
 use netmgr::wifi::{self, Connection, Nearby, SavedNetwork};
 
 use crate::app::Shared;
+use crate::i18n::{tr, tr_dyn, trf, trl};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -67,8 +68,8 @@ impl WifiPage {
         theme::page_title(
             ui,
             p,
-            "Wi-Fi",
-            "The network you are on, saved networks with their passwords, and the networks around you.",
+            tr("Wi-Fi"),
+            tr("The network you are on, saved networks with their passwords, and the networks around you."),
         );
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             self.current(ui, p, sh);
@@ -77,7 +78,7 @@ impl WifiPage {
                 ui,
                 p,
                 &mut self.tab,
-                &[(Tab::Saved, icon::KEY, "Saved networks"), (Tab::Nearby, icon::BROADCAST, "Nearby networks")],
+                &[(Tab::Saved, icon::KEY, tr("Saved networks")), (Tab::Nearby, icon::BROADCAST, tr("Nearby networks"))],
             );
             ui.add_space(8.0);
             match self.tab {
@@ -100,7 +101,7 @@ impl WifiPage {
                 Ok(list) => self.saved = Some(list),
                 Err(e) => {
                     self.saved = Some(Vec::new());
-                    sh.fail("The saved networks could not be read.", &e);
+                    sh.fail(trl("The saved networks could not be read."), &e);
                 }
             }
         }
@@ -113,7 +114,7 @@ impl WifiPage {
                     }
                     self.revealed.insert(ssid);
                 }
-                Err(e) => sh.fail("The password could not be read.", &e),
+                Err(e) => sh.fail(trl("The password could not be read."), &e),
             }
         }
         if let Some(r) = jobs::finished(&mut self.nearby_job) {
@@ -121,14 +122,14 @@ impl WifiPage {
                 Ok(list) => self.nearby = Some(list),
                 Err(e) => {
                     self.nearby = Some(Vec::new());
-                    sh.fail("The networks around could not be listed.", &e);
+                    sh.fail(trl("The networks around could not be listed."), &e);
                 }
             }
         }
         if let Some(r) = jobs::finished(&mut self.reveal_job) {
             match r {
                 Ok(v) => self.revealed_ssid = Some(v),
-                Err(e) => sh.fail("The network name could not be read.", &e),
+                Err(e) => sh.fail(trl("The network name could not be read."), &e),
             }
         }
     }
@@ -143,10 +144,10 @@ impl WifiPage {
                     ui.vertical(|ui| {
                         ui.add_space(6.0);
                         if sh.wifi_loaded {
-                            ui.label(theme::semibold("Not connected to Wi-Fi", 19.0).color(p.text));
-                            ui.label(RichText::new("Join a network from the system's Wi-Fi menu.").color(p.weak));
+                            ui.label(theme::semibold(tr("Not connected to Wi-Fi"), 19.0).color(p.text));
+                            ui.label(RichText::new(tr("Join a network from the system's Wi-Fi menu.")).color(p.weak));
                         } else {
-                            ui.label(theme::semibold("Reading Wi-Fi…", 19.0).color(p.text));
+                            ui.label(theme::semibold(tr("Reading Wi-Fi…"), 19.0).color(p.text));
                         }
                     });
                 });
@@ -186,11 +187,11 @@ impl WifiPage {
                             }
                             None => {
                                 ui.horizontal(|ui| {
-                                    ui.label(theme::semibold("Name hidden by macOS", 19.0).color(p.text));
+                                    ui.label(theme::semibold(tr("Name hidden by macOS"), 19.0).color(p.text));
                                     let busy = self.reveal_job.is_some();
                                     if ui
                                         .add_enabled(!busy, egui::Button::new(icon_label(icon::EYE, "Show name")))
-                                        .on_hover_text("macOS asks for your password")
+                                        .on_hover_text(tr("macOS asks for your password"))
                                         .clicked()
                                     {
                                         self.reveal_job = Some(Job::spawn(ui.ctx(), |_, _| wifi::reveal_ssid()));
@@ -205,7 +206,7 @@ impl WifiPage {
                             if let Some(q) = c.quality() {
                                 theme::signal_bars(ui, p, q, 15.0);
                                 ui.label(
-                                    RichText::new(format!("{} · {q} %", wifi::quality_label(q)))
+                                    RichText::new(format!("{} · {q} %", tr_dyn(wifi::quality_label(q))))
                                         .color(p.weak)
                                         .size(13.5),
                                 );
@@ -225,18 +226,21 @@ impl WifiPage {
                         _ => dash(),
                     };
                     let signal = match (c.rssi, c.noise) {
-                        (Some(r), Some(n)) => format!("{r} dBm (noise {n} dBm, SNR {} dB)", r - n),
+                        (Some(r), Some(n)) => trf(
+                            "{rssi} dBm (noise {noise} dBm, SNR {snr} dB)",
+                            &[("rssi", &r), ("noise", &n), ("snr", &(r - n))],
+                        ),
                         (Some(r), None) => format!("{r} dBm"),
                         _ => c.signal.map_or_else(dash, |s| format!("{s} %")),
                     };
                     let cells = [
-                        ("Channel", ch),
-                        ("Signal", signal),
-                        ("Security", c.security.clone().unwrap_or_else(dash)),
-                        ("Standard", c.standard.clone().unwrap_or_else(dash)),
-                        ("Link rate", c.rate_mbps.map_or_else(dash, |r| format!("{r:.0} Mbit/s"))),
+                        (tr("Channel"), ch),
+                        (tr("Signal"), signal),
+                        (tr("Security"), c.security.clone().unwrap_or_else(dash)),
+                        (tr("Standard"), c.standard.clone().unwrap_or_else(dash)),
+                        (tr("Link rate"), c.rate_mbps.map_or_else(dash, |r| format!("{r:.0} Mbit/s"))),
                         (
-                            "Access point",
+                            tr("Access point"),
                             c.bssid.clone().map_or_else(dash, |b| {
                                 let vendor = b.parse::<netmgr::mac::Mac>().ok().and_then(|m| m.vendor());
                                 vendor.map_or(b.clone(), |v| format!("{b} ({v})"))
@@ -247,7 +251,7 @@ impl WifiPage {
                         for (k, v) in pair {
                             ui.label(RichText::new(*k).color(p.weak).size(13.5));
                             let r = ui.add(egui::Label::new(RichText::new(v).color(p.text)).sense(Sense::click()));
-                            if r.on_hover_text("Click to copy").clicked() {
+                            if r.on_hover_text(tr("Click to copy")).clicked() {
                                 ui.ctx().copy_text(v.clone());
                                 copied = true;
                             }
@@ -256,7 +260,7 @@ impl WifiPage {
                     }
                 });
                 if copied {
-                    sh.toast("Copied.");
+                    sh.toast(tr("Copied."));
                 }
                 if let Some(ssid) = c.ssid.clone()
                     && let Some(n) = self.saved.iter().flatten().find(|n| n.ssid == ssid).cloned()
@@ -308,12 +312,12 @@ impl WifiPage {
             ui.horizontal(|ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.search)
-                        .hint_text(format!("{}  Search networks", icon::MAGNIFYING_GLASS))
+                        .hint_text(format!("{}  {}", icon::MAGNIFYING_GLASS, tr("Search networks")))
                         .desired_width(240.0),
                 );
                 let list = self.saved.clone().unwrap_or_default();
                 if !cfg!(target_os = "macos") {
-                    let label = if self.show_all { "Hide passwords" } else { "Show all passwords" };
+                    let label = if self.show_all { tr("Hide passwords") } else { tr("Show all passwords") };
                     if ui.button(icon_label(if self.show_all { icon::EYE_SLASH } else { icon::EYE }, label)).clicked() {
                         self.show_all = !self.show_all;
                     }
@@ -322,7 +326,7 @@ impl WifiPage {
                     && list.iter().any(|n| !n.password_read)
                     && ui
                         .button(icon_label(icon::LOCK_OPEN, "Read with password"))
-                        .on_hover_text("Some passwords are only readable by administrators")
+                        .on_hover_text(tr("Some passwords are only readable by administrators"))
                         .clicked()
                 {
                     self.saved_job = Some(Job::spawn(ui.ctx(), |_, _| wifi::saved_as_admin()));
@@ -330,7 +334,7 @@ impl WifiPage {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if ui
                         .add_enabled(!list.is_empty(), egui::Button::new(icon_label(icon::EXPORT, "Export…")))
-                        .on_hover_text("Save names and passwords to a CSV file")
+                        .on_hover_text(tr("Save names and passwords to a CSV file"))
                         .clicked()
                     {
                         export(&list, sh);
@@ -344,7 +348,7 @@ impl WifiPage {
             let Some(list) = self.saved.clone() else {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(RichText::new("Reading saved networks…").color(p.weak));
+                    ui.label(RichText::new(tr("Reading saved networks…")).color(p.weak));
                 });
                 return;
             };
@@ -352,7 +356,7 @@ impl WifiPage {
                 ui.spinner();
             }
             if list.is_empty() {
-                theme::paragraph(ui, "No saved Wi-Fi networks.", 14.0, p.weak);
+                theme::paragraph(ui, trl("No saved Wi-Fi networks."), 14.0, p.weak);
                 return;
             }
             let q = self.search.to_lowercase();
@@ -373,7 +377,7 @@ impl WifiPage {
                 .column(Column::remainder().at_least(180.0).clip(true))
                 .column(Column::exact(110.0))
                 .header(26.0, |mut h| {
-                    for t in ["Network", "Security", "Password", ""] {
+                    for t in [tr("Network"), tr("Security"), tr("Password"), ""] {
                         h.col(|ui| {
                             ui.label(RichText::new(t).color(p.weak).size(13.0));
                         });
@@ -391,7 +395,7 @@ impl WifiPage {
                                 }));
                                 ui.label(RichText::new(&n.ssid).color(p.text));
                                 if current.contains(&n.ssid) {
-                                    theme::pill(ui, p, "Connected", p.success);
+                                    theme::pill(ui, p, tr("Connected"), p.success);
                                 }
                             });
                         });
@@ -403,7 +407,7 @@ impl WifiPage {
                             let text = match (&n.password, n.password_read) {
                                 (Some(pw), _) if visible => RichText::new(pw).monospace().color(p.text),
                                 (Some(_), _) => RichText::new("••••••••••").color(p.weak),
-                                (None, true) => RichText::new("No password").color(p.weak).italics(),
+                                (None, true) => RichText::new(tr("No password")).color(p.weak).italics(),
                                 (None, false) => RichText::new("••••••••••").color(p.weak),
                             };
                             ui.label(text);
@@ -414,7 +418,7 @@ impl WifiPage {
                                 let eye = if visible && n.password.is_some() { icon::EYE_SLASH } else { icon::EYE };
                                 if ui
                                     .add(egui::Button::new(eye).frame(false))
-                                    .on_hover_text("Show or hide the password")
+                                    .on_hover_text(tr("Show or hide the password"))
                                     .clicked()
                                 {
                                     actions.push((n.clone(), "toggle"));
@@ -422,7 +426,7 @@ impl WifiPage {
                                 if n.password.is_some()
                                     && ui
                                         .add(egui::Button::new(icon::COPY).frame(false))
-                                        .on_hover_text("Copy the password")
+                                        .on_hover_text(tr("Copy the password"))
                                         .clicked()
                                 {
                                     ui.ctx().copy_text(n.password.clone().unwrap_or_default());
@@ -430,7 +434,7 @@ impl WifiPage {
                                 }
                                 if ui
                                     .add(egui::Button::new(icon::QR_CODE).frame(false))
-                                    .on_hover_text("QR code for phones")
+                                    .on_hover_text(tr("QR code for phones"))
                                     .clicked()
                                 {
                                     actions.push((n.clone(), "qr"));
@@ -448,7 +452,7 @@ impl WifiPage {
                             self.show_password(ui.ctx(), &n);
                         }
                     }
-                    "copied" => sh.toast(format!("Password of {} copied.", n.ssid)),
+                    "copied" => sh.toast(trf("Password of {network} copied.", &[("network", &n.ssid)])),
                     _ => self.open_qr(ui.ctx(), &n),
                 }
             }
@@ -456,20 +460,22 @@ impl WifiPage {
                 ui.horizontal(|ui| {
                     ui.spinner();
                     let msg = if cfg!(target_os = "macos") {
-                        "macOS asks for your name and password to show it…"
+                        tr("macOS asks for your name and password to show it…")
                     } else {
-                        "Reading the password…"
+                        tr("Reading the password…")
                     };
                     ui.label(RichText::new(msg).color(p.weak));
                 });
             }
             ui.add_space(6.0);
             let note = if cfg!(target_os = "macos") {
-                "macOS keeps Wi-Fi passwords in its keychain and asks for your password before showing each one."
+                trl("macOS keeps Wi-Fi passwords in its keychain and asks for your password before showing each one.")
             } else if cfg!(windows) {
-                "Passwords are read from the Wi-Fi profiles Windows keeps. Only the networks this computer joined are listed."
+                trl(
+                    "Passwords are read from the Wi-Fi profiles Windows keeps. Only the networks this computer joined are listed.",
+                )
             } else {
-                "Passwords are read from NetworkManager. Some may need your password to be shown."
+                trl("Passwords are read from NetworkManager. Some may need your password to be shown.")
             };
             theme::paragraph(ui, note, 12.5, p.weak);
         });
@@ -480,7 +486,7 @@ impl WifiPage {
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                theme::section_title(ui, p, icon::BROADCAST, "Networks around you");
+                theme::section_title(ui, p, icon::BROADCAST, tr("Networks around you"));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if self.nearby_job.is_some() {
                         ui.spinner();
@@ -490,11 +496,11 @@ impl WifiPage {
                 });
             });
             let Some(list) = list else {
-                ui.label(RichText::new("Looking for networks…").color(p.weak));
+                ui.label(RichText::new(tr("Looking for networks…")).color(p.weak));
                 return;
             };
             if list.is_empty() {
-                theme::paragraph(ui, "No networks found. Is Wi-Fi turned on?", 14.0, p.weak);
+                theme::paragraph(ui, trl("No networks found. Is Wi-Fi turned on?"), 14.0, p.weak);
                 return;
             }
             channel_chart(ui, p, &list);
@@ -509,7 +515,7 @@ impl WifiPage {
                 .column(Column::exact(80.0))
                 .column(Column::remainder().at_least(120.0).clip(true))
                 .header(26.0, |mut h| {
-                    for t in ["Network", "Signal", "Channel", "Band", "Security"] {
+                    for t in [tr("Network"), tr("Signal"), tr("Channel"), tr("Band"), tr("Security")] {
                         h.col(|ui| {
                             ui.label(RichText::new(t).color(p.weak).size(13.0));
                         });
@@ -521,15 +527,15 @@ impl WifiPage {
                         row.col(|ui| {
                             let name = n.ssid.clone().unwrap_or_else(|| {
                                 if cfg!(target_os = "macos") {
-                                    "Hidden by macOS".into()
+                                    tr("Hidden by macOS").into()
                                 } else {
-                                    "Hidden network".into()
+                                    tr("Hidden network").into()
                                 }
                             });
                             let color = if n.ssid.is_some() { p.text } else { p.weak };
                             ui.label(RichText::new(name).color(color));
                             if n.connected {
-                                theme::pill(ui, p, "Connected", p.success);
+                                theme::pill(ui, p, tr("Connected"), p.success);
                             }
                         });
                         row.col(|ui| {
@@ -546,7 +552,9 @@ impl WifiPage {
                             ui.label(RichText::new(n.band.as_deref().unwrap_or("—")).color(p.weak).size(13.0));
                         });
                         row.col(|ui| {
-                            ui.label(RichText::new(n.security.as_deref().unwrap_or("Open")).color(p.weak).size(13.0));
+                            ui.label(
+                                RichText::new(n.security.as_deref().unwrap_or(tr("Open"))).color(p.weak).size(13.0),
+                            );
                         });
                     });
                 });
@@ -560,22 +568,22 @@ impl WifiPage {
             ui.set_width(340.0);
             ui.vertical_centered(|ui| {
                 ui.label(theme::semibold(ssid, 19.0).color(p.text));
-                ui.label(RichText::new("Point a phone's camera at the code to join.").color(p.weak).size(13.0));
+                ui.label(RichText::new(tr("Point a phone's camera at the code to join.")).color(p.weak).size(13.0));
                 ui.add_space(10.0);
                 if waiting {
                     ui.add_space(100.0);
                     ui.spinner();
-                    ui.label(RichText::new("Reading the password…").color(p.weak));
+                    ui.label(RichText::new(tr("Reading the password…")).color(p.weak));
                     ui.add_space(100.0);
                 } else {
                     theme::qr_code(ui, modules, 260.0);
                 }
                 ui.add_space(8.0);
                 if let Some(pw) = password {
-                    ui.label(RichText::new(format!("Password: {pw}")).monospace().color(p.text));
+                    ui.label(RichText::new(trf("Password: {password}", &[("password", pw)])).monospace().color(p.text));
                 }
                 ui.add_space(10.0);
-                theme::primary_button(ui, p, "  Done  ", true).clicked()
+                theme::primary_button(ui, p, &format!("  {}  ", tr("Done")), true).clicked()
             })
             .inner
         });
@@ -596,7 +604,7 @@ fn channel_chart(ui: &mut Ui, p: &Palette, list: &[Nearby]) {
             } else if b.starts_with('5') {
                 "5 GHz"
             } else {
-                "6 GHz"
+                tr("6 GHz")
             };
             *bands.entry(b).or_default().entry(ch).or_default() += 1;
         }
@@ -604,7 +612,7 @@ fn channel_chart(ui: &mut Ui, p: &Palette, list: &[Nearby]) {
     ui.columns(bands.len().max(1), |cols| {
         for (i, (band, counts)) in bands.iter().enumerate() {
             let ui = &mut cols[i];
-            ui.label(RichText::new(format!("Channels used · {band}")).color(p.weak).size(12.5));
+            ui.label(RichText::new(trf("Channels used · {band}", &[("band", band)])).color(p.weak).size(12.5));
             let channels: Vec<u32> =
                 if *band == "2.4 GHz" { (1..=13).collect() } else { counts.keys().copied().collect() };
             let max = counts.values().copied().max().unwrap_or(1).max(1);
@@ -642,9 +650,13 @@ fn channel_chart(ui: &mut Ui, p: &Palette, list: &[Nearby]) {
                 });
                 if let Some(b) = best {
                     ui.label(
-                        RichText::new(format!("{}  Least crowded: channel {b}", icon::LIGHTBULB))
-                            .color(p.success)
-                            .size(12.5),
+                        RichText::new(format!(
+                            "{}  {}",
+                            icon::LIGHTBULB,
+                            trf("Least crowded: channel {n}", &[("n", &b)])
+                        ))
+                        .color(p.success)
+                        .size(12.5),
                     );
                 }
             }
@@ -670,7 +682,7 @@ fn export(list: &[SavedNetwork], sh: &mut Shared) {
         );
     }
     match std::fs::write(&path, out) {
-        Ok(()) => sh.toast(format!("Saved to {}. Keep this file private.", path.display())),
-        Err(e) => sh.fail("The file could not be saved.", &e.into()),
+        Ok(()) => sh.toast(trf("Saved to {file}. Keep this file private.", &[("file", &path.display())])),
+        Err(e) => sh.fail(trl("The file could not be saved."), &e.into()),
     }
 }

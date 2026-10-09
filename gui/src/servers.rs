@@ -13,6 +13,7 @@ use egui_phosphor::regular as icon;
 use netmgr::servers::{self as ns, Direction, SyslogMessage, Transfers};
 
 use crate::app::Shared;
+use crate::i18n::{tr, tr_dyn, trf, trl, trlf};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -162,14 +163,15 @@ impl Servers {
         theme::page_title(
             ui,
             p,
-            "Servers",
-            "TFTP and syslog servers for network devices, and a throughput test between two computers.",
+            tr("Servers"),
+            tr("TFTP and syslog servers for network devices, and a throughput test between two computers."),
         );
-        let badge = |on: bool, label: &'static str| if on { format!("{label} ●") } else { label.to_string() };
+        let badge =
+            |on: bool, label: &'static str| if on { format!("{} ●", tr(label)) } else { tr(label).to_string() };
         let (t, s, tp) = (
-            badge(self.tftp.is_some(), "TFTP server"),
-            badge(self.syslog.is_some(), "Syslog server"),
-            badge(self.tp_server.is_some(), "Throughput test"),
+            badge(self.tftp.is_some(), tr("TFTP server")),
+            badge(self.syslog.is_some(), tr("Syslog server")),
+            badge(self.tp_server.is_some(), tr("Throughput test")),
         );
         theme::tabs(
             ui,
@@ -198,14 +200,14 @@ impl Servers {
         }
         if let Some(e) = self.tftp.as_ref().and_then(Running::failed) {
             self.tftp = None;
-            sh.error = Some(format!("The TFTP server could not start.\n\n{e}"));
+            sh.error = Some(format!("{}\n\n{e}", trl("The TFTP server could not start.")));
         }
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             let running = self.tftp.is_some();
             ui.add_enabled_ui(!running, |ui| {
                 egui::Grid::new("tftp-settings").num_columns(2).spacing([14.0, 8.0]).show(ui, |ui| {
-                    ui.label("Folder");
+                    ui.label(tr("Folder"));
                     ui.horizontal(|ui| {
                         ui.add(egui::TextEdit::singleline(&mut sh.settings.tftp_folder).desired_width(360.0));
                         if ui.button(icon_label(icon::FOLDER_OPEN, "Choose…")).clicked()
@@ -215,14 +217,14 @@ impl Servers {
                         }
                     });
                     ui.end_row();
-                    ui.label("Port");
+                    ui.label(tr("Port"));
                     ui.add(egui::DragValue::new(&mut self.tftp_port).range(1..=65535));
                     ui.end_row();
-                    ui.label("Uploads");
+                    ui.label(tr("Uploads"));
                     ui.horizontal(|ui| {
-                        ui.checkbox(&mut self.tftp_upload, "Let devices upload files (configuration backups)");
+                        ui.checkbox(&mut self.tftp_upload, tr("Let devices upload files (configuration backups)"));
                         if self.tftp_upload {
-                            ui.checkbox(&mut self.tftp_overwrite, "Replace existing files");
+                            ui.checkbox(&mut self.tftp_overwrite, tr("Replace existing files"));
                         }
                     });
                     ui.end_row();
@@ -237,7 +239,7 @@ impl Servers {
                         r.stop.store(true, Ordering::Relaxed);
                     }
                     ui.spinner();
-                    ui.label(RichText::new("Running").color(p.success));
+                    ui.label(RichText::new(tr("Running")).color(p.success));
                 } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), true).clicked() {
                     let root = PathBuf::from(sh.settings.tftp_folder.trim());
                     let _ = std::fs::create_dir_all(&root);
@@ -270,17 +272,22 @@ impl Servers {
                 let addrs = my_addresses(sh);
                 let ip = addrs.first().and_then(|a| a.split(' ').next()).unwrap_or("this-computer").to_string();
                 ui.add_space(8.0);
-                theme::paragraph(ui, &format!("Devices reach this server at {}.", addrs.join(", ")), 14.0, p.text);
+                theme::paragraph(
+                    ui,
+                    &trlf("Devices reach this server at {addresses}.", &[("addresses", &addrs.join(", "))]),
+                    14.0,
+                    p.text,
+                );
                 ui.add_space(4.0);
-                ui.label(RichText::new("Example commands").color(p.weak).size(12.5));
+                ui.label(RichText::new(tr("Example commands")).color(p.weak).size(12.5));
                 let examples = [
                     (
-                        "Cisco IOS — firmware to the switch",
+                        tr("Cisco IOS — firmware to the switch"),
                         format!("copy tftp://{ip}/c2960x-universalk9-mz.152-7.E9.bin flash:"),
                     ),
-                    ("Cisco IOS — back up the configuration", format!("copy running-config tftp://{ip}/sw1-confg")),
-                    ("Aruba / HP", format!("copy running-config tftp {ip} sw1.cfg")),
-                    ("Juniper", format!("file copy /config/juniper.conf.gz tftp://{ip}/")),
+                    (tr("Cisco IOS — back up the configuration"), format!("copy running-config tftp://{ip}/sw1-confg")),
+                    (tr("Aruba / HP"), format!("copy running-config tftp {ip} sw1.cfg")),
+                    (tr("Juniper"), format!("file copy /config/juniper.conf.gz tftp://{ip}/")),
                 ];
                 for (what, command) in examples {
                     ui.horizontal(|ui| {
@@ -289,20 +296,22 @@ impl Servers {
                             egui::Label::new(RichText::new(&command).monospace().color(p.text))
                                 .sense(egui::Sense::click()),
                         );
-                        if r.on_hover_text("Click to copy").clicked() {
+                        if r.on_hover_text(tr("Click to copy")).clicked() {
                             ui.ctx().copy_text(command.clone());
-                            sh.toast("Copied.");
+                            sh.toast(tr("Copied."));
                         }
                     });
                 }
             } else {
                 ui.add_space(6.0);
                 let note = if cfg!(target_os = "linux") {
-                    "Ports below 1024 need administrator rights on Linux: start the app with sudo, or use a port of 1024 or more if the device can be told which port to use."
+                    trl(
+                        "Ports below 1024 need administrator rights on Linux: start the app with sudo, or use a port of 1024 or more if the device can be told which port to use.",
+                    )
                 } else if cfg!(windows) {
-                    "Windows Firewall may ask whether to allow the server: allow it for the networks you use."
+                    trl("Windows Firewall may ask whether to allow the server: allow it for the networks you use.")
                 } else {
-                    "macOS may ask whether to accept incoming connections: allow them."
+                    trl("macOS may ask whether to accept incoming connections: allow them.")
                 };
                 theme::paragraph(ui, note, 12.5, p.weak);
             }
@@ -313,9 +322,9 @@ impl Servers {
             theme::card(ui, p, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    theme::section_title(ui, p, icon::ARROWS_DOWN_UP, "Transfers");
+                    theme::section_title(ui, p, icon::ARROWS_DOWN_UP, tr("Transfers"));
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.button("Clear finished").clicked()
+                        if ui.button(tr("Clear finished")).clicked()
                             && let Ok(mut t) = self.transfers.lock()
                         {
                             t.retain(|x| !x.done);
@@ -334,7 +343,7 @@ impl Servers {
                         ui.label(RichText::new(g).color(c).size(17.0));
                         ui.label(RichText::new(&t.file).color(p.text));
                         ui.label(
-                            RichText::new(format!("{} {}", if t.upload { "from" } else { "to" }, t.peer.ip()))
+                            RichText::new(format!("{} {}", if t.upload { tr("from") } else { tr("to") }, t.peer.ip()))
                                 .color(p.weak)
                                 .size(12.5),
                         );
@@ -365,17 +374,17 @@ impl Servers {
             });
             ui.add_space(10.0);
         }
-        log_card(ui, p, "Log", &self.tftp_log);
+        log_card(ui, p, tr("Log"), &self.tftp_log);
     }
 
     fn syslog_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         if let Some(e) = self.syslog.as_ref().and_then(Running::failed) {
             self.syslog = None;
-            sh.error = Some(format!("The syslog server could not start.\n\n{e}"));
+            sh.error = Some(format!("{}\n\n{e}", trl("The syslog server could not start.")));
         }
         ui.horizontal(|ui| {
             ui.add_enabled_ui(self.syslog.is_none(), |ui| {
-                ui.label("UDP port");
+                ui.label(tr("UDP port"));
                 ui.add(egui::DragValue::new(&mut self.syslog_port).range(1..=65535));
             });
             if self.syslog.is_some() {
@@ -404,16 +413,23 @@ impl Servers {
             }
             ui.add_space(12.0);
             egui::ComboBox::from_id_salt("severity")
-                .selected_text(format!("{} and worse", ns::SEVERITIES[self.min_severity as usize]))
+                .selected_text(trf(
+                    "{severity} and worse",
+                    &[("severity", &tr_dyn(ns::SEVERITIES[self.min_severity as usize]))],
+                ))
                 .width(150.0)
                 .show_ui(ui, |ui| {
                     for (i, s) in ns::SEVERITIES.iter().enumerate().rev() {
-                        ui.selectable_value(&mut self.min_severity, i as u8, format!("{s} and worse"));
+                        ui.selectable_value(
+                            &mut self.min_severity,
+                            i as u8,
+                            trf("{severity} and worse", &[("severity", &tr_dyn(s))]),
+                        );
                     }
                 });
             ui.add(
                 egui::TextEdit::singleline(&mut self.filter)
-                    .hint_text(format!("{}  Filter", icon::MAGNIFYING_GLASS))
+                    .hint_text(format!("{}  {}", icon::MAGNIFYING_GLASS, tr("Filter")))
                     .desired_width(180.0),
             );
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -429,10 +445,12 @@ impl Servers {
         });
         if self.syslog.is_some() {
             ui.label(
-                RichText::new(format!(
-                    "Point devices to {} (for example: logging host {}).",
-                    my_addresses(sh).join(", "),
-                    my_addresses(sh).first().and_then(|a| a.split(' ').next()).unwrap_or("?")
+                RichText::new(trf(
+                    "Point devices to {addresses} (for example: logging host {address}).",
+                    &[
+                        ("addresses", &my_addresses(sh).join(", ")),
+                        ("address", &my_addresses(sh).first().and_then(|a| a.split(' ').next()).unwrap_or("?")),
+                    ],
                 ))
                 .color(p.weak)
                 .size(12.5),
@@ -459,9 +477,9 @@ impl Servers {
             ui.set_width(ui.available_width());
             if msgs.is_empty() {
                 let text = if self.syslog.is_some() {
-                    "Waiting for messages…"
+                    tr("Waiting for messages…")
                 } else {
-                    "Start the server, then tell your devices to send their logs to this computer."
+                    tr("Start the server, then tell your devices to send their logs to this computer.")
                 };
                 ui.label(RichText::new(text).color(p.weak));
                 return;
@@ -476,7 +494,7 @@ impl Servers {
                 .column(Column::exact(96.0))
                 .column(Column::remainder().clip(true))
                 .header(24.0, |mut h| {
-                    for t in ["Time", "From", "Severity", "Message"] {
+                    for t in [tr("Time"), tr("From"), tr("Severity"), tr("Message")] {
                         h.col(|ui| {
                             ui.label(RichText::new(t).color(p.weak).size(13.0));
                         });
@@ -495,7 +513,12 @@ impl Servers {
                             ui.label(RichText::new(m.host.clone().unwrap_or_else(|| m.from.to_string())).size(13.0));
                         });
                         row.col(|ui| {
-                            theme::pill(ui, p, ns::SEVERITIES[m.severity as usize % 8], severity_color(p, m.severity));
+                            theme::pill(
+                                ui,
+                                p,
+                                &tr_dyn(ns::SEVERITIES[m.severity as usize % 8]),
+                                severity_color(p, m.severity),
+                            );
                         });
                         row.col(|ui| {
                             ui.label(RichText::new(&m.text).monospace().size(12.5).color(p.text))
@@ -531,27 +554,29 @@ impl Servers {
             })
             .unwrap_or_default();
         match std::fs::write(&path, text) {
-            Ok(()) => sh.toast(format!("Saved to {}.", path.display())),
-            Err(e) => sh.fail("The file could not be saved.", &e.into()),
+            Ok(()) => sh.toast(trf("Saved to {file}.", &[("file", &path.display())])),
+            Err(e) => sh.fail(trl("The file could not be saved."), &e.into()),
         }
     }
 
     fn throughput_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         if let Some(e) = self.tp_server.as_ref().and_then(Running::failed) {
             self.tp_server = None;
-            sh.error = Some(format!("The throughput server could not start.\n\n{e}"));
+            sh.error = Some(format!("{}\n\n{e}", trl("The throughput server could not start.")));
         }
         if let Some(r) = jobs::finished(&mut self.tp_job) {
             match r {
                 Ok(v) => {
                     self.tp_result = Some((if self.tp_download { Direction::Download } else { Direction::Upload }, v))
                 }
-                Err(e) => sh.fail("The throughput test did not work.", &e),
+                Err(e) => sh.fail(trl("The throughput test did not work."), &e),
             }
         }
         theme::paragraph(
             ui,
-            "Measures the real speed of the network between two computers — a cable run, a switch, a Wi-Fi access point — without the internet in between. Start the server on one computer and the test on the other.",
+            trl(
+                "Measures the real speed of the network between two computers — a cable run, a switch, a Wi-Fi access point — without the internet in between. Start the server on one computer and the test on the other.",
+            ),
             14.0,
             p.weak,
         );
@@ -560,7 +585,7 @@ impl Servers {
             theme::card(&mut c[0], p, |ui| {
                 ui.set_width(ui.available_width());
                 ui.set_min_height(240.0);
-                theme::section_title(ui, p, icon::BROADCAST, "This computer as the server");
+                theme::section_title(ui, p, icon::BROADCAST, tr("This computer as the server"));
                 ui.add_space(4.0);
                 if self.tp_server.is_some() {
                     ui.horizontal(|ui| {
@@ -571,7 +596,7 @@ impl Servers {
                         }
                         ui.spinner();
                     });
-                    theme::paragraph(ui, &format!("On the other computer, test to {} (port {}).", my_addresses(sh).join(", "), ns::THROUGHPUT_PORT), 13.5, p.text);
+                    theme::paragraph(ui, &trlf("On the other computer, test to {addresses} (port {port}).", &[("addresses", &my_addresses(sh).join(", ")), ("port", &ns::THROUGHPUT_PORT)]), 13.5, p.text);
                 } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), true).clicked() {
                     let log = self.tp_log.clone();
                     self.tp_server = Some(Running::spawn(move |stop| {
@@ -594,14 +619,14 @@ impl Servers {
             theme::card(&mut c[1], p, |ui| {
                 ui.set_width(ui.available_width());
                 ui.set_min_height(240.0);
-                theme::section_title(ui, p, icon::GAUGE, "Test to another computer");
+                theme::section_title(ui, p, icon::GAUGE, tr("Test to another computer"));
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut self.tp_host).hint_text("Its address, e.g. 192.168.1.20").desired_width(200.0));
+                    ui.add(egui::TextEdit::singleline(&mut self.tp_host).hint_text(tr("Its address, e.g. 192.168.1.20")).desired_width(200.0));
                     ui.add(egui::Slider::new(&mut self.tp_seconds, 3..=30).suffix(" s"));
                 });
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut self.tp_download, false, "Upload (this → other)");
-                    ui.selectable_value(&mut self.tp_download, true, "Download (other → this)");
+                    ui.selectable_value(&mut self.tp_download, false, tr("Upload (this → other)"));
+                    ui.selectable_value(&mut self.tp_download, true, tr("Download (other → this)"));
                 });
                 ui.add_space(4.0);
                 if let Some(job) = &self.tp_job {
@@ -628,13 +653,13 @@ impl Servers {
                     ui.label(theme::semibold(format!("{v:.0} Mbit/s"), 24.0).color(p.accent));
                 }
                 if let Some((dir, v)) = self.tp_result {
-                    let what = if dir == Direction::Upload { "Upload" } else { "Download" };
+                    let what = if dir == Direction::Upload { tr("Upload") } else { tr("Download") };
                     ui.label(theme::semibold(format!("{what}: {v:.0} Mbit/s"), 24.0).color(p.success));
                     let hint = match v {
-                        v if v > 2000.0 => "Faster than 2.5 Gbit/s: a multi-gigabit link.",
-                        v if v > 850.0 => "Gigabit speed: the cable and switch work at full speed.",
-                        v if v > 85.0 => "About 100 Mbit/s or a good Wi-Fi link. On a cable this often means a damaged or 4-wire cable, or a 100 Mbit/s port.",
-                        _ => "Slow: check the cable, the port speed, or the Wi-Fi signal.",
+                        v if v > 2000.0 => trl("Faster than 2.5 Gbit/s: a multi-gigabit link."),
+                        v if v > 850.0 => trl("Gigabit speed: the cable and switch work at full speed."),
+                        v if v > 85.0 => trl("About 100 Mbit/s or a good Wi-Fi link. On a cable this often means a damaged or 4-wire cable, or a 100 Mbit/s port."),
+                        _ => trl("Slow: check the cable, the port speed, or the Wi-Fi signal."),
                     };
                     theme::paragraph(ui, hint, 12.5, p.weak);
                 }

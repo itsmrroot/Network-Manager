@@ -12,6 +12,7 @@ use netmgr::internet::{self, Check, SpeedPhase, SpeedResult};
 use netmgr::wifi;
 
 use crate::app::{Nav, Page, Shared};
+use crate::i18n::{tr, tr_dyn, trf, trf_dyn, trl, trl_dyn};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -31,13 +32,13 @@ impl Overview {
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         self.poll(sh);
         ui.horizontal(|ui| {
-            ui.vertical(|ui| theme::page_title(ui, p, "Overview", "Your connection at a glance."));
+            ui.vertical(|ui| theme::page_title(ui, p, tr("Overview"), tr("Your connection at a glance.")));
             ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
                 if let Some(job) = &self.report {
                     ui.spinner();
                     ui.label(RichText::new(job.progress.snapshot().message).color(p.weak).size(12.5));
                 } else if theme::secondary_button(ui, &icon_label(icon::FILE_TEXT, "Network report"))
-                    .on_hover_text("Save everything about this connection to a file, e.g. for a support ticket")
+                    .on_hover_text(tr("Save everything about this connection to a file, e.g. for a support ticket"))
                     .clicked()
                 {
                     let public = sh.settings.lookup_public_ip;
@@ -78,14 +79,14 @@ impl Overview {
                     {
                         match std::fs::write(&path, text) {
                             Ok(()) => {
-                                sh.toast(format!("Report saved to {}.", path.display()));
+                                sh.toast(trf("Report saved to {file}.", &[("file", &path.display())]));
                                 crate::app::open_path(&path.display().to_string());
                             }
-                            Err(e) => sh.fail("The report could not be saved.", &e.into()),
+                            Err(e) => sh.fail(trl("The report could not be saved."), &e.into()),
                         }
                     }
                 }
-                Err(e) => sh.fail("The report could not be made.", &e),
+                Err(e) => sh.fail(trl("The report could not be made."), &e),
             }
         }
         if let Some(Ok(_)) = jobs::finished(&mut self.diagnose) {
@@ -95,7 +96,7 @@ impl Overview {
             match r {
                 Ok(r) => self.speed_result = Some(r),
                 Err(e) if e.to_string() == "stopped" => {}
-                Err(e) => sh.fail("The speed test could not be completed.", &e),
+                Err(e) => sh.fail(trl("The speed test could not be completed."), &e),
             }
         }
         if let Some(r) = jobs::finished(&mut self.fix) {
@@ -105,7 +106,7 @@ impl Overview {
                     sh.refresh = true;
                     sh.refresh_wifi = true;
                 }
-                Err(e) => sh.fail("That did not work.", &e),
+                Err(e) => sh.fail(trl("That did not work."), &e),
             }
         }
     }
@@ -118,28 +119,28 @@ impl Overview {
             ui.horizontal(|ui| {
                 let (glyph, color, title, sub) = match &adapter {
                     None if !sh.adapters_loaded => {
-                        (icon::CIRCLE_NOTCH, p.weak, "Looking at your network…".to_string(), String::new())
+                        (icon::CIRCLE_NOTCH, p.weak, tr("Looking at your network…").to_string(), String::new())
                     }
                     None => (
                         icon::WIFI_SLASH,
                         p.danger,
-                        "Not connected".to_string(),
-                        "No adapter has a connection to a network.".to_string(),
+                        tr("Not connected").to_string(),
+                        tr("No adapter has a connection to a network.").to_string(),
                     ),
                     Some(a) => {
                         let ip = a.main_ipv4().map(|(ip, p)| format!("{ip}/{p}")).unwrap_or_default();
                         if a.kind == Kind::WiFi {
                             let name = wifi.as_ref().and_then(|w| w.ssid.clone());
                             let title = match name {
-                                Some(n) => format!("Connected to {n}"),
-                                None => "Connected to Wi-Fi".into(),
+                                Some(n) => trf("Connected to {network}", &[("network", &n)]),
+                                None => tr("Connected to Wi-Fi").into(),
                             };
                             (icon::WIFI_HIGH, p.success, title, format!("{} · {ip}", a.name))
                         } else {
                             (
                                 icon::PLUGS_CONNECTED,
                                 p.success,
-                                "Connected by cable".into(),
+                                tr("Connected by cable").into(),
                                 format!("{} · {ip}", a.name),
                             )
                         }
@@ -160,13 +161,23 @@ impl Overview {
                                 theme::signal_bars(ui, p, q, 16.0);
                                 let dbm = w.rssi.map_or(String::new(), |r| format!(" · {r} dBm"));
                                 ui.label(
-                                    RichText::new(format!("{} signal{dbm}", wifi::quality_label(q)))
-                                        .color(p.weak)
-                                        .size(13.0),
+                                    RichText::new(format!(
+                                        "{}{dbm}",
+                                        trf("{quality} signal", &[("quality", &tr_dyn(wifi::quality_label(q)))])
+                                    ))
+                                    .color(p.weak)
+                                    .size(13.0),
                                 );
                             }
                             if let (Some(ch), Some(b)) = (w.channel, &w.band) {
-                                ui.label(RichText::new(format!("· Channel {ch} ({b})")).color(p.weak).size(13.0));
+                                ui.label(
+                                    RichText::new(format!(
+                                        "· {}",
+                                        trf("Channel {n} ({band})", &[("n", &ch), ("band", b)])
+                                    ))
+                                    .color(p.weak)
+                                    .size(13.0),
+                                );
                             }
                         });
                     }
@@ -183,20 +194,20 @@ impl Overview {
                     }
                     ui.add_enabled_ui(!fixing, |ui| {
                         if theme::secondary_button(ui, &icon_label(icon::BROOM, "Flush DNS"))
-                            .on_hover_text("Forget looked-up names, so they are looked up again")
+                            .on_hover_text(tr("Forget looked-up names, so they are looked up again"))
                             .clicked()
                         {
                             self.fix = Some(Job::spawn(ui.ctx(), |_, _| {
-                                config::flush_dns().map(|()| "The DNS cache was emptied.")
+                                config::flush_dns().map(|()| tr("The DNS cache was emptied."))
                             }));
                         }
                         if let Some(a) = adapter.clone()
                             && theme::secondary_button(ui, &icon_label(icon::ARROWS_CLOCKWISE, "Renew IP"))
-                                .on_hover_text("Ask the router for a new address")
+                                .on_hover_text(tr("Ask the router for a new address"))
                                 .clicked()
                         {
                             self.fix = Some(Job::spawn(ui.ctx(), move |_, _| {
-                                config::renew(&a).map(|()| "A new address was requested.")
+                                config::renew(&a).map(|()| tr("A new address was requested."))
                             }));
                         }
                     });
@@ -224,9 +235,9 @@ impl Overview {
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                theme::section_title(ui, p, icon::STETHOSCOPE, "Connection check");
+                theme::section_title(ui, p, icon::STETHOSCOPE, tr("Connection check"));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if self.diagnose.is_none() && ui.button("Close").clicked() {
+                    if self.diagnose.is_none() && ui.button(tr("Close")).clicked() {
                         self.checked = false;
                     }
                 });
@@ -235,20 +246,20 @@ impl Overview {
                 ui.horizontal(|ui| {
                     let (g, color) = if c.ok { (icon::CHECK_CIRCLE, p.success) } else { (icon::X_CIRCLE, p.danger) };
                     ui.label(RichText::new(g).size(20.0).color(color));
-                    ui.label(theme::semibold(c.title, 14.5).color(p.text));
-                    ui.label(RichText::new(&c.detail).color(p.weak).size(14.0));
+                    ui.label(theme::semibold(tr_dyn(c.title), 14.5).color(p.text));
+                    ui.label(RichText::new(trf_dyn(c.template, &c.value)).color(p.weak).size(14.0));
                 });
                 if let Some(a) = &c.advice {
                     ui.horizontal(|ui| {
                         ui.add_space(30.0);
-                        theme::notice(ui, p, p.warning, icon::LIGHTBULB, a);
+                        theme::notice(ui, p, p.warning, icon::LIGHTBULB, trl_dyn(a));
                     });
                 }
             }
             if self.diagnose.is_some() {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(RichText::new("Checking…").color(p.weak));
+                    ui.label(RichText::new(tr("Checking…")).color(p.weak));
                 });
             } else if checks.iter().all(|c| c.ok) && !checks.is_empty() {
                 ui.add_space(4.0);
@@ -257,7 +268,7 @@ impl Overview {
                     p,
                     p.success,
                     icon::CHECK_CIRCLE,
-                    "Everything works: this computer is connected to the internet.",
+                    trl("Everything works: this computer is connected to the internet."),
                 );
             }
         });
@@ -268,14 +279,17 @@ impl Overview {
             ui.set_width(ui.available_width());
             ui.set_min_height(170.0);
             ui.horizontal(|ui| {
-                theme::section_title(ui, p, icon::SPEEDOMETER, "Speed test");
+                theme::section_title(ui, p, icon::SPEEDOMETER, tr("Speed test"));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if let Some(job) = &self.speed {
                         if ui.button(icon_label(icon::STOP, "Stop")).clicked() {
                             job.stop();
                         }
                     } else if ui
-                        .button(icon_label(icon::PLAY, if self.speed_result.is_some() { "Again" } else { "Start" }))
+                        .button(icon_label(
+                            icon::PLAY,
+                            if self.speed_result.is_some() { tr("Again") } else { tr("Start") },
+                        ))
                         .clicked()
                     {
                         let live = Arc::new(Mutex::new((None, 0.0, SpeedResult::default())));
@@ -307,7 +321,9 @@ impl Overview {
                     ui.add_space(8.0);
                     theme::paragraph(
                         ui,
-                        "Measures how fast this connection downloads and uploads, using Cloudflare's speed test servers. Takes about 20 seconds.",
+                        trl(
+                            "Measures how fast this connection downloads and uploads, using Cloudflare's speed test servers. Takes about 20 seconds.",
+                        ),
                         13.5,
                         p.weak,
                     );
@@ -321,7 +337,7 @@ impl Overview {
                             &mut c[0],
                             p,
                             icon::TIMER,
-                            "Ping",
+                            tr("Ping"),
                             &fmt(r.ping_ms, "ms"),
                             phase == Some(SpeedPhase::Ping),
                         );
@@ -329,16 +345,16 @@ impl Overview {
                             &mut c[1],
                             p,
                             icon::DOWNLOAD_SIMPLE,
-                            "Download",
-                            &fmt(r.download_mbps, "Mbit/s"),
+                            tr("Download"),
+                            &fmt(r.download_mbps, tr("Mbit/s")),
                             phase == Some(SpeedPhase::Download),
                         );
                         speed_stat(
                             &mut c[2],
                             p,
                             icon::UPLOAD_SIMPLE,
-                            "Upload",
-                            &fmt(r.upload_mbps, "Mbit/s"),
+                            tr("Upload"),
+                            &fmt(r.upload_mbps, tr("Mbit/s")),
                             phase == Some(SpeedPhase::Upload),
                         );
                     });
@@ -348,9 +364,12 @@ impl Overview {
                     } else if let Some(j) = r.jitter_ms {
                         ui.add_space(6.0);
                         ui.label(
-                            RichText::new(format!("Jitter {j:.1} ms — lower is better for calls and games."))
-                                .color(p.weak)
-                                .size(12.5),
+                            RichText::new(trf(
+                                "Jitter {ms} ms — lower is better for calls and games.",
+                                &[("ms", &format!("{j:.1}"))],
+                            ))
+                            .color(p.weak)
+                            .size(12.5),
                         );
                     }
                 }
@@ -375,12 +394,12 @@ fn tiles(ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         .and_then(|a| a.ipv6.iter().find(|(ip, _)| (ip.segments()[0] & 0xe000) == 0x2000).map(|(ip, _)| ip.to_string()))
         .unwrap_or_default();
     let (public, public_sub) = match &sh.public {
-        _ if sh.public_loading => ("Looking up…".to_string(), String::new()),
+        _ if sh.public_loading => (tr("Looking up…").to_string(), String::new()),
         Some(Ok(info)) => {
             (info.ip.clone(), [info.provider(), info.place()].into_iter().flatten().collect::<Vec<_>>().join(" · "))
         }
-        Some(Err(_)) => ("Not available".to_string(), "The internet could not be reached".to_string()),
-        None => ("Hidden".to_string(), "Turn on in Settings → Internet".to_string()),
+        Some(Err(_)) => (tr("Not available").to_string(), tr("The internet could not be reached").to_string()),
+        None => (tr("Hidden").to_string(), tr("Turn on in Settings → Internet").to_string()),
     };
     let gateway = a.as_ref().and_then(|a| a.gateway).map_or_else(dash, |g| g.to_string());
     let gateway_sub = a
@@ -393,8 +412,8 @@ fn tiles(ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         .map(|a| a.dns.iter().filter(|d| !is_link_local(d)).map(IpAddr::to_string).collect())
         .unwrap_or_default();
     let dns_sub = match a.as_ref().and_then(|a| a.dhcp) {
-        Some(true) => "From the router (automatic)",
-        Some(false) => "Set by hand",
+        Some(true) => tr("From the router (automatic)"),
+        Some(false) => tr("Set by hand"),
         None => "",
     };
     let speed = match (&a, sh.wifi.first()) {
@@ -406,28 +425,28 @@ fn tiles(ui: &mut Ui, p: &Palette, sh: &mut Shared) {
     };
     let speed_sub = match (&a, sh.wifi.first()) {
         (Some(a), Some(w)) if a.kind == Kind::WiFi => w.standard.clone().unwrap_or_default(),
-        (Some(a), _) => a.kind.label().to_string(),
+        (Some(a), _) => tr_dyn(a.kind.label()),
         _ => String::new(),
     };
     let (mac, mac_sub) = match a.as_ref().and_then(|a| a.mac) {
-        Some(m) if m.is_local() => (m.to_string(), "Private address (set by software)".to_string()),
-        Some(m) => (m.to_string(), m.vendor().unwrap_or("Unknown maker").to_string()),
-        None if sh.lan_denied => ("Hidden by macOS".to_string(), "Allow Local Network access".to_string()),
+        Some(m) if m.is_local() => (m.to_string(), tr("Private address (set by software)").to_string()),
+        Some(m) => (m.to_string(), m.vendor().unwrap_or(tr("Unknown maker")).to_string()),
+        None if sh.lan_denied => (tr("Hidden by macOS").to_string(), tr("Allow Local Network access").to_string()),
         None => (dash(), String::new()),
     };
 
     let items = [
-        (icon::DESKTOP, "Local IP address", local, ipv6),
-        (icon::GLOBE_HEMISPHERE_WEST, "Public IP address", public, public_sub),
-        (icon::BROADCAST, "Router (gateway)", gateway, gateway_sub),
+        (icon::DESKTOP, tr("Local IP address"), local, ipv6),
+        (icon::GLOBE_HEMISPHERE_WEST, tr("Public IP address"), public, public_sub),
+        (icon::BROADCAST, tr("Router (gateway)"), gateway, gateway_sub),
         (
             icon::LIST_MAGNIFYING_GLASS,
-            "DNS servers",
+            tr("DNS servers"),
             if dns.is_empty() { dash() } else { dns.join(", ") },
             dns_sub.to_string(),
         ),
-        (icon::LIGHTNING, "Link speed", speed, speed_sub),
-        (icon::FINGERPRINT, "MAC address", mac, mac_sub),
+        (icon::LIGHTNING, tr("Link speed"), speed, speed_sub),
+        (icon::FINGERPRINT, tr("MAC address"), mac, mac_sub),
     ];
     let cols = if ui.available_width() > 900.0 { 3 } else { 2 };
     for row in items.chunks(cols) {
@@ -435,18 +454,18 @@ fn tiles(ui: &mut Ui, p: &Palette, sh: &mut Shared) {
             for (i, (g, label, value, sub)) in row.iter().enumerate() {
                 theme::tile(&mut c[i], p, g, label, value, sub);
                 let r = c[i].min_rect();
-                if *label == "Public IP address" && sh.public.is_some() {
+                if *label == tr("Public IP address") && sh.public.is_some() {
                     let resp = c[i].interact(r, egui::Id::new("public-ip-tile"), egui::Sense::click());
-                    if resp.on_hover_text("Click to copy").clicked() {
+                    if resp.on_hover_text(tr("Click to copy")).clicked() {
                         c[i].ctx().copy_text(value.clone());
-                        sh.toast("Public IP address copied.");
+                        sh.toast(tr("Public IP address copied."));
                     }
                 }
-                if *label == "Local IP address"
+                if *label == tr("Local IP address")
                     && let Some(a) = &a
                 {
                     let resp = c[i].interact(r, egui::Id::new("local-ip-tile"), egui::Sense::click());
-                    if resp.on_hover_text("Show the adapter").clicked() {
+                    if resp.on_hover_text(tr("Show the adapter")).clicked() {
                         sh.nav = Some(Nav::Adapter(a.id.clone()));
                     }
                 }
@@ -460,9 +479,9 @@ fn tiles(ui: &mut Ui, p: &Palette, sh: &mut Shared) {
             p,
             p.warning,
             icon::WARNING,
-            "Not connected: plug in a cable or join a Wi-Fi network, then click \"Check connection\".",
+            trl("Not connected: plug in a cable or join a Wi-Fi network, then click \"Check connection\"."),
         );
-        if ui.link("Open the Wi-Fi page").clicked() {
+        if ui.link(tr("Open the Wi-Fi page")).clicked() {
             sh.nav = Some(Nav::Page(Page::Wifi));
         }
     }
@@ -476,7 +495,7 @@ fn traffic(ui: &mut Ui, p: &Palette, sh: &Shared) {
     theme::card(ui, p, |ui| {
         ui.set_width(ui.available_width());
         ui.set_min_height(170.0);
-        theme::section_title(ui, p, icon::PULSE, "Live traffic");
+        theme::section_title(ui, p, icon::PULSE, tr("Live traffic"));
         let t = &sh.traffic;
         let down = t.down.back().copied().unwrap_or(0.0);
         let up = t.up.back().copied().unwrap_or(0.0);
@@ -499,7 +518,7 @@ fn traffic(ui: &mut Ui, p: &Palette, sh: &Shared) {
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(start, size)));
         theme::sparkline(&mut child, &up, p.deep, size, Some(top));
         if down.len() < 2 {
-            ui.label(RichText::new("Measuring…").color(p.weak).size(12.5));
+            ui.label(RichText::new(tr("Measuring…")).color(p.weak).size(12.5));
         }
     });
 }
@@ -516,8 +535,9 @@ pub fn local_network_notice(ui: &mut Ui, p: &Palette) {
         p,
         p.warning,
         icon::SHIELD_WARNING,
-        "macOS hides MAC addresses and the devices on your network from this app. Turn on Network Manager in \
-         System Settings → Privacy & Security → Local Network, then restart the app.",
+        trl(
+            "macOS hides MAC addresses and the devices on your network from this app. Turn on Network Manager in System Settings → Privacy & Security → Local Network, then restart the app.",
+        ),
     );
     if ui.link(icon_label(icon::ARROW_SQUARE_OUT, "Open Local Network settings")).clicked() {
         crate::app::open_path("x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork");

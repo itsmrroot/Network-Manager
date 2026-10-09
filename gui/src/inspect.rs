@@ -10,6 +10,7 @@ use netmgr::system::{self, Connection, HostsLine, Route};
 use netmgr::web::{self, HttpHop, TlsReport, Whois};
 
 use crate::app::Shared;
+use crate::i18n::{tr, tr_dyn, trf, trl, trlf};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -58,19 +59,19 @@ impl Inspect {
         if let Some(r) = jobs::finished(&mut self.whois) {
             match r {
                 Ok(w) => self.whois_result = Some(w),
-                Err(e) => sh.fail("The WHOIS lookup failed.", &e),
+                Err(e) => sh.fail(trl("The WHOIS lookup failed."), &e),
             }
         }
         if let Some(r) = jobs::finished(&mut self.conns) {
             match r {
                 Ok(c) => self.conns_result = Some(c),
-                Err(e) => sh.fail("The connections could not be read.", &e),
+                Err(e) => sh.fail(trl("The connections could not be read."), &e),
             }
         }
         if let Some(r) = jobs::finished(&mut self.routes) {
             match r {
                 Ok(c) => self.routes_result = Some(c),
-                Err(e) => sh.fail("The routes could not be read.", &e),
+                Err(e) => sh.fail(trl("The routes could not be read."), &e),
             }
         }
         if let Some(r) = jobs::finished(&mut self.route_job) {
@@ -79,16 +80,16 @@ impl Inspect {
                     sh.toast(m);
                     self.routes_result = None;
                 }
-                Err(e) => sh.fail("The route could not be changed.", &e),
+                Err(e) => sh.fail(trl("The route could not be changed."), &e),
             }
         }
         if let Some(r) = jobs::finished(&mut self.hosts_job) {
             match r {
                 Ok(()) => {
-                    sh.toast("The hosts file was saved.");
+                    sh.toast(tr("The hosts file was saved."));
                     self.hosts_dirty = false;
                 }
-                Err(e) => sh.fail("The hosts file could not be saved.", &e),
+                Err(e) => sh.fail(trl("The hosts file could not be saved."), &e),
             }
         }
     }
@@ -147,7 +148,9 @@ impl Inspect {
                 ui.set_width(ui.available_width());
                 theme::paragraph(
                     ui,
-                    "Checks a web server: its certificate (who issued it, for which names, when it expires, whether it is trusted), the TLS version, and every redirect with the security headers.",
+                    trl(
+                        "Checks a web server: its certificate (who issued it, for which names, when it expires, whether it is trusted), the TLS version, and every redirect with the security headers.",
+                    ),
                     14.0,
                     p.weak,
                 );
@@ -157,7 +160,7 @@ impl Inspect {
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             theme::card(ui, p, |ui| {
                 ui.set_width(ui.available_width());
-                theme::section_title(ui, p, icon::LOCK, "Certificate");
+                theme::section_title(ui, p, icon::LOCK, tr("Certificate"));
                 match tls {
                     Err(e) => theme::notice(ui, p, p.danger, icon::WARNING_CIRCLE, e),
                     Ok(r) => {
@@ -167,7 +170,10 @@ impl Inspect {
                                 p,
                                 p.success,
                                 icon::CHECK_CIRCLE,
-                                &format!("Trusted — {} with {}", r.version, r.cipher),
+                                &trlf(
+                                    "Trusted — {version} with {cipher}",
+                                    &[("version", &r.version), ("cipher", &r.cipher)],
+                                ),
                             ),
                             Some(e) => theme::notice(
                                 ui,
@@ -181,13 +187,13 @@ impl Inspect {
                             ui.add_space(8.0);
                             egui::Frame::new().fill(p.card_alt).corner_radius(10).inner_margin(12).show(ui, |ui| {
                                 ui.set_width(ui.available_width());
-                                let title = if i == 0 { "Server certificate" } else { "Issuer certificate" };
+                                let title = if i == 0 { tr("Server certificate") } else { tr("Issuer certificate") };
                                 ui.label(theme::semibold(title, 14.5).color(p.text));
                                 let days = c.days_left();
                                 egui::Grid::new(("cert", i)).num_columns(2).spacing([20.0, 5.0]).show(ui, |ui| {
-                                    theme::info_row(ui, p, "Subject", &c.subject, false);
-                                    theme::info_row(ui, p, "Issued by", &c.issuer, false);
-                                    ui.label(RichText::new("Valid").color(p.weak).size(13.5));
+                                    theme::info_row(ui, p, tr("Subject"), &c.subject, false);
+                                    theme::info_row(ui, p, tr("Issued by"), &c.issuer, false);
+                                    ui.label(RichText::new(tr("Valid")).color(p.weak).size(13.5));
                                     let color = if days < 0 {
                                         p.danger
                                     } else if days < 21 {
@@ -201,9 +207,9 @@ impl Inspect {
                                             web::date(c.not_before),
                                             web::date(c.not_after),
                                             if days < 0 {
-                                                format!("expired {} days ago", -days)
+                                                trf("expired {n} days ago", &[("n", &-days)])
                                             } else {
-                                                format!("{days} days left")
+                                                trf("{n} days left", &[("n", &days)])
                                             }
                                         ))
                                         .color(color),
@@ -211,14 +217,18 @@ impl Inspect {
                                     ui.end_row();
                                     if !c.names.is_empty() {
                                         let names = if c.names.len() > 12 {
-                                            format!("{} … ({} names)", c.names[..12].join(", "), c.names.len())
+                                            format!(
+                                                "{} … ({})",
+                                                c.names[..12].join(", "),
+                                                trf("{n} names", &[("n", &c.names.len())])
+                                            )
                                         } else {
                                             c.names.join(", ")
                                         };
-                                        theme::info_row(ui, p, "Names", &names, false);
+                                        theme::info_row(ui, p, tr("Names"), &names, false);
                                     }
-                                    theme::info_row(ui, p, "Key", &format!("{} · {}", c.key, c.signature), false);
-                                    theme::info_row(ui, p, "Serial", &c.serial, true);
+                                    theme::info_row(ui, p, tr("Key"), &format!("{} · {}", c.key, c.signature), false);
+                                    theme::info_row(ui, p, tr("Serial"), &c.serial, true);
                                 });
                             });
                         }
@@ -263,7 +273,7 @@ impl Inspect {
                             if !missing.is_empty() {
                                 theme::paragraph(
                                     ui,
-                                    &format!("Security headers not sent: {}.", missing.join(", ")),
+                                    &trlf("Security headers not sent: {headers}.", &[("headers", &missing.join(", "))]),
                                     12.5,
                                     p.warning,
                                 );
@@ -297,7 +307,7 @@ impl Inspect {
                 go = true;
             }
             if let Some(Ok(info)) = &sh.public
-                && ui.button(format!("My public IP ({})", info.ip)).clicked()
+                && ui.button(trf("My public IP ({address})", &[("address", &info.ip)])).clicked()
             {
                 self.whois_query = info.ip.clone();
                 go = true;
@@ -313,7 +323,9 @@ impl Inspect {
             let Some(w) = &self.whois_result else {
                 theme::paragraph(
                     ui,
-                    "Who owns a domain, an IP address or an AS number: the registrar, the network and its range, the organisation, the dates and the abuse contact. Asked from the registries' RDAP service.",
+                    trl(
+                        "Who owns a domain, an IP address or an AS number: the registrar, the network and its range, the organisation, the dates and the abuse contact. Asked from the registries' RDAP service.",
+                    ),
                     14.0,
                     p.weak,
                 );
@@ -325,17 +337,17 @@ impl Inspect {
             let mut copied = false;
             egui::Grid::new("whois").num_columns(2).spacing([24.0, 7.0]).show(ui, |ui| {
                 let rows = [
-                    ("Registrar", w.registrar.clone()),
-                    ("Organisation", w.organisation.clone()),
-                    ("Range", w.range.clone()),
-                    ("Handle", w.handle.clone()),
-                    ("Country", w.country.clone()),
-                    ("Registered", w.registered.clone()),
-                    ("Last changed", w.changed.clone()),
-                    ("Expires", w.expires.clone()),
-                    ("Name servers", (!w.nameservers.is_empty()).then(|| w.nameservers.join("\n"))),
-                    ("Status", (!w.status.is_empty()).then(|| w.status.join(", "))),
-                    ("Abuse contact", w.abuse.clone()),
+                    (tr("Registrar"), w.registrar.clone()),
+                    (tr("Organisation"), w.organisation.clone()),
+                    (tr("Range"), w.range.clone()),
+                    (tr("Handle"), w.handle.clone()),
+                    (tr("Country"), w.country.clone()),
+                    (tr("Registered"), w.registered.clone()),
+                    (tr("Last changed"), w.changed.clone()),
+                    (tr("Expires"), w.expires.clone()),
+                    (tr("Name servers"), (!w.nameservers.is_empty()).then(|| w.nameservers.join("\n"))),
+                    (tr("Status"), (!w.status.is_empty()).then(|| w.status.join(", "))),
+                    (tr("Abuse contact"), w.abuse.clone()),
                 ];
                 for (k, v) in rows {
                     if let Some(v) = v {
@@ -344,7 +356,7 @@ impl Inspect {
                 }
             });
             if copied {
-                sh.toast("Copied.");
+                sh.toast(tr("Copied."));
             }
         });
     }
@@ -354,11 +366,11 @@ impl Inspect {
             self.conns = Some(Job::spawn(ui.ctx(), |_, _| system::connections()));
         }
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.listening_only, true, "Listening ports");
-            ui.selectable_value(&mut self.listening_only, false, "All connections");
+            ui.selectable_value(&mut self.listening_only, true, tr("Listening ports"));
+            ui.selectable_value(&mut self.listening_only, false, tr("All connections"));
             ui.add(
                 egui::TextEdit::singleline(&mut self.conn_filter)
-                    .hint_text(format!("{}  Filter by program, port or address", icon::MAGNIFYING_GLASS))
+                    .hint_text(format!("{}  {}", icon::MAGNIFYING_GLASS, tr("Filter by program, port or address")))
                     .desired_width(260.0),
             );
             if self.conns.is_some() {
@@ -385,7 +397,7 @@ impl Inspect {
             .collect();
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
-            ui.label(RichText::new(format!("{} shown", list.len())).color(p.weak).size(12.5));
+            ui.label(RichText::new(trf("{n} shown", &[("n", &list.len())])).color(p.weak).size(12.5));
             let table_height = ui.available_height() - 40.0;
             TableBuilder::new(ui)
                 .striped(true)
@@ -398,7 +410,7 @@ impl Inspect {
                 .column(Column::exact(110.0))
                 .column(Column::remainder().at_least(140.0).clip(true))
                 .header(24.0, |mut h| {
-                    for t in ["", "Port", "Local address", "Remote address", "State", "Program"] {
+                    for t in ["", tr("Port"), tr("Local address"), tr("Remote address"), tr("State"), tr("Program")] {
                         h.col(|ui| {
                             ui.label(RichText::new(t).color(p.weak).size(13.0));
                         });
@@ -413,7 +425,7 @@ impl Inspect {
                         row.col(|ui| {
                             let port = c.local_port.map_or("*".into(), |p| p.to_string());
                             ui.label(RichText::new(port).monospace().color(p.text))
-                                .on_hover_text(c.local_port.map(netmgr::scan::service_name).unwrap_or(""));
+                                .on_hover_text(tr_dyn(c.local_port.map(netmgr::scan::service_name).unwrap_or("")));
                         });
                         row.col(|ui| {
                             ui.label(RichText::new(&c.local).monospace().size(12.5));
@@ -445,7 +457,12 @@ impl Inspect {
                     });
                 });
             if cfg!(not(windows)) {
-                theme::paragraph(ui, "Programs of other users are shown with administrator rights only.", 12.0, p.weak);
+                theme::paragraph(
+                    ui,
+                    trl("Programs of other users are shown with administrator rights only."),
+                    12.0,
+                    p.weak,
+                );
             }
         });
     }
@@ -457,20 +474,20 @@ impl Inspect {
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Add a route").color(p.text));
+                ui.label(RichText::new(tr("Add a route")).color(p.text));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.route_net)
-                        .hint_text("network, e.g. 10.20.0.0/16")
+                        .hint_text(tr("network, e.g. 10.20.0.0/16"))
                         .desired_width(180.0),
                 );
-                ui.label(RichText::new("via").color(p.weak));
+                ui.label(RichText::new(tr("via")).color(p.weak));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.route_gw)
-                        .hint_text("gateway, e.g. 192.168.1.254")
+                        .hint_text(tr("gateway, e.g. 192.168.1.254"))
                         .desired_width(170.0),
                 );
                 if cfg!(windows) {
-                    ui.checkbox(&mut self.route_persistent, "Keep after restart");
+                    ui.checkbox(&mut self.route_persistent, tr("Keep after restart"));
                 }
                 let gw = self.route_gw.trim().parse::<IpAddr>();
                 if ui
@@ -484,7 +501,7 @@ impl Inspect {
                     let (net, persistent) = (self.route_net.trim().to_string(), self.route_persistent);
                     self.route_job = Some(Job::spawn(ui.ctx(), move |_, _| {
                         system::add_route(&net, gw, persistent)?;
-                        Ok(format!("Route to {net} via {gw} added."))
+                        Ok(trf("Route to {network} via {gateway} added.", &[("network", &net), ("gateway", &gw)]))
                     }));
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -513,7 +530,7 @@ impl Inspect {
                 .column(Column::exact(90.0))
                 .column(Column::exact(40.0))
                 .header(24.0, |mut h| {
-                    for t in ["Destination", "Gateway", "Interface", "Metric", "Kind", ""] {
+                    for t in [tr("Destination"), tr("Gateway"), tr("Interface"), tr("Metric"), tr("Kind"), ""] {
                         h.col(|ui| {
                             ui.label(RichText::new(t).color(p.weak).size(13.0));
                         });
@@ -548,7 +565,7 @@ impl Inspect {
                             if !default
                                 && ui
                                     .add(egui::Button::new(RichText::new(icon::TRASH).color(p.weak)).frame(false))
-                                    .on_hover_text("Delete this route")
+                                    .on_hover_text(tr("Delete this route"))
                                     .clicked()
                             {
                                 delete = Some(r.destination.clone());
@@ -562,7 +579,7 @@ impl Inspect {
         {
             self.route_job = Some(Job::spawn(ui.ctx(), move |_, _| {
                 system::delete_route(&d)?;
-                Ok(format!("Route to {d} deleted."))
+                Ok(trf("Route to {network} deleted.", &[("network", &d)]))
             }));
         }
         let _ = sh;
@@ -574,7 +591,7 @@ impl Inspect {
                 Ok(h) => self.hosts = Some(h),
                 Err(e) => {
                     self.hosts = Some(Vec::new());
-                    sh.fail("The hosts file could not be read.", &e);
+                    sh.fail(trl("The hosts file could not be read."), &e);
                 }
             }
         }
@@ -582,19 +599,19 @@ impl Inspect {
             ui.set_width(ui.available_width());
             theme::paragraph(
                 ui,
-                &format!(
-                    "Names this computer resolves itself, before asking DNS — {}.",
-                    system::hosts_path().display()
+                &trlf(
+                    "Names this computer resolves itself, before asking DNS — {file}.",
+                    &[("file", &system::hosts_path().display())],
                 ),
                 13.0,
                 p.weak,
             );
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.host_ip).hint_text("IP address").desired_width(150.0));
+                ui.add(egui::TextEdit::singleline(&mut self.host_ip).hint_text(tr("IP address")).desired_width(150.0));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.host_name)
-                        .hint_text("name(s), e.g. nas nas.lab")
+                        .hint_text(tr("name(s), e.g. nas nas.lab"))
                         .desired_width(240.0),
                 );
                 let ok = self.host_ip.trim().parse::<IpAddr>().is_ok() && !self.host_name.trim().is_empty();
@@ -620,7 +637,7 @@ impl Inspect {
                     {
                         self.hosts_job = Some(Job::spawn(ui.ctx(), move |_, _| system::write_hosts(&h)));
                     }
-                    if ui.button(icon_label(icon::ARROW_COUNTER_CLOCKWISE, "Reload")).clicked() {
+                    if ui.button(icon_label(icon::ARROW_COUNTER_CLOCKWISE, tr("Reload"))).clicked() {
                         self.hosts = None;
                         self.hosts_dirty = false;
                     }
@@ -637,7 +654,8 @@ impl Inspect {
                 egui::Grid::new("hosts").num_columns(5).spacing([16.0, 6.0]).striped(true).show(ui, |ui| {
                     for (i, l) in lines.iter_mut().enumerate() {
                         if let HostsLine::Entry { enabled, ip, names, comment } = l {
-                            changed |= ui.checkbox(enabled, "").on_hover_text("Turn this entry on or off").changed();
+                            changed |=
+                                ui.checkbox(enabled, "").on_hover_text(tr("Turn this entry on or off")).changed();
                             ui.label(RichText::new(ip.as_str()).monospace().color(if *enabled {
                                 p.text
                             } else {
@@ -668,9 +686,9 @@ impl Inspect {
         }
         if self.hosts_dirty {
             ui.label(
-                RichText::new(
+                RichText::new(tr(
                     "Not saved yet. Saving asks for administrator rights and keeps a backup of the original file.",
-                )
+                ))
                 .color(p.warning)
                 .size(12.5),
             );

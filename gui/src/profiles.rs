@@ -8,6 +8,7 @@ use netmgr::profiles::{self, Profile};
 
 use crate::adapters_page::IpForm;
 use crate::app::Shared;
+use crate::i18n::{tr, trf, trl, trlf};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -37,7 +38,7 @@ impl Profiles {
             Ok(l) => self.list = Some(l),
             Err(e) => {
                 self.list = Some(Vec::new());
-                sh.fail("The profiles could not be read.", &e);
+                sh.fail(trl("The profiles could not be read."), &e);
             }
         }
     }
@@ -49,14 +50,19 @@ impl Profiles {
         if let Some(r) = jobs::finished(&mut self.job) {
             match r {
                 Ok(m) => sh.toast(m),
-                Err(e) => sh.fail("The profile could not be applied.", &e),
+                Err(e) => sh.fail(trl("The profile could not be applied."), &e),
             }
             sh.refresh = true;
             sh.refresh_wifi = true;
         }
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                theme::page_title(ui, p, "Profiles", "Saved settings for the networks you use, applied in one click.")
+                theme::page_title(
+                    ui,
+                    p,
+                    tr("Profiles"),
+                    tr("Saved settings for the networks you use, applied in one click."),
+                )
             });
             ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
                 if theme::primary_button(ui, p, &icon_label(icon::PLUS, "New profile"), true).clicked() {
@@ -72,7 +78,7 @@ impl Profiles {
                 }
                 if let Some(a) = sh.default_adapter().cloned()
                     && theme::secondary_button(ui, &icon_label(icon::FLOPPY_DISK, "Save current settings"))
-                        .on_hover_text(format!("Save how {} is set up now", a.name))
+                        .on_hover_text(trf("Save how {name} is set up now", &[("name", &a.name)]))
                         .clicked()
                 {
                     self.editor = Some(Editor {
@@ -95,11 +101,10 @@ impl Profiles {
                         ui.add_space(16.0);
                         theme::icon_badge(ui, p, icon::STACK, p.accent, 72.0);
                         ui.add_space(8.0);
-                        ui.label(theme::semibold("No profiles yet", 19.0).color(p.text));
+                        ui.label(theme::semibold(tr("No profiles yet"), 19.0).color(p.text));
                         theme::paragraph(
                             ui,
-                            "A profile remembers IP settings — for example a fixed address for configuring a switch, \
-                             the office network, or automatic settings for home — and applies them in one click.",
+                            trl("A profile remembers IP settings — for example a fixed address for configuring a switch, the office network, or automatic settings for home — and applies them in one click."),
                             14.0,
                             p.weak,
                         );
@@ -117,16 +122,16 @@ impl Profiles {
                         theme::icon_badge(ui, p, glyph, p.accent, 44.0);
                         ui.vertical(|ui| {
                             ui.label(theme::semibold(&prof.name, 17.0).color(p.text));
-                            ui.label(RichText::new(prof.settings.summary()).color(p.weak).size(13.5));
+                            ui.label(RichText::new(summary(&prof.settings)).color(p.weak).size(13.5));
                             if !prof.note.is_empty() {
                                 ui.label(RichText::new(&prof.note).color(p.weak).size(12.5).italics());
                             }
                         });
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if ui.add(egui::Button::new(icon::TRASH).frame(false)).on_hover_text("Delete").clicked() {
+                            if ui.add(egui::Button::new(icon::TRASH).frame(false)).on_hover_text(tr("Delete")).clicked() {
                                 self.confirm_delete = Some(prof.name.clone());
                             }
-                            if ui.add(egui::Button::new(icon::PENCIL_SIMPLE).frame(false)).on_hover_text("Edit").clicked() {
+                            if ui.add(egui::Button::new(icon::PENCIL_SIMPLE).frame(false)).on_hover_text(tr("Edit")).clicked() {
                                 let a = sh.adapters.iter().find(|a| a.name == prof.adapter);
                                 self.editor = Some(Editor {
                                     original: Some(prof.name.clone()),
@@ -145,10 +150,10 @@ impl Profiles {
                                         let prof = prof.clone();
                                         self.job = Some(Job::spawn(ui.ctx(), move |_, _| {
                                             prof.apply(&a)?;
-                                            Ok(format!("\"{}\" was applied to {}.", prof.name, a.name))
+                                            Ok(trf("\"{profile}\" was applied to {adapter}.", &[("profile", &prof.name), ("adapter", &a.name)]))
                                         }));
                                     }
-                                    None => sh.error = Some(format!("The adapter \"{target}\" was not found. Choose another one.")),
+                                    None => sh.error = Some(trlf("The adapter \"{name}\" was not found. Choose another one.", &[("name", &target)])),
                                 }
                             }
                             let target = self.targets.entry(prof.name.clone()).or_insert_with(|| {
@@ -159,7 +164,7 @@ impl Profiles {
                                     ui.selectable_value(target, a.clone(), a);
                                 }
                             });
-                            ui.label(RichText::new("on").color(p.weak));
+                            ui.label(RichText::new(tr("on")).color(p.weak));
                             if busy {
                                 ui.spinner();
                             }
@@ -171,10 +176,7 @@ impl Profiles {
             ui.add_space(4.0);
             theme::paragraph(
                 ui,
-                &format!(
-                    "Profiles are kept in {} and can also be applied from the command line: netmgr profile apply <name>",
-                    profiles::config_dir().join("profiles.json").display()
-                ),
+                &trlf("Profiles are kept in {file} and can also be applied from the command line: netmgr profile apply <name>", &[("file", &profiles::config_dir().join("profiles.json").display())]),
                 12.5,
                 p.weak,
             );
@@ -190,14 +192,14 @@ impl Profiles {
         let mut save = None;
         let modal = egui::Modal::new(egui::Id::new("profile-editor")).show(ctx, |ui| {
             ui.set_width(520.0);
-            let title = if ed.original.is_some() { "Edit profile" } else { "New profile" };
+            let title = if ed.original.is_some() { tr("Edit profile") } else { tr("New profile") };
             ui.label(theme::semibold(title, 18.0).color(p.text));
             ui.add_space(10.0);
             egui::Grid::new("profile-fields").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-                ui.label("Name");
-                ui.add(egui::TextEdit::singleline(&mut ed.name).hint_text("e.g. Office").desired_width(260.0));
+                ui.label(tr("Name"));
+                ui.add(egui::TextEdit::singleline(&mut ed.name).hint_text(tr("e.g. Office")).desired_width(260.0));
                 ui.end_row();
-                ui.label("Adapter");
+                ui.label(tr("Adapter"));
                 egui::ComboBox::from_id_salt("profile-adapter")
                     .selected_text(ed.adapter.as_str())
                     .width(260.0)
@@ -207,8 +209,8 @@ impl Profiles {
                         }
                     });
                 ui.end_row();
-                ui.label("Note");
-                ui.add(egui::TextEdit::singleline(&mut ed.note).hint_text("optional").desired_width(260.0));
+                ui.label(tr("Note"));
+                ui.add(egui::TextEdit::singleline(&mut ed.note).hint_text(tr("optional")).desired_width(260.0));
                 ui.end_row();
             });
             ui.add_space(10.0);
@@ -219,9 +221,9 @@ impl Profiles {
             }
             ui.add_space(12.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if theme::primary_button(ui, p, "  Save  ", true).clicked() {
+                if theme::primary_button(ui, p, &format!("  {}  ", tr("Save")), true).clicked() {
                     if ed.name.trim().is_empty() {
-                        ed.error = Some("Give the profile a name.".into());
+                        ed.error = Some(trl("Give the profile a name.").into());
                     } else {
                         match ed.form.settings() {
                             Ok(s) => {
@@ -236,7 +238,7 @@ impl Profiles {
                         }
                     }
                 }
-                if theme::secondary_button(ui, "Cancel").clicked() {
+                if theme::secondary_button(ui, tr("Cancel")).clicked() {
                     close = true;
                 }
             });
@@ -254,7 +256,7 @@ impl Profiles {
             })();
             match result {
                 Ok(()) => {
-                    sh.toast(format!("Profile \"{}\" saved.", prof.name));
+                    sh.toast(trf("Profile \"{name}\" saved.", &[("name", &prof.name)]));
                     self.editor = None;
                     self.reload(sh);
                 }
@@ -274,18 +276,18 @@ impl Profiles {
         let mut done = false;
         let modal = egui::Modal::new(egui::Id::new("profile-delete")).show(ctx, |ui| {
             ui.set_width(380.0);
-            ui.label(theme::semibold(format!("Delete \"{name}\"?"), 17.0).color(p.text));
+            ui.label(theme::semibold(trf("Delete \"{name}\"?", &[("name", &name)]), 17.0).color(p.text));
             ui.add_space(6.0);
-            theme::paragraph(ui, "The adapter's settings are not changed.", 14.0, p.weak);
+            theme::paragraph(ui, trl("The adapter's settings are not changed."), 14.0, p.weak);
             ui.add_space(12.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if theme::danger_button(ui, p, "Delete").clicked() {
+                if theme::danger_button(ui, p, tr("Delete")).clicked() {
                     if let Err(e) = profiles::remove(&name) {
-                        sh.fail("The profile could not be deleted.", &e);
+                        sh.fail(trl("The profile could not be deleted."), &e);
                     }
                     done = true;
                 }
-                if theme::secondary_button(ui, "Cancel").clicked() {
+                if theme::secondary_button(ui, tr("Cancel")).clicked() {
                     done = true;
                 }
             });
@@ -294,5 +296,24 @@ impl Profiles {
             self.confirm_delete = None;
             self.reload(sh);
         }
+    }
+}
+
+/// "Automatic (DHCP)" or "192.168.1.10/24 via 192.168.1.1", with the DNS servers.
+fn summary(s: &IpSettings) -> String {
+    let ip = match &s.mode {
+        Ipv4Mode::Dhcp => tr("Automatic (DHCP)").to_string(),
+        Ipv4Mode::Static { address, prefix, gateway: Some(g) } => {
+            trf("{address} via {gateway}", &[("address", &format!("{address}/{prefix}")), ("gateway", g)])
+        }
+        Ipv4Mode::Static { address, prefix, gateway: None } => {
+            trf("{address}, no gateway", &[("address", &format!("{address}/{prefix}"))])
+        }
+    };
+    if s.dns.is_empty() {
+        ip
+    } else {
+        let dns: Vec<String> = s.dns.iter().map(std::net::IpAddr::to_string).collect();
+        format!("{ip} · {}", trf("DNS {servers}", &[("servers", &dns.join(", "))]))
     }
 }

@@ -6,6 +6,7 @@ use eframe::egui::{self, RichText, Ui};
 use egui_phosphor::regular as icon;
 use serde::{Deserialize, Serialize};
 
+use crate::i18n::{tr, trf, trl};
 use crate::theme::{self, Accent, Palette, icon_label};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,6 +32,7 @@ impl ThemeChoice {
 #[serde(default)]
 pub struct Settings {
     // Appearance
+    pub language: crate::i18n::Language,
     pub theme: ThemeChoice,
     pub accent: Accent,
     pub ui_scale: f32,
@@ -64,6 +66,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            language: crate::i18n::Language::System,
             theme: ThemeChoice::Midnight,
             accent: Accent::Blue,
             ui_scale: 1.0,
@@ -115,30 +118,41 @@ pub fn row(ui: &mut Ui, p: &Palette, title: &str, help: &str, control: impl FnOn
 }
 
 fn toggle(ui: &mut Ui, on: &mut bool) {
-    let label = if *on { "On" } else { "Off" };
+    let label = if *on { tr("On") } else { tr("Off") };
     ui.checkbox(on, label);
 }
 
 /// Draws the Settings page.
 pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
-    theme::page_title(ui, p, "Settings", "Saved automatically.");
+    theme::page_title(ui, p, tr("Settings"), tr("Saved automatically."));
 
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
-            theme::section_title(ui, p, icon::PALETTE, "Appearance");
+            theme::section_title(ui, p, icon::PALETTE, tr("Appearance"));
             ui.add_space(6.0);
-            row(ui, p, "Theme", "Follow the system, or always light or dark.", |ui| {
+            row(ui, p, tr("Language"), "", |ui| {
+                egui::ComboBox::from_id_salt("language")
+                    .selected_text(s.language.label())
+                    // Tall enough to show every language without scrolling.
+                    .height(420.0)
+                    .show_ui(ui, |ui| {
+                        for l in crate::i18n::Language::ALL {
+                            ui.selectable_value(&mut s.language, l, l.label());
+                        }
+                    });
+            });
+            row(ui, p, tr("Theme"), trl("Follow the system, or always light or dark."), |ui| {
                 for (choice, label) in [
-                    (ThemeChoice::Midnight, "Midnight"),
-                    (ThemeChoice::Dark, "Dark"),
-                    (ThemeChoice::Light, "Light"),
-                    (ThemeChoice::System, "System"),
+                    (ThemeChoice::Midnight, tr("Midnight")),
+                    (ThemeChoice::Dark, tr("Dark")),
+                    (ThemeChoice::Light, tr("Light")),
+                    (ThemeChoice::System, tr("System")),
                 ] {
                     ui.selectable_value(&mut s.theme, choice, label);
                 }
             });
-            row(ui, p, "Accent colour", "", |ui| {
+            row(ui, p, tr("Accent colour"), "", |ui| {
                 for a in Accent::ALL.iter().rev() {
                     let selected = s.accent == *a;
                     let text = RichText::new(if selected { icon::CHECK_CIRCLE } else { icon::CIRCLE })
@@ -149,7 +163,7 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
                     }
                 }
             });
-            row(ui, p, "Interface size", "Make everything larger or smaller (also Ctrl/⌘ + and −).", |ui| {
+            row(ui, p, tr("Interface size"), trl("Make everything larger or smaller (also Ctrl/⌘ + and −)."), |ui| {
                 // Applied when the mouse button is released: resizing during a
                 // drag would move the slider away under the mouse.
                 let held_id = egui::Id::new("interface-size-held");
@@ -171,37 +185,37 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
 
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
-            theme::section_title(ui, p, icon::PLUGS_CONNECTED, "Adapters and devices");
+            theme::section_title(ui, p, icon::PLUGS_CONNECTED, tr("Adapters and devices"));
             ui.add_space(6.0);
             row(
                 ui,
                 p,
-                "Show virtual adapters",
-                "Also list VPN, virtual machine, bridge and loopback adapters.",
+                tr("Show virtual adapters"),
+                trl("Also list VPN, virtual machine, bridge and loopback adapters."),
                 |ui| toggle(ui, &mut s.show_virtual),
             );
             row(
                 ui,
                 p,
-                "Find device names",
-                "Ask the router and the devices themselves for their names during a scan.",
+                tr("Find device names"),
+                trl("Ask the router and the devices themselves for their names during a scan."),
                 |ui| toggle(ui, &mut s.scan_names),
             );
             row(
                 ui,
                 p,
-                "Check device services",
-                "Try a few common ports on each device to tell printers, computers and phones apart. Slower.",
+                tr("Check device services"),
+                trl("Try a few common ports on each device to tell printers, computers and phones apart. Slower."),
                 |ui| toggle(ui, &mut s.scan_ports),
             );
             row(
                 ui,
                 p,
-                "Forget known devices",
-                "Every device is marked \"New\" until it was seen once. Names you gave are kept.",
+                tr("Forget known devices"),
+                trl("Every device is marked \"New\" until it was seen once. Names you gave are kept."),
                 |ui| {
                     let n = s.known_devices.len();
-                    if ui.add_enabled(n > 0, egui::Button::new(format!("Forget {n}"))).clicked() {
+                    if ui.add_enabled(n > 0, egui::Button::new(trf("Forget {n}", &[("n", &n)]))).clicked() {
                         s.known_devices.clear();
                     }
                 },
@@ -211,14 +225,14 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
 
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
-            theme::section_title(ui, p, icon::TOOLBOX, "Tools");
+            theme::section_title(ui, p, icon::TOOLBOX, tr("Tools"));
             ui.add_space(6.0);
-            row(ui, p, "Pings per test", "0 keeps pinging until you click Stop.", |ui| {
+            row(ui, p, tr("Pings per test"), trl("0 keeps pinging until you click Stop."), |ui| {
                 ui.add(egui::DragValue::new(&mut s.ping_count).range(0..=1000));
             });
-            row(ui, p, "Recent addresses", "The hosts you typed into the tools.", |ui| {
+            row(ui, p, tr("Recent addresses"), trl("The hosts you typed into the tools."), |ui| {
                 let n = s.recent_hosts.len();
-                if ui.add_enabled(n > 0, egui::Button::new(format!("Clear {n}"))).clicked() {
+                if ui.add_enabled(n > 0, egui::Button::new(trf("Clear {n}", &[("n", &n)]))).clicked() {
                     s.recent_hosts.clear();
                 }
             });
@@ -227,28 +241,29 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
 
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
-            theme::section_title(ui, p, icon::GLOBE, "Internet");
+            theme::section_title(ui, p, icon::GLOBE, tr("Internet"));
             ui.add_space(6.0);
             row(
                 ui,
                 p,
-                "Show the public IP address",
-                "Asks ipinfo.io for this connection's public address, provider and location when the app starts.",
+                tr("Show the public IP address"),
+                trl("Asks ipinfo.io for this connection's public address, provider and location when the app starts."),
                 |ui| toggle(ui, &mut s.lookup_public_ip),
             );
             row(
                 ui,
                 p,
-                "Check for updates at start",
-                "Asks GitHub for the latest version when the app starts. Nothing about you or your network is sent.",
+                tr("Check for updates at start"),
+                trl("Asks GitHub for the latest version when the app starts. Nothing about you or your network is sent."),
                 |ui| toggle(ui, &mut s.check_updates),
             );
         });
         ui.add_space(14.0);
         ui.horizontal(|ui| {
-            if theme::secondary_button(ui, &icon_label(icon::ARROW_COUNTER_CLOCKWISE, "Reset to defaults")).clicked() {
+            if theme::secondary_button(ui, &icon_label(icon::ARROW_COUNTER_CLOCKWISE, tr("Reset to defaults"))).clicked() {
                 // Device names and original MAC addresses are the user's data.
                 *s = Settings {
+                    language: s.language,
                     device_labels: std::mem::take(&mut s.device_labels),
                     known_devices: std::mem::take(&mut s.known_devices),
                     original_macs: std::mem::take(&mut s.original_macs),

@@ -11,6 +11,7 @@ use netmgr::dhcp::TestResult;
 use netmgr::discovery::Neighbor;
 
 use crate::app::{Nav, Shared};
+use crate::i18n::{tr, tr_dyn, trf, trl, trlf};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -78,13 +79,13 @@ impl SwitchPort {
             self.listen = None;
             match r {
                 Ok(n) => self.neighbors = Some(n),
-                Err(e) => sh.fail("Listening for the switch did not work.", &e),
+                Err(e) => sh.fail(trl("Listening for the switch did not work."), &e),
             }
         }
         if let Some(r) = jobs::finished(&mut self.dhcp) {
             match r {
                 Ok(t) => self.dhcp_result = Some(t),
-                Err(e) => sh.fail("The DHCP test did not work.", &e),
+                Err(e) => sh.fail(trl("The DHCP test did not work."), &e),
             }
         }
         if self.busy() {
@@ -93,8 +94,8 @@ impl SwitchPort {
         theme::page_title(
             ui,
             p,
-            "Switch port",
-            "Which switch, port and VLAN this cable is plugged into, and which DHCP servers answer.",
+            tr("Switch port"),
+            tr("Which switch, port and VLAN this cable is plugged into, and which DHCP servers answer."),
         );
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             self.lldp_card(ui, p, sh);
@@ -115,14 +116,14 @@ impl SwitchPort {
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                theme::section_title(ui, p, icon::TREE_STRUCTURE, "Switch port (LLDP / CDP)");
+                theme::section_title(ui, p, icon::TREE_STRUCTURE, tr("Switch port (LLDP / CDP)"));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if let Some((job, started)) = &self.listen {
                         if ui.button(icon_label(icon::STOP, "Stop")).clicked() {
                             job.stop();
                         }
                         let left = LISTEN_SECONDS.saturating_sub(started.elapsed().as_secs());
-                        ui.label(RichText::new(format!("up to {left} s")).color(p.weak));
+                        ui.label(RichText::new(trf("up to {n} s", &[("n", &left)])).color(p.weak));
                         ui.spinner();
                     } else if theme::primary_button(ui, p, &icon_label(icon::EAR, "Listen"), chosen.is_some()).clicked()
                         && let Some(a) = chosen.clone()
@@ -135,14 +136,14 @@ impl SwitchPort {
                         ));
                     }
                     egui::ComboBox::from_id_salt("lldp-adapter")
-                        .selected_text(chosen.as_ref().map_or("No connected adapter".into(), |a| a.name.clone()))
+                        .selected_text(chosen.as_ref().map_or(tr("No connected adapter").into(), |a| a.name.clone()))
                         .width(200.0)
                         .show_ui(ui, |ui| {
                             for a in &adapters {
                                 ui.selectable_value(
                                     &mut self.adapter,
                                     Some(a.id.clone()),
-                                    format!("{} ({})", a.name, a.kind.label()),
+                                    format!("{} ({})", a.name, tr_dyn(a.kind.label())),
                                 );
                             }
                         });
@@ -151,7 +152,9 @@ impl SwitchPort {
             if chosen.as_ref().is_some_and(|a| a.kind == Kind::WiFi) {
                 theme::paragraph(
                     ui,
-                    "This is a Wi-Fi adapter: switches announce themselves on cables. Most access points do not pass the announcements on.",
+                    trl(
+                        "This is a Wi-Fi adapter: switches announce themselves on cables. Most access points do not pass the announcements on.",
+                    ),
                     12.5,
                     p.warning,
                 );
@@ -161,7 +164,9 @@ impl SwitchPort {
                     ui.add_space(6.0);
                     theme::paragraph(
                         ui,
-                        "Listening… Switches announce themselves every 30 seconds (LLDP) or 60 seconds (CDP), so this can take up to a minute. Nothing is sent.",
+                        trl(
+                            "Listening… Switches announce themselves every 30 seconds (LLDP) or 60 seconds (CDP), so this can take up to a minute. Nothing is sent.",
+                        ),
                         14.0,
                         p.weak,
                     );
@@ -169,14 +174,17 @@ impl SwitchPort {
                 None => {
                     ui.add_space(6.0);
                     let rights = if cfg!(windows) {
-                        "It uses Windows' built-in packet monitor (pktmon)."
+                        tr("It uses Windows' built-in packet monitor (pktmon).")
                     } else {
-                        "The system asks for your password: listening to the cable needs administrator rights."
+                        tr("The system asks for your password: listening to the cable needs administrator rights.")
                     };
                     theme::paragraph(
                         ui,
                         &format!(
-                            "Plug in the network cable and click Listen to see the switch's name, the port, the VLAN, the voice VLAN, PoE and the switch's management address. {rights}"
+                            "{} {rights}",
+                            trl(
+                                "Plug in the network cable and click Listen to see the switch's name, the port, the VLAN, the voice VLAN, PoE and the switch's management address."
+                            )
                         ),
                         14.0,
                         p.weak,
@@ -189,7 +197,9 @@ impl SwitchPort {
                         p,
                         p.warning,
                         icon::INFO,
-                        "No announcement was heard. LLDP and CDP may be turned off on this switch (or on its port), the device may be a simple unmanaged switch, or the cable goes to a router or a wall socket without a switch behind it.",
+                        trl(
+                            "No announcement was heard. LLDP and CDP may be turned off on this switch (or on its port), the device may be a simple unmanaged switch, or the cable goes to a router or a wall socket without a switch behind it.",
+                        ),
                     );
                 }
                 Some(list) => {
@@ -206,7 +216,7 @@ impl SwitchPort {
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                theme::section_title(ui, p, icon::BROADCAST, "DHCP servers");
+                theme::section_title(ui, p, icon::BROADCAST, tr("DHCP servers"));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if self.dhcp.is_some() {
                         ui.spinner();
@@ -232,7 +242,9 @@ impl SwitchPort {
             let Some(r) = &self.dhcp_result else {
                 theme::paragraph(
                     ui,
-                    "Asks the network for an address and lists every DHCP server that answers, with what it offers. Two servers usually mean a rogue one — the classic cause of computers getting wrong addresses. Nothing is changed on this computer.",
+                    trl(
+                        "Asks the network for an address and lists every DHCP server that answers, with what it offers. Two servers usually mean a rogue one — the classic cause of computers getting wrong addresses. Nothing is changed on this computer.",
+                    ),
                     14.0,
                     p.weak,
                 );
@@ -246,23 +258,26 @@ impl SwitchPort {
                     p,
                     p.danger,
                     icon::X_CIRCLE,
-                    "No DHCP server answered. Devices on this network will not get an address automatically.",
+                    trl("No DHCP server answered. Devices on this network will not get an address automatically."),
                 ),
                 1 => theme::notice(
                     ui,
                     p,
                     p.success,
                     icon::CHECK_CIRCLE,
-                    &format!("One DHCP server answered: {}.", servers[0]),
+                    &trlf("One DHCP server answered: {address}.", &[("address", &servers[0])]),
                 ),
                 n => theme::notice(
                     ui,
                     p,
                     p.danger,
                     icon::WARNING,
-                    &format!(
-                        "{n} DHCP servers answered: {}. Normally there is one; another one is probably a rogue server (a home router or a VM host plugged in by mistake).",
-                        servers.iter().map(Ipv4Addr::to_string).collect::<Vec<_>>().join(", ")
+                    &trlf(
+                        "{n} DHCP servers answered: {addresses}. Normally there is one; another one is probably a rogue server (a home router or a VM host plugged in by mistake).",
+                        &[
+                            ("n", &n),
+                            ("addresses", &servers.iter().map(Ipv4Addr::to_string).collect::<Vec<_>>().join(", ")),
+                        ],
                     ),
                 ),
             }
@@ -271,8 +286,11 @@ impl SwitchPort {
                 egui::Frame::new().fill(p.card_alt).corner_radius(10).inner_margin(12).show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.label(
-                        theme::semibold(format!("Server {}", o.server.map_or("?".into(), |s| s.to_string())), 15.0)
-                            .color(p.text),
+                        theme::semibold(
+                            trf("Server {address}", &[("address", &o.server.map_or("?".into(), |s| s.to_string()))]),
+                            15.0,
+                        )
+                        .color(p.text),
                     );
                     let list = |v: &[Ipv4Addr]| {
                         if v.is_empty() {
@@ -284,36 +302,36 @@ impl SwitchPort {
                     egui::Grid::new(("offer", o.server)).num_columns(2).spacing([24.0, 6.0]).show(ui, |ui| {
                         let rows = [
                             (
-                                "Offers",
+                                tr("Offers"),
                                 format!(
                                     "{}{}",
                                     o.address.map_or("—".into(), |a| a.to_string()),
                                     o.mask.map(|m| format!(" / {m}")).unwrap_or_default()
                                 ),
                             ),
-                            ("Router", list(&o.routers)),
+                            (tr("Router"), list(&o.routers)),
                             ("DNS", list(&o.dns)),
-                            ("Domain", o.domain.clone().unwrap_or_else(|| "—".into())),
+                            (tr("Domain"), o.domain.clone().unwrap_or_else(|| "—".into())),
                             (
-                                "Lease",
+                                tr("Lease"),
                                 o.lease_seconds.map_or("—".into(), |l| {
                                     if l >= 7200 {
-                                        format!("{} hours", l / 3600)
+                                        trf("{n} hours", &[("n", &(l / 3600))])
                                     } else {
-                                        format!("{} minutes", l / 60)
+                                        trf("{n} minutes", &[("n", &(l / 60))])
                                     }
                                 }),
                             ),
-                            ("Answered in", format!("{} ms", o.millis)),
+                            (tr("Answered in"), format!("{} ms", o.millis)),
                         ];
                         for (k, v) in rows {
                             theme::info_row(ui, p, k, &v, false);
                         }
                         if let Some(r) = o.relay {
-                            theme::info_row(ui, p, "Through relay", &r.to_string(), false);
+                            theme::info_row(ui, p, tr("Through relay"), &r.to_string(), false);
                         }
                         if !o.ntp.is_empty() {
-                            theme::info_row(ui, p, "Time servers", &list(&o.ntp), false);
+                            theme::info_row(ui, p, tr("Time servers"), &list(&o.ntp), false);
                         }
                         if o.tftp_server.is_some() || o.boot_file.is_some() {
                             let boot = format!(
@@ -321,13 +339,15 @@ impl SwitchPort {
                                 o.tftp_server.clone().unwrap_or_default(),
                                 o.boot_file.clone().unwrap_or_default()
                             );
-                            theme::info_row(ui, p, "Boot server", boot.trim(), false);
+                            theme::info_row(ui, p, tr("Boot server"), boot.trim(), false);
                         }
                     });
                 });
             }
             ui.add_space(4.0);
-            ui.label(RichText::new(format!("Asked for hardware address {}", r.mac)).color(p.weak).size(12.0));
+            ui.label(
+                RichText::new(trf("Asked for hardware address {mac}", &[("mac", &r.mac)])).color(p.weak).size(12.0),
+            );
         });
     }
 }
@@ -339,12 +359,14 @@ fn neighbor(ui: &mut Ui, p: &Palette, sh: &mut Shared, n: &Neighbor) {
             theme::icon_badge(ui, p, icon::TREE_STRUCTURE, p.accent, 52.0);
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    ui.label(theme::semibold(n.system_name.as_deref().unwrap_or("Switch"), 19.0).color(p.text));
+                    ui.label(theme::semibold(n.system_name.as_deref().unwrap_or(tr("Switch")), 19.0).color(p.text));
                     theme::pill(ui, p, &n.protocol, p.deep);
                 });
                 let port = n.port().unwrap_or("?");
-                let vlan = n.vlan.map(|v| format!(" · VLAN {v}")).unwrap_or_default();
-                ui.label(theme::semibold(format!("Port {port}{vlan}"), 16.0).color(p.accent));
+                let vlan = n.vlan.map(|v| format!(" · {}", trf("VLAN {n}", &[("n", &v)]))).unwrap_or_default();
+                ui.label(
+                    theme::semibold(format!("{}{vlan}", trf("Port {port}", &[("port", &port)])), 16.0).color(p.accent),
+                );
             });
         });
         ui.add_space(8.0);
@@ -356,18 +378,25 @@ fn neighbor(ui: &mut Ui, p: &Palette, sh: &mut Shared, n: &Neighbor) {
                 Some(n.vlan_names.iter().map(|(id, name)| format!("{id} {name}")).collect::<Vec<_>>().join(", "))
             };
             let rows: [(&str, Option<String>); 12] = [
-                ("Port", n.port_id.clone()),
-                ("Port description", n.port_description.clone()),
-                ("VLAN (untagged)", n.vlan.map(|v| v.to_string())),
-                ("Voice VLAN", n.voice_vlan.map(|v| v.to_string())),
-                ("VLAN names", vlans),
-                ("Management address", (!n.management.is_empty()).then(|| n.management.join(", "))),
-                ("Model", n.platform.clone()),
-                ("Link", n.link.clone().or_else(|| n.duplex.clone().map(|d| format!("{d} duplex")))),
-                ("Power (PoE)", n.poe.clone()),
-                ("Capabilities", (!n.capabilities.is_empty()).then(|| n.capabilities.join(", "))),
-                ("VTP domain", n.vtp_domain.clone()),
-                ("Switch ID", n.chassis_id.clone().filter(|c| Some(c) != n.system_name.as_ref())),
+                (tr("Port"), n.port_id.clone()),
+                (tr("Port description"), n.port_description.clone()),
+                (tr("VLAN (untagged)"), n.vlan.map(|v| v.to_string())),
+                (tr("Voice VLAN"), n.voice_vlan.map(|v| v.to_string())),
+                (tr("VLAN names"), vlans),
+                (tr("Management address"), (!n.management.is_empty()).then(|| n.management.join(", "))),
+                (tr("Model"), n.platform.clone()),
+                (
+                    tr("Link"),
+                    n.link.clone().or_else(|| {
+                        n.duplex.clone().map(|d| {
+                            trf("{mode} duplex", &[("mode", &if d == "Full" { tr("Full") } else { tr("Half") })])
+                        })
+                    }),
+                ),
+                (tr("Power (PoE)"), n.poe.clone()),
+                (tr("Capabilities"), (!n.capabilities.is_empty()).then(|| n.capabilities.join(", "))),
+                (tr("VTP domain"), n.vtp_domain.clone()),
+                (tr("Switch ID"), n.chassis_id.clone().filter(|c| Some(c) != n.system_name.as_ref())),
             ];
             for (k, v) in rows {
                 if let Some(v) = v {
@@ -376,11 +405,11 @@ fn neighbor(ui: &mut Ui, p: &Palette, sh: &mut Shared, n: &Neighbor) {
             }
             if let Some(d) = &n.description {
                 let short: String = d.lines().take(2).collect::<Vec<_>>().join(" ");
-                copied |= theme::info_row(ui, p, "Software", &short, false);
+                copied |= theme::info_row(ui, p, tr("Software"), &short, false);
             }
         });
         if copied {
-            sh.toast("Copied.");
+            sh.toast(tr("Copied."));
         }
         if let Some(ip) = n.management.iter().find(|m| m.parse::<std::net::IpAddr>().is_ok()) {
             ui.add_space(6.0);
@@ -388,7 +417,7 @@ fn neighbor(ui: &mut Ui, p: &Palette, sh: &mut Shared, n: &Neighbor) {
                 if ui.button(icon_label(icon::TERMINAL_WINDOW, "SSH to the switch")).clicked()
                     && let Err(e) = netmgr::console::open_terminal(&format!("ssh {ip}"))
                 {
-                    sh.fail("The terminal could not be opened.", &e);
+                    sh.fail(trl("The terminal could not be opened."), &e);
                 }
                 if ui.button(icon_label(icon::PULSE, "Ping")).clicked() {
                     sh.nav = Some(Nav::Tool(crate::tools::Tab::Ping, ip.clone()));

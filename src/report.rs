@@ -64,7 +64,7 @@ pub fn build(include_public_ip: bool, step: &dyn Fn(&str)) -> String {
     step("Checking the connection");
     let _ = writeln!(r, "## Connection check\n");
     for c in internet::diagnose(&|_| {}) {
-        let _ = writeln!(r, "- {} **{}**: {}", if c.ok { "✅" } else { "❌" }, c.title, c.detail);
+        let _ = writeln!(r, "- {} **{}**: {}", if c.ok { "✅" } else { "❌" }, c.title, c.detail());
         if let Some(a) = c.advice {
             let _ = writeln!(r, "  - {a}");
         }

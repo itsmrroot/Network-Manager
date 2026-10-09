@@ -105,5 +105,9 @@ pub fn finished<T: Send + 'static>(job: &mut Option<Job<T>>) -> Option<Result<T>
 
 /// An error for people: the cancelled password dialog says so plainly.
 pub fn describe(e: &anyhow::Error) -> String {
-    if netmgr::cmd::is_cancelled(e) { "Cancelled: the password was not entered.".into() } else { format!("{e:#}") }
+    if netmgr::cmd::is_cancelled(e) {
+        crate::i18n::trl("Cancelled: the password was not entered.").into()
+    } else {
+        format!("{e:#}")
+    }
 }

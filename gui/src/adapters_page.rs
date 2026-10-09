@@ -11,6 +11,7 @@ use netmgr::mac::{self, Mac};
 use netmgr::profiles::{self, Profile};
 
 use crate::app::{Nav, Shared};
+use crate::i18n::{tr, tr_dyn, trf, trl, trlf};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -68,8 +69,8 @@ impl AdaptersPage {
                 theme::page_title(
                     ui,
                     p,
-                    "Adapters",
-                    "Change IP and MAC addresses, DNS servers, and turn adapters on or off.",
+                    tr("Adapters"),
+                    tr("Change IP and MAC addresses, DNS servers, and turn adapters on or off."),
                 )
             });
             ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
@@ -88,22 +89,24 @@ impl AdaptersPage {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(icon::CHECK_CIRCLE).color(p.success).size(18.0));
-                    ui.label(RichText::new(format!("The settings of {name} were changed.")).color(p.text));
+                    ui.label(
+                        RichText::new(trf("The settings of {name} were changed.", &[("name", &name)])).color(p.text),
+                    );
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.button("Keep").clicked() {
+                        if ui.button(tr("Keep")).clicked() {
                             self.undo = None;
                         } else if ui
                             .add_enabled(
                                 self.job.is_none(),
-                                egui::Button::new(icon_label(icon::ARROW_COUNTER_CLOCKWISE, "Undo")),
+                                egui::Button::new(icon_label(icon::ARROW_COUNTER_CLOCKWISE, tr("Undo"))),
                             )
-                            .on_hover_text("Go back to the settings it had before")
+                            .on_hover_text(tr("Go back to the settings it had before"))
                             .clicked()
                             && let Some((a, prev)) = self.undo.take()
                         {
                             self.job = Some(Job::spawn(ui.ctx(), move |_, _| {
                                 config::apply(&a, &prev)?;
-                                Ok(Done::Message(format!("{} has its previous settings again.", a.name)))
+                                Ok(Done::Message(trf("{name} has its previous settings again.", &[("name", &a.name)])))
                             }));
                         }
                     });
@@ -115,7 +118,7 @@ impl AdaptersPage {
         let list: Vec<Adapter> = sh.visible_adapters().into_iter().cloned().collect();
         if list.is_empty() {
             if sh.adapters_loaded {
-                theme::notice(ui, p, p.warning, icon::WARNING, "No network adapters were found.");
+                theme::notice(ui, p, p.warning, icon::WARNING, trl("No network adapters were found."));
             } else {
                 ui.spinner();
             }
@@ -144,13 +147,13 @@ impl AdaptersPage {
                                         );
                                         if a.default {
                                             ui.label(RichText::new(icon::STAR).size(12.0).color(p.accent))
-                                                .on_hover_text("Default route: internet traffic goes here");
+                                                .on_hover_text(tr("Default route: internet traffic goes here"));
                                         }
                                     });
                                     let ip = a
                                         .main_ipv4()
                                         .map(|(ip, p)| format!("{ip}/{p}"))
-                                        .unwrap_or_else(|| a.status().to_string());
+                                        .unwrap_or_else(|| tr_dyn(a.status()));
                                     ui.label(RichText::new(ip).size(12.5).color(p.weak));
                                 });
                             });
@@ -182,11 +185,11 @@ impl AdaptersPage {
             match r {
                 Ok(Done::Applied(b)) => {
                     let (a, prev) = *b;
-                    sh.toast(format!("{} was changed.", a.name));
+                    sh.toast(trf("{name} was changed.", &[("name", &a.name)]));
                     self.undo = Some((a, prev));
                 }
                 Ok(Done::Message(m)) => sh.toast(m),
-                Err(e) => sh.fail("The adapter could not be changed.", &e),
+                Err(e) => sh.fail(trl("The adapter could not be changed."), &e),
             }
             sh.refresh = true;
             sh.refresh_wifi = true;
@@ -209,8 +212,8 @@ impl AdaptersPage {
                 ui.vertical(|ui| {
                     ui.label(theme::semibold(&a.name, 20.0).color(p.text));
                     ui.horizontal(|ui| {
-                        theme::pill(ui, p, a.status(), status_color(p, a));
-                        ui.label(RichText::new(a.kind.label()).color(p.weak).size(13.0));
+                        theme::pill(ui, p, &tr_dyn(a.status()), status_color(p, a));
+                        ui.label(RichText::new(tr_dyn(a.kind.label())).color(p.weak).size(13.0));
                         if a.device != a.name && !a.device.is_empty() {
                             ui.label(RichText::new(format!("· {}", a.device)).color(p.weak).size(13.0));
                         }
@@ -232,17 +235,21 @@ impl AdaptersPage {
                         let a = a.clone();
                         self.job = Some(Job::spawn(ui.ctx(), move |_, _| {
                             config::renew(&a)?;
-                            Ok(Done::Message(format!("{} asked the router for a new address.", a.name)))
+                            Ok(Done::Message(trf("{name} asked the router for a new address.", &[("name", &a.name)])))
                         }));
                     }
                 });
                 ui.add_enabled_ui(!busy, |ui| {
-                    let (label, on) = if a.disabled { ("Turn on", true) } else { ("Turn off", false) };
+                    let (label, on) = if a.disabled { (tr("Turn on"), true) } else { (tr("Turn off"), false) };
                     if theme::secondary_button(ui, &icon_label(icon::POWER, label)).clicked() {
                         let a = a.clone();
                         self.job = Some(Job::spawn(ui.ctx(), move |_, _| {
                             config::set_enabled(&a, on)?;
-                            Ok(Done::Message(format!("{} was turned {}.", a.name, if on { "on" } else { "off" })))
+                            Ok(Done::Message(if on {
+                                trf("{name} was turned on.", &[("name", &a.name)])
+                            } else {
+                                trf("{name} was turned off.", &[("name", &a.name)])
+                            }))
                         }));
                     }
                 });
@@ -254,7 +261,7 @@ impl AdaptersPage {
                 ui.add_space(6.0);
                 theme::paragraph(
                     ui,
-                    "Internet traffic uses this adapter: changing it interrupts the connection for a moment.",
+                    trl("Internet traffic uses this adapter: changing it interrupts the connection for a moment."),
                     12.5,
                     p.weak,
                 );
@@ -264,83 +271,84 @@ impl AdaptersPage {
 
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
-            theme::section_title(ui, p, icon::IDENTIFICATION_CARD, "Addresses");
+            theme::section_title(ui, p, icon::IDENTIFICATION_CARD, tr("Addresses"));
             let mut copied = false;
             egui::Grid::new(("addr-grid", &a.id)).num_columns(2).spacing([24.0, 8.0]).striped(false).show(ui, |ui| {
                 let dash = "—".to_string();
                 let how = match a.dhcp {
-                    Some(true) => "Automatic (DHCP)",
-                    Some(false) => "Manual (static)",
+                    Some(true) => tr("Automatic (DHCP)"),
+                    Some(false) => tr("Manual (static)"),
                     None => "—",
                 };
-                copied |= theme::info_row(ui, p, "Configured", how, false);
+                copied |= theme::info_row(ui, p, tr("Configured"), how, false);
                 if a.ipv4.is_empty() {
-                    copied |= theme::info_row(ui, p, "IPv4 address", "—", false);
+                    copied |= theme::info_row(ui, p, tr("IPv4 address"), "—", false);
                 }
                 for (ip, prefix) in &a.ipv4 {
-                    copied |= theme::info_row(ui, p, "IPv4 address", &ip.to_string(), true);
+                    copied |= theme::info_row(ui, p, tr("IPv4 address"), &ip.to_string(), true);
                     copied |= theme::info_row(
                         ui,
                         p,
-                        "Subnet mask",
+                        tr("Subnet mask"),
                         &format!("{} (/{prefix})", prefix_to_mask(*prefix)),
                         false,
                     );
                 }
-                copied |= theme::info_row(ui, p, "Gateway", &a.gateway.map_or(dash.clone(), |g| g.to_string()), true);
+                copied |=
+                    theme::info_row(ui, p, tr("Gateway"), &a.gateway.map_or(dash.clone(), |g| g.to_string()), true);
                 let dns: Vec<String> = a.dns.iter().map(IpAddr::to_string).collect();
                 copied |= theme::info_row(
                     ui,
                     p,
-                    "DNS servers",
+                    tr("DNS servers"),
                     &if dns.is_empty() { dash.clone() } else { dns.join("\n") },
                     true,
                 );
                 let mac = match a.mac {
                     Some(m) => m.to_string(),
-                    None if sh.lan_denied => "Hidden by macOS".into(),
+                    None if sh.lan_denied => tr("Hidden by macOS").into(),
                     None => dash.clone(),
                 };
-                copied |= theme::info_row(ui, p, "MAC address", &mac, a.mac.is_some());
+                copied |= theme::info_row(ui, p, tr("MAC address"), &mac, a.mac.is_some());
                 if let Some(m) = a.mac {
                     let who = if m.is_local() {
-                        "Private address, set by software".to_string()
+                        tr("Private address, set by software").to_string()
                     } else {
-                        m.vendor().unwrap_or("Unknown maker").to_string()
+                        m.vendor().unwrap_or(tr("Unknown maker")).to_string()
                     };
-                    copied |= theme::info_row(ui, p, "Maker", &who, false);
+                    copied |= theme::info_row(ui, p, tr("Maker"), &who, false);
                 }
                 let v6: Vec<String> = a.ipv6.iter().map(|(ip, p)| format!("{ip}/{p}")).collect();
                 if !v6.is_empty() {
-                    copied |= theme::info_row(ui, p, "IPv6 addresses", &v6.join("\n"), true);
+                    copied |= theme::info_row(ui, p, tr("IPv6 addresses"), &v6.join("\n"), true);
                 }
             });
             if copied {
-                sh.toast("Copied.");
+                sh.toast(tr("Copied."));
             }
         });
         ui.add_space(12.0);
 
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
-            theme::section_title(ui, p, icon::PULSE, "Link");
+            theme::section_title(ui, p, icon::PULSE, tr("Link"));
             egui::Grid::new(("link-grid", &a.id)).num_columns(2).spacing([24.0, 8.0]).show(ui, |ui| {
                 if let Some(s) = a.speed_bps {
-                    theme::info_row(ui, p, "Speed", &format_speed(s), false);
+                    theme::info_row(ui, p, tr("Speed"), &format_speed(s), false);
                 }
                 if let Some(m) = a.mtu {
-                    theme::info_row(ui, p, "MTU", &format!("{m} bytes"), false);
+                    theme::info_row(ui, p, "MTU", &trf("{n} bytes", &[("n", &m)]), false);
                 }
                 if let (Some(rx), Some(tx)) = (a.rx_bytes, a.tx_bytes) {
-                    theme::info_row(ui, p, "Received", &format_bytes(rx), false);
-                    theme::info_row(ui, p, "Sent", &format_bytes(tx), false);
+                    theme::info_row(ui, p, tr("Received"), &format_bytes(rx), false);
+                    theme::info_row(ui, p, tr("Sent"), &format_bytes(tx), false);
                 }
                 if let Some(d) = &a.description
                     && d != &a.name
                 {
-                    theme::info_row(ui, p, "Hardware", d, false);
+                    theme::info_row(ui, p, tr("Hardware"), d, false);
                 }
-                theme::info_row(ui, p, "System name", &a.id, true);
+                theme::info_row(ui, p, tr("System name"), &a.id, true);
             });
             if let Some(g) = a.gateway {
                 ui.add_space(6.0);
@@ -380,17 +388,17 @@ impl AdaptersPage {
             ui.set_width(520.0);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(icon::PENCIL_SIMPLE).size(24.0).color(p.accent));
-                ui.label(theme::semibold(format!("IP settings of {}", ed.adapter.name), 18.0).color(p.text));
+                ui.label(theme::semibold(trf("IP settings of {name}", &[("name", &ed.adapter.name)]), 18.0).color(p.text));
             });
             ui.add_space(10.0);
             ed.form.show(ui, p);
             ui.add_space(10.0);
             ui.horizontal(|ui| {
-                ui.checkbox(&mut ed.save_profile, "Also save as a profile");
+                ui.checkbox(&mut ed.save_profile, tr("Also save as a profile"));
                 if ed.save_profile {
                     ui.add(
                         egui::TextEdit::singleline(&mut ed.profile_name)
-                            .hint_text("Name, e.g. Office")
+                            .hint_text(tr("Name, e.g. Office"))
                             .desired_width(180.0),
                     );
                 }
@@ -403,23 +411,23 @@ impl AdaptersPage {
                 ui.add_space(6.0);
                 theme::paragraph(
                     ui,
-                    "The connection drops for a moment while the settings change. You can undo the change afterwards.",
+                    trl("The connection drops for a moment while the settings change. You can undo the change afterwards."),
                     12.5,
                     p.weak,
                 );
             }
             if cfg!(target_os = "macos") || cfg!(target_os = "linux") {
-                theme::paragraph(ui, "The system asks for your password.", 12.5, p.weak);
+                theme::paragraph(ui, trl("The system asks for your password."), 12.5, p.weak);
             }
             ui.add_space(12.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if theme::primary_button(ui, p, "  Apply  ", true).clicked() {
+                if theme::primary_button(ui, p, &format!("  {}  ", tr("Apply")), true).clicked() {
                     match ed.form.settings() {
                         Ok(s) => apply = Some(s),
                         Err(e) => ed.error = Some(e),
                     }
                 }
-                if theme::secondary_button(ui, "Cancel").clicked() {
+                if theme::secondary_button(ui, tr("Cancel")).clicked() {
                     close = true;
                 }
             });
@@ -441,8 +449,8 @@ impl AdaptersPage {
                     settings: s.clone(),
                     note: String::new(),
                 }) {
-                    Ok(()) => sh.toast(format!("Saved as profile \"{name}\".")),
-                    Err(e) => sh.fail("The profile could not be saved.", &e),
+                    Ok(()) => sh.toast(trf("Saved as profile \"{name}\".", &[("name", &name)])),
+                    Err(e) => sh.fail(trl("The profile could not be saved."), &e),
                 }
             }
             let a = ed.adapter.clone();
@@ -464,50 +472,50 @@ impl AdaptersPage {
             ui.set_width(520.0);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(icon::FINGERPRINT).size(24.0).color(p.accent));
-                ui.label(theme::semibold(format!("MAC address of {}", ed.adapter.name), 18.0).color(p.text));
+                ui.label(theme::semibold(trf("MAC address of {name}", &[("name", &ed.adapter.name)]), 18.0).color(p.text));
             });
             ui.add_space(10.0);
             egui::Grid::new("mac-info").num_columns(2).spacing([16.0, 6.0]).show(ui, |ui| {
-                let now = ed.adapter.mac.map_or("Unknown".to_string(), describe);
-                theme::info_row(ui, p, "Now", &now, false);
+                let now = ed.adapter.mac.map_or(tr("Unknown").to_string(), describe);
+                theme::info_row(ui, p, tr("Now"), &now, false);
                 let orig = match (ed.original_loaded, ed.original) {
-                    (false, _) => "Looking…".to_string(),
+                    (false, _) => tr("Looking…").to_string(),
                     (true, Some(m)) => describe(m),
                     (true, None) => sh
                         .settings
                         .original_macs
                         .get(&ed.adapter.id)
                         .cloned()
-                        .unwrap_or_else(|| "Unknown".into()),
+                        .unwrap_or_else(|| tr("Unknown").into()),
                 };
-                theme::info_row(ui, p, "Original", &orig, false);
+                theme::info_row(ui, p, tr("Original"), &orig, false);
             });
             ui.add_space(10.0);
-            ui.label(RichText::new("New address").color(p.weak).size(13.0));
+            ui.label(RichText::new(tr("New address")).color(p.weak).size(13.0));
             ui.horizontal(|ui| {
                 let field = ui.add(egui::TextEdit::singleline(&mut ed.value).font(egui::TextStyle::Monospace).desired_width(200.0));
                 if field.changed() {
                     ed.error = None;
                 }
-                if ui.button(icon_label(icon::SHUFFLE, "Random")).on_hover_text("A random private address").clicked() {
+                if ui.button(icon_label(icon::SHUFFLE, "Random")).on_hover_text(tr("A random private address")).clicked() {
                     ed.value = Mac::random().to_string();
                     ed.error = None;
                 }
             });
             match ed.value.parse::<Mac>() {
                 Ok(m) => {
-                    let who = if m.is_local() { "a private address (set by software)".to_string() } else { m.vendor().map_or("an unknown maker".into(), |v| format!("made by {v}")) };
+                    let who = if m.is_local() { tr("a private address (set by software)").to_string() } else { m.vendor().map_or(tr("an unknown maker").into(), |v| trf("made by {maker}", &[("maker", &v)])) };
                     ui.label(RichText::new(format!("{m} — {who}")).color(p.weak).size(12.5));
                 }
                 Err(_) if !ed.value.trim().is_empty() => {
-                    ui.label(RichText::new("Write it as 6 pairs of hex digits, e.g. 02:1A:2B:3C:4D:5E").color(p.warning).size(12.5));
+                    ui.label(RichText::new(tr("Write it as 6 pairs of hex digits, e.g. 02:1A:2B:3C:4D:5E")).color(p.warning).size(12.5));
                 }
                 Err(_) => {}
             }
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Look like a device from").color(p.weak).size(13.0));
-                ui.add(egui::TextEdit::singleline(&mut ed.vendor).hint_text("maker, e.g. Intel").desired_width(160.0));
+                ui.label(RichText::new(tr("Look like a device from")).color(p.weak).size(13.0));
+                ui.add(egui::TextEdit::singleline(&mut ed.vendor).hint_text(tr("maker, e.g. Intel")).desired_width(160.0));
             });
             let matches = mac::vendor_prefixes(&ed.vendor, 6);
             if !matches.is_empty() {
@@ -519,7 +527,7 @@ impl AdaptersPage {
                     }
                 });
                 if cfg!(windows) && ed.adapter.kind == Kind::WiFi {
-                    theme::paragraph(ui, "Windows Wi-Fi adapters only accept private addresses: use Random instead.", 12.5, p.warning);
+                    theme::paragraph(ui, trl("Windows Wi-Fi adapters only accept private addresses: use Random instead."), 12.5, p.warning);
                 }
             }
             if let Some(e) = &ed.error {
@@ -528,26 +536,26 @@ impl AdaptersPage {
             }
             ui.add_space(8.0);
             let note = if cfg!(target_os = "macos") {
-                "The connection drops for a moment. macOS keeps the new address until the computer restarts; Wi-Fi may refuse it."
+                trl("The connection drops for a moment. macOS keeps the new address until the computer restarts; Wi-Fi may refuse it.")
             } else if cfg!(windows) {
-                "The adapter restarts, so the connection drops for a moment. The new address stays until you restore the original."
+                trl("The adapter restarts, so the connection drops for a moment. The new address stays until you restore the original.")
             } else {
-                "The connection restarts. The new address stays until you restore the original."
+                trl("The connection restarts. The new address stays until you restore the original.")
             };
             theme::paragraph(ui, note, 12.5, p.weak);
             ui.add_space(12.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if theme::primary_button(ui, p, "  Change  ", true).clicked() {
+                if theme::primary_button(ui, p, &format!("  {}  ", tr("Change")), true).clicked() {
                     match ed.value.parse::<Mac>() {
-                        Ok(m) if Some(m) == ed.adapter.mac => ed.error = Some("This is already the adapter's address.".into()),
+                        Ok(m) if Some(m) == ed.adapter.mac => ed.error = Some(trl("This is already the adapter's address.").into()),
                         Ok(m) => change = Some(Some(m)),
-                        Err(_) => ed.error = Some("This is not a MAC address.".into()),
+                        Err(_) => ed.error = Some(trl("This is not a MAC address.").into()),
                     }
                 }
-                if theme::secondary_button(ui, &icon_label(icon::ARROW_COUNTER_CLOCKWISE, "Restore original")).clicked() {
+                if theme::secondary_button(ui, &icon_label(icon::ARROW_COUNTER_CLOCKWISE, tr("Restore original"))).clicked() {
                     change = Some(None);
                 }
-                if theme::secondary_button(ui, "Cancel").clicked() {
+                if theme::secondary_button(ui, tr("Cancel")).clicked() {
                     close = true;
                 }
             });
@@ -571,8 +579,8 @@ impl AdaptersPage {
                 };
                 config::set_mac(&a, mac)?;
                 Ok(Done::Message(match mac {
-                    Some(m) if target.is_some() => format!("{} now uses {m}.", a.name),
-                    _ => format!("{} uses its original address again.", a.name),
+                    Some(m) if target.is_some() => trf("{name} now uses {mac}.", &[("name", &a.name), ("mac", &m)]),
+                    _ => trf("{name} uses its original address again.", &[("name", &a.name)]),
                 }))
             }));
         } else if close {
@@ -582,7 +590,11 @@ impl AdaptersPage {
 }
 
 fn describe(m: Mac) -> String {
-    if m.is_local() { format!("{m} (private)") } else { format!("{m} ({})", m.vendor().unwrap_or("unknown maker")) }
+    if m.is_local() {
+        trf("{mac} (private)", &[("mac", &m)])
+    } else {
+        format!("{m} ({})", m.vendor().unwrap_or(tr("unknown maker")))
+    }
 }
 
 struct IpEditor {
@@ -647,32 +659,34 @@ impl IpForm {
     }
 
     pub fn show(&mut self, ui: &mut Ui, p: &Palette) {
-        ui.label(RichText::new("IP address").color(p.weak).size(13.0));
+        ui.label(RichText::new(tr("IP address")).color(p.weak).size(13.0));
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.dhcp, true, "Automatic (DHCP)");
-            ui.selectable_value(&mut self.dhcp, false, "Manual");
+            ui.selectable_value(&mut self.dhcp, true, tr("Automatic (DHCP)"));
+            ui.selectable_value(&mut self.dhcp, false, tr("Manual"));
         });
         if !self.dhcp {
             ui.add_space(6.0);
             egui::Grid::new("ip-fields").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-                ui.label("Address");
+                ui.label(tr("Address"));
                 ui.add(egui::TextEdit::singleline(&mut self.address).hint_text("192.168.1.50").desired_width(220.0));
                 ui.end_row();
-                ui.label("Subnet");
+                ui.label(tr("Subnet"));
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.subnet).hint_text("255.255.255.0 or 24").desired_width(220.0),
+                    egui::TextEdit::singleline(&mut self.subnet)
+                        .hint_text(tr("255.255.255.0 or 24"))
+                        .desired_width(220.0),
                 );
                 ui.end_row();
-                ui.label("Gateway");
+                ui.label(tr("Gateway"));
                 ui.horizontal(|ui| {
                     ui.add(
                         egui::TextEdit::singleline(&mut self.gateway)
-                            .hint_text("192.168.1.1 (optional)")
+                            .hint_text(tr("192.168.1.1 (optional)"))
                             .desired_width(220.0),
                     );
                     if self.gateway.trim().is_empty()
                         && let Some(g) = self.suggested_gateway()
-                        && ui.small_button(format!("Use {g}")).clicked()
+                        && ui.small_button(trf("Use {gateway}", &[("gateway", &g)])).clicked()
                     {
                         self.gateway = g.to_string();
                     }
@@ -681,16 +695,19 @@ impl IpForm {
             });
         }
         ui.add_space(10.0);
-        ui.label(RichText::new("DNS servers").color(p.weak).size(13.0));
+        ui.label(RichText::new(tr("DNS servers")).color(p.weak).size(13.0));
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.dns_auto, true, "Automatic");
-            ui.selectable_value(&mut self.dns_auto, false, "Manual");
+            ui.selectable_value(&mut self.dns_auto, true, tr("Automatic"));
+            ui.selectable_value(&mut self.dns_auto, false, tr("Manual"));
             if !self.dns_auto {
-                egui::ComboBox::from_id_salt("dns-preset").selected_text("Choose a service…").width(200.0).show_ui(
+                egui::ComboBox::from_id_salt("dns-preset").selected_text(tr("Choose a service…")).width(200.0).show_ui(
                     ui,
                     |ui| {
                         for (name, servers) in DNS_PRESETS {
-                            if ui.selectable_label(false, format!("{name}  ({})", servers.join(", "))).clicked() {
+                            if ui
+                                .selectable_label(false, format!("{}  ({})", tr_dyn(name), servers.join(", ")))
+                                .clicked()
+                            {
                                 self.dns1 = servers[0].to_string();
                                 self.dns2 = servers.get(1).map(|s| s.to_string()).unwrap_or_default();
                             }
@@ -700,17 +717,19 @@ impl IpForm {
             }
         });
         if self.dhcp && self.dns_auto {
-            theme::paragraph(ui, "The router gives this computer its address and DNS servers.", 12.5, p.weak);
+            theme::paragraph(ui, trl("The router gives this computer its address and DNS servers."), 12.5, p.weak);
         }
         if !self.dns_auto {
             ui.horizontal(|ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.dns1)
-                        .hint_text("Preferred, e.g. 1.1.1.1")
+                        .hint_text(tr("Preferred, e.g. 1.1.1.1"))
                         .desired_width(200.0),
                 );
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.dns2).hint_text("Alternate (optional)").desired_width(200.0),
+                    egui::TextEdit::singleline(&mut self.dns2)
+                        .hint_text(tr("Alternate (optional)"))
+                        .desired_width(200.0),
                 );
             });
         }
@@ -729,12 +748,17 @@ impl IpForm {
         let mode = if self.dhcp {
             Ipv4Mode::Dhcp
         } else {
-            let address: Ipv4Addr =
-                self.address.trim().parse().map_err(|_| "Enter an IPv4 address, e.g. 192.168.1.50.".to_string())?;
+            let address: Ipv4Addr = self
+                .address
+                .trim()
+                .parse()
+                .map_err(|_| trl("Enter an IPv4 address, e.g. 192.168.1.50.").to_string())?;
             let prefix = parse_subnet(&self.subnet)?;
             let gateway = match self.gateway.trim() {
                 "" => None,
-                g => Some(g.parse::<Ipv4Addr>().map_err(|_| format!("\"{g}\" is not an IPv4 address."))?),
+                g => Some(
+                    g.parse::<Ipv4Addr>().map_err(|_| trlf("\"{value}\" is not an IPv4 address.", &[("value", &g)]))?,
+                ),
             };
             Ipv4Mode::Static { address, prefix, gateway }
         };
@@ -743,11 +767,13 @@ impl IpForm {
             for d in [&self.dns1, &self.dns2] {
                 let d = d.trim();
                 if !d.is_empty() {
-                    dns.push(d.parse::<IpAddr>().map_err(|_| format!("\"{d}\" is not an IP address."))?);
+                    dns.push(
+                        d.parse::<IpAddr>().map_err(|_| trlf("\"{value}\" is not an IP address.", &[("value", &d)]))?,
+                    );
                 }
             }
             if dns.is_empty() {
-                return Err("Enter at least one DNS server, or choose Automatic.".into());
+                return Err(trl("Enter at least one DNS server, or choose Automatic.").into());
             }
         }
         let s = IpSettings { mode, dns };
@@ -760,10 +786,12 @@ impl IpForm {
 fn parse_subnet(s: &str) -> Result<u8, String> {
     let s = s.trim().trim_start_matches('/');
     if let Ok(p) = s.parse::<u8>() {
-        return if (1..=32).contains(&p) { Ok(p) } else { Err("The prefix must be between 1 and 32.".into()) };
+        return if (1..=32).contains(&p) { Ok(p) } else { Err(trl("The prefix must be between 1 and 32.").into()) };
     }
-    let mask: Ipv4Addr = s.parse().map_err(|_| "Enter the subnet as 255.255.255.0 or 24.".to_string())?;
-    mask_to_prefix(mask).filter(|p| *p > 0).ok_or_else(|| format!("{mask} is not a valid subnet mask."))
+    let mask: Ipv4Addr = s.parse().map_err(|_| trl("Enter the subnet as 255.255.255.0 or 24.").to_string())?;
+    mask_to_prefix(mask)
+        .filter(|p| *p > 0)
+        .ok_or_else(|| trlf("{mask} is not a valid subnet mask.", &[("mask", &mask)]))
 }
 
 struct MacEditor {

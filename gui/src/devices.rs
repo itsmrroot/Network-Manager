@@ -11,6 +11,7 @@ use egui_phosphor::regular as icon;
 use netmgr::scan::{self, Device, DeviceKind, Range};
 
 use crate::app::{Nav, Shared};
+use crate::i18n::{tr, tr_dyn, trf, trl, trn};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 use crate::tools::Tab;
@@ -111,10 +112,14 @@ impl Devices {
                         }
                     }
                     if !self.new.is_empty() {
-                        sh.toast(format!("{} new device(s) on your network.", self.new.len()));
+                        sh.toast(trn(
+                            self.new.len() as u64,
+                            "1 new device on your network.",
+                            "{n} new devices on your network.",
+                        ));
                     }
                 }
-                Err(e) => sh.fail("The network could not be scanned.", &e),
+                Err(e) => sh.fail(trl("The network could not be scanned."), &e),
             }
         } else if self.job.is_some()
             && let Ok(l) = self.live.lock()
@@ -141,9 +146,9 @@ impl Devices {
         d.mac
             .and_then(|m| sh.settings.device_labels.get(&m.to_string()).cloned())
             .or_else(|| d.name.clone())
-            .or_else(|| d.is_self.then(|| "This computer".to_string()))
-            .or_else(|| d.vendor.clone().map(|v| format!("{v} device")))
-            .unwrap_or_else(|| d.kind().label().to_string())
+            .or_else(|| d.is_self.then(|| tr("This computer").to_string()))
+            .or_else(|| d.vendor.clone().map(|v| trf("{maker} device", &[("maker", &v)])))
+            .unwrap_or_else(|| tr_dyn(d.kind().label()))
     }
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
@@ -153,10 +158,17 @@ impl Devices {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
                 let sub = match &self.range {
-                    Some(r) => format!("{} devices on {}/{} ({})", self.devices.len(), r.network, r.prefix, r.adapter),
-                    None => "Every device connected to your network.".to_string(),
+                    Some(r) => trf(
+                        "{n} devices on {network} ({adapter})",
+                        &[
+                            ("n", &self.devices.len()),
+                            ("network", &format!("{}/{}", r.network, r.prefix)),
+                            ("adapter", &r.adapter),
+                        ],
+                    ),
+                    None => tr("Every device connected to your network.").to_string(),
                 };
-                theme::page_title(ui, p, "Devices", &sub);
+                theme::page_title(ui, p, tr("Devices"), &sub);
             });
             ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
                 if let Some(job) = &self.job {
@@ -166,7 +178,7 @@ impl Devices {
                 } else if theme::primary_button(
                     ui,
                     p,
-                    &icon_label(icon::MAGNIFYING_GLASS, if self.scanned { "Scan again" } else { "Scan" }),
+                    &icon_label(icon::MAGNIFYING_GLASS, if self.scanned { tr("Scan again") } else { tr("Scan") }),
                     sh.default_adapter().is_some(),
                 )
                 .clicked()
@@ -188,7 +200,7 @@ impl Devices {
                 egui::ProgressBar::new(st.fraction.unwrap_or(0.0)).desired_height(8.0).corner_radius(4).fill(p.accent),
             );
             ui.label(
-                RichText::new(if st.message.is_empty() { "Starting…".to_string() } else { st.message })
+                RichText::new(if st.message.is_empty() { tr("Starting…").to_string() } else { st.message })
                     .color(p.weak)
                     .size(12.5),
             );
@@ -202,18 +214,24 @@ impl Devices {
                 p,
                 p.accent,
                 icon::INFO,
-                "This network is large: only the 1,022 addresses around this computer were scanned.",
+                trl("This network is large: only the 1,022 addresses around this computer were scanned."),
             );
             ui.add_space(8.0);
         }
         if sh.default_adapter().is_none() && sh.adapters_loaded {
-            theme::notice(ui, p, p.warning, icon::WARNING, "Not connected to a network: there is nothing to scan.");
+            theme::notice(
+                ui,
+                p,
+                p.warning,
+                icon::WARNING,
+                trl("Not connected to a network: there is nothing to scan."),
+            );
             return;
         }
 
         ui.add(
             egui::TextEdit::singleline(&mut self.search)
-                .hint_text(format!("{}  Search by name, address or maker", icon::MAGNIFYING_GLASS))
+                .hint_text(format!("{}  {}", icon::MAGNIFYING_GLASS, tr("Search by name, address or maker")))
                 .desired_width(320.0),
         );
         ui.add_space(8.0);
@@ -243,11 +261,11 @@ impl Devices {
                     ui.set_min_height(height - 40.0);
                     if rows.is_empty() {
                         let msg = if self.job.is_some() {
-                            "Looking for devices…"
+                            tr("Looking for devices…")
                         } else if self.scanned {
-                            "No devices match."
+                            tr("No devices match.")
                         } else {
-                            "Click Scan to find the devices on your network."
+                            tr("Click Scan to find the devices on your network.")
                         };
                         ui.label(RichText::new(msg).color(p.weak));
                         return;
@@ -264,7 +282,7 @@ impl Devices {
                         .column(Column::exact(150.0))
                         .column(Column::remainder().at_least(120.0).clip(true))
                         .header(26.0, |mut h| {
-                            for t in ["", "Name", "IP address", "MAC address", "Maker"] {
+                            for t in ["", tr("Name"), tr("IP address"), tr("MAC address"), tr("Maker")] {
                                 h.col(|ui| {
                                     ui.label(RichText::new(t).color(p.weak).size(13.0));
                                 });
@@ -286,13 +304,13 @@ impl Devices {
                                     ui.horizontal(|ui| {
                                         ui.label(RichText::new(name).color(p.text));
                                         if d.is_self {
-                                            theme::pill(ui, p, "You", p.accent);
+                                            theme::pill(ui, p, tr("You"), p.accent);
                                         }
                                         if d.is_gateway {
-                                            theme::pill(ui, p, "Router", p.deep);
+                                            theme::pill(ui, p, tr("Router"), p.deep);
                                         }
                                         if is_new {
-                                            theme::pill(ui, p, "New", p.warning);
+                                            theme::pill(ui, p, tr("New"), p.warning);
                                         }
                                     });
                                 });
@@ -305,7 +323,7 @@ impl Devices {
                                 });
                                 row.col(|ui| {
                                     let v = if d.private_address() {
-                                        "Private address".to_string()
+                                        tr("Private address").to_string()
                                     } else {
                                         d.vendor.clone().unwrap_or_else(|| "—".into())
                                     };
@@ -345,7 +363,7 @@ impl Devices {
                 theme::icon_badge(ui, p, kind_icon(d.kind()), p.accent, 64.0);
                 ui.add_space(6.0);
                 ui.label(theme::semibold(self.display_name(sh, d), 18.0).color(p.text));
-                ui.label(RichText::new(d.kind().label()).color(p.weak).size(13.0));
+                ui.label(RichText::new(tr_dyn(d.kind().label())).color(p.weak).size(13.0));
             });
             ui.add_space(10.0);
             let mut copied = false;
@@ -355,13 +373,13 @@ impl Devices {
                     copied |= theme::info_row(ui, p, "MAC", &m.to_string(), true);
                 }
                 let maker = if d.private_address() {
-                    "Private address: the device hides its real one".to_string()
+                    tr("Private address: the device hides its real one").to_string()
                 } else {
-                    d.vendor.clone().unwrap_or_else(|| "Unknown".into())
+                    d.vendor.clone().unwrap_or_else(|| tr("Unknown").into())
                 };
-                copied |= theme::info_row(ui, p, "Maker", &maker, false);
+                copied |= theme::info_row(ui, p, tr("Maker"), &maker, false);
                 if let Some(n) = &d.name {
-                    copied |= theme::info_row(ui, p, "Host name", n, true);
+                    copied |= theme::info_row(ui, p, tr("Host name"), n, true);
                 }
                 if !d.open_ports.is_empty() {
                     let ports: Vec<String> = d
@@ -369,25 +387,25 @@ impl Devices {
                         .iter()
                         .map(|p| match scan::service_name(*p) {
                             "" => p.to_string(),
-                            s => format!("{p} {s}"),
+                            s => format!("{p} {}", tr_dyn(s)),
                         })
                         .collect();
-                    copied |= theme::info_row(ui, p, "Services", &ports.join("\n"), false);
+                    copied |= theme::info_row(ui, p, tr("Services"), &ports.join("\n"), false);
                 }
             });
             if copied {
-                sh.toast("Copied.");
+                sh.toast(tr("Copied."));
             }
             if let Some(m) = d.mac {
                 ui.add_space(8.0);
-                ui.label(RichText::new("Your name for it").color(p.weak).size(13.0));
+                ui.label(RichText::new(tr("Your name for it")).color(p.weak).size(13.0));
                 ui.horizontal(|ui| {
                     let r = ui.add(
                         egui::TextEdit::singleline(&mut self.label)
-                            .hint_text("e.g. Anna's laptop")
+                            .hint_text(tr("e.g. Anna's laptop"))
                             .desired_width(180.0),
                     );
-                    let save = ui.button("Save").clicked()
+                    let save = ui.button(tr("Save")).clicked()
                         || (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)));
                     if save {
                         let key = m.to_string();
@@ -396,7 +414,7 @@ impl Devices {
                         } else {
                             sh.settings.device_labels.insert(key, self.label.trim().to_string());
                         }
-                        sh.toast("Name saved.");
+                        sh.toast(tr("Name saved."));
                     }
                 });
             }
@@ -409,7 +427,11 @@ impl Devices {
                 if ui.button(icon_label(icon::DOOR_OPEN, "Ports")).clicked() {
                     sh.nav = Some(Nav::Tool(Tab::Ports, ip.clone()));
                 }
-                if ui.button(icon_label(icon::HEARTBEAT, "Watch")).on_hover_text("Add to the ping monitor").clicked() {
+                if ui
+                    .button(icon_label(icon::HEARTBEAT, "Watch"))
+                    .on_hover_text(tr("Add to the ping monitor"))
+                    .clicked()
+                {
                     sh.nav = Some(Nav::Monitor(ip.clone()));
                 }
                 let web = [443u16, 80, 8080, 8443, 5000, 5001].into_iter().find(|p| d.open_ports.contains(p));
@@ -421,11 +443,14 @@ impl Devices {
                 }
                 if let Some(m) = d.mac
                     && !d.is_self
-                    && ui.button(icon_label(icon::POWER, "Wake")).on_hover_text("Send a Wake-on-LAN packet").clicked()
+                    && ui
+                        .button(icon_label(icon::POWER, "Wake"))
+                        .on_hover_text(tr("Send a Wake-on-LAN packet"))
+                        .clicked()
                 {
                     match netmgr::tools::wake(m, None) {
-                        Ok(()) => sh.toast(format!("Wake-on-LAN sent to {m}.")),
-                        Err(e) => sh.fail("The packet could not be sent.", &e),
+                        Ok(()) => sh.toast(trf("Wake-on-LAN sent to {mac}.", &[("mac", &m)])),
+                        Err(e) => sh.fail(trl("The packet could not be sent."), &e),
                     }
                 }
             });
@@ -452,8 +477,8 @@ impl Devices {
             );
         }
         match std::fs::write(&path, out) {
-            Ok(()) => sh.toast(format!("Saved to {}.", path.display())),
-            Err(e) => sh.fail("The file could not be saved.", &e.into()),
+            Ok(()) => sh.toast(trf("Saved to {file}.", &[("file", &path.display())])),
+            Err(e) => sh.fail(trl("The file could not be saved."), &e.into()),
         }
     }
 }

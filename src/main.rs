@@ -542,7 +542,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Diagnose => {
             let checks = internet::diagnose(&|c| {
                 if !json {
-                    println!("{} {:<12} {}", if c.ok { "✔" } else { "✘" }, c.title, c.detail);
+                    println!("{} {:<12} {}", if c.ok { "✔" } else { "✘" }, c.title, c.detail());
                     if let Some(a) = &c.advice {
                         println!("  → {a}");
                     }

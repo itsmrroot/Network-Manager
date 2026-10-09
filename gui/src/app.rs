@@ -9,6 +9,7 @@ use netmgr::adapters::{self, Adapter};
 use netmgr::internet::PublicInfo;
 use netmgr::wifi;
 
+use crate::i18n::{self, tr, trl};
 use crate::jobs::{self, Job};
 use crate::settings::{self, Settings};
 use crate::theme::{self, Palette};
@@ -119,7 +120,7 @@ impl Shared {
     /// Shows the error of a job, unless the password dialog was cancelled.
     pub fn fail(&mut self, what: &str, e: &anyhow::Error) {
         if netmgr::cmd::is_cancelled(e) {
-            self.toast("Cancelled: nothing was changed.");
+            self.toast(tr("Cancelled: nothing was changed."));
         } else {
             self.error = Some(format!("{what}\n\n{}", jobs::describe(e)));
         }
@@ -129,6 +130,7 @@ impl Shared {
 pub struct App {
     shared: Shared,
     applied: Option<(theme::Accent, f32, settings::ThemeChoice)>,
+    language: Option<i18n::Lang>,
     page: Page,
     logo: egui::TextureHandle,
     updater: Updater,
@@ -166,7 +168,8 @@ pub const MIN_SIZE: [f32; 2] = [860.0, 560.0];
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let settings: Settings = cc.storage.and_then(|s| eframe::get_value(s, SETTINGS_KEY)).unwrap_or_default();
-        theme::install_fonts(&cc.egui_ctx);
+        let lang = i18n::set_language(settings.language);
+        theme::install_fonts(&cc.egui_ctx, lang);
         // Zoom shortcuts are handled as changes of the interface size setting.
         cc.egui_ctx.options_mut(|o| o.zoom_with_keyboard = false);
         let logo = {
@@ -209,6 +212,7 @@ impl App {
                 traffic: Traffic::default(),
             },
             applied: None,
+            language: Some(lang),
             page: Page::Overview,
             logo,
             updater,
@@ -255,6 +259,11 @@ impl App {
             ctx.set_theme(s.theme.preference());
             ctx.set_zoom_factor(s.ui_scale);
             self.applied = Some(want);
+        }
+        let lang = i18n::set_language(self.shared.settings.language);
+        if self.language != Some(lang) {
+            theme::install_fonts(ctx, lang);
+            self.language = Some(lang);
         }
     }
 
@@ -353,8 +362,8 @@ impl App {
         ui.horizontal_centered(|ui| {
             ui.add(egui::Image::new(&self.logo).fit_to_exact_size(Vec2::splat(30.0)));
             ui.add_space(4.0);
-            ui.label(theme::semibold("Network", 17.0).color(white));
-            ui.label(RichText::new("Manager").color(white.gamma_multiply(0.75)).size(17.0));
+            ui.label(theme::semibold(tr("Network"), 17.0).color(white));
+            ui.label(RichText::new(tr("Manager")).color(white.gamma_multiply(0.75)).size(17.0));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if self.updater.available().is_some() {
                     self.updater.button(ui, p);
@@ -365,7 +374,7 @@ impl App {
                     let (glyph, text) = match a.kind {
                         adapters::Kind::WiFi => (
                             icon::WIFI_HIGH,
-                            self.shared.wifi.first().and_then(|w| w.ssid.clone()).unwrap_or_else(|| "Wi-Fi".into()),
+                            self.shared.wifi.first().and_then(|w| w.ssid.clone()).unwrap_or_else(|| tr("Wi-Fi").into()),
                         ),
                         _ => (icon::PLUGS_CONNECTED, a.name.clone()),
                     };
@@ -387,8 +396,8 @@ impl App {
                 ui.add(egui::Image::new(&self.logo).fit_to_exact_size(Vec2::splat(40.0)));
                 ui.vertical(|ui| {
                     ui.add_space(2.0);
-                    ui.label(theme::semibold("Network", 16.0).color(p.text));
-                    ui.label(RichText::new("Manager").color(p.weak).size(13.0));
+                    ui.label(theme::semibold(tr("Network"), 16.0).color(p.text));
+                    ui.label(RichText::new(tr("Manager")).color(p.weak).size(13.0));
                 });
             });
         }
@@ -397,19 +406,19 @@ impl App {
         let dot = |on: bool| on.then(|| "●".to_string());
         let devices_badge = dot(self.devices.scanning()).or(self.devices.count().map(|n| n.to_string()));
         let items: [(&str, &str, Page, Option<String>); 13] = [
-            (icon::GAUGE, "Overview", Page::Overview, None),
-            (icon::PLUGS_CONNECTED, "Adapters", Page::Adapters, None),
-            (icon::WIFI_HIGH, "Wi-Fi", Page::Wifi, None),
-            (icon::DEVICES, "Devices", Page::Devices, devices_badge),
-            (icon::TREE_STRUCTURE, "Switch port", Page::SwitchPort, dot(self.switchport.busy())),
-            (icon::HEARTBEAT, "Monitor", Page::Monitor, dot(self.monitor.running())),
-            (icon::STACK, "Profiles", Page::Profiles, None),
-            (icon::TOOLBOX, "Tools", Page::Tools, dot(self.tools.running())),
-            (icon::HARD_DRIVES, "Servers", Page::Servers, dot(self.servers.running())),
-            (icon::TERMINAL_WINDOW, "Console", Page::Console, dot(self.console.connected())),
-            (icon::GEAR_SIX, "Settings", Page::Settings, None),
-            (icon::QUESTION, "Help", Page::Help, None),
-            (icon::INFO, "About", Page::About, None),
+            (icon::GAUGE, tr("Overview"), Page::Overview, None),
+            (icon::PLUGS_CONNECTED, tr("Adapters"), Page::Adapters, None),
+            (icon::WIFI_HIGH, tr("Wi-Fi"), Page::Wifi, None),
+            (icon::DEVICES, tr("Devices"), Page::Devices, devices_badge),
+            (icon::TREE_STRUCTURE, tr("Switch port"), Page::SwitchPort, dot(self.switchport.busy())),
+            (icon::HEARTBEAT, tr("Monitor"), Page::Monitor, dot(self.monitor.running())),
+            (icon::STACK, tr("Profiles"), Page::Profiles, None),
+            (icon::TOOLBOX, tr("Tools"), Page::Tools, dot(self.tools.running())),
+            (icon::HARD_DRIVES, tr("Servers"), Page::Servers, dot(self.servers.running())),
+            (icon::TERMINAL_WINDOW, tr("Console"), Page::Console, dot(self.console.connected())),
+            (icon::GEAR_SIX, tr("Settings"), Page::Settings, None),
+            (icon::QUESTION, tr("Help"), Page::Help, None),
+            (icon::INFO, tr("About"), Page::About, None),
         ];
         // Scrolls on small windows, above the "Powered by" footer.
         let height = (ui.available_height() - 86.0).max(120.0);
@@ -496,7 +505,7 @@ impl App {
             ui.set_width(460.0);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(icon::WARNING_CIRCLE).size(26.0).color(p.danger));
-                ui.label(theme::semibold("Something went wrong", 18.0).color(p.text));
+                ui.label(theme::semibold(tr("Something went wrong"), 18.0).color(p.text));
             });
             ui.add_space(8.0);
             theme::paragraph(ui, &msg, 14.5, p.text);
@@ -504,14 +513,14 @@ impl App {
             if lower.contains("denied") || lower.contains("administrator") || lower.contains("elevation") || lower.contains("access is") {
                 ui.add_space(8.0);
                 let hint = if cfg!(windows) {
-                    "Changing network settings needs administrator rights: close the app, right-click it and choose \"Run as administrator\"."
+                    trl("Changing network settings needs administrator rights: close the app, right-click it and choose \"Run as administrator\".")
                 } else {
-                    "Changing network settings needs your password: try again and enter it when the system asks."
+                    trl("Changing network settings needs your password: try again and enter it when the system asks.")
                 };
                 theme::paragraph(ui, hint, 14.5, p.weak);
             }
             ui.add_space(12.0);
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| theme::primary_button(ui, p, "  OK  ", true).clicked())
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| theme::primary_button(ui, p, &format!("  {}  ", tr("OK")), true).clicked())
                 .inner
         });
         if modal.inner || modal.should_close() {
@@ -720,6 +729,24 @@ impl App {
         // NETMGR_TOUR_LIGHT: the light theme instead.
         if t.frames == 1 && t.step == 0 && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {
             self.shared.settings.theme = settings::ThemeChoice::Light;
+        }
+        // NETMGR_TOUR_LANG=de|ar|es|fr|ru|zh|tr: that language instead.
+        if t.frames == 1 && t.step == 0 {
+            use i18n::Language as L;
+            let lang = match std::env::var("NETMGR_TOUR_LANG").as_deref() {
+                Ok("en") => Some(L::English),
+                Ok("de") => Some(L::German),
+                Ok("ar") => Some(L::Arabic),
+                Ok("es") => Some(L::Spanish),
+                Ok("fr") => Some(L::French),
+                Ok("ru") => Some(L::Russian),
+                Ok("zh") => Some(L::Chinese),
+                Ok("tr") => Some(L::Turkish),
+                _ => None,
+            };
+            if let Some(lang) = lang {
+                self.shared.settings.language = lang;
+            }
         }
         // NETMGR_TOUR_DEMO: sample data instead of this computer's networks.
         if std::env::var_os("NETMGR_TOUR_DEMO").is_some() {

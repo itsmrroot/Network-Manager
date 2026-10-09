@@ -12,6 +12,7 @@ use egui_phosphor::regular as icon;
 use netmgr::monitor::{State, Stats};
 
 use crate::app::Shared;
+use crate::i18n::{tr, trf, trl, trlf, trn};
 use crate::theme::{self, Palette, icon_label};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -94,10 +95,10 @@ fn state_color(p: &Palette, s: State) -> Color32 {
 
 fn state_label(s: State) -> &'static str {
     match s {
-        State::Up => "Up",
-        State::Unstable => "Unstable",
-        State::Down => "Down",
-        State::Unknown => "Waiting",
+        State::Up => tr("Up"),
+        State::Unstable => tr("Unstable"),
+        State::Down => tr("Down"),
+        State::Unknown => tr("Waiting"),
     }
 }
 
@@ -210,7 +211,7 @@ impl Monitor {
                 }
                 sh.settings.remember_host(text);
             }
-            Err(e) => sh.fail("The host could not be added.", &e),
+            Err(e) => sh.fail(trl("The host could not be added."), &e),
         }
     }
 
@@ -264,17 +265,21 @@ impl Monitor {
             self.events.lock().map(|e| e.iter().skip(self.seen_events).cloned().collect()).unwrap_or_default();
         self.seen_events += new_events.len();
         if let Some((_, host, up)) = new_events.last() {
-            sh.toast(if *up { format!("{host} is reachable again.") } else { format!("{host} is down.") });
+            sh.toast(if *up {
+                trf("{host} is reachable again.", &[("host", host)])
+            } else {
+                trf("{host} is down.", &[("host", host)])
+            });
         }
         if self.running() {
             ui.ctx().request_repaint_after(Duration::from_millis(500));
         }
-        theme::page_title(ui, p, "Monitor", "Watch hosts and the routers on the way to them, live.");
+        theme::page_title(ui, p, tr("Monitor"), tr("Watch hosts and the routers on the way to them, live."));
         theme::tabs(
             ui,
             p,
             &mut self.tab,
-            &[(Tab::Hosts, icon::HEARTBEAT, "Ping monitor"), (Tab::Path, icon::PATH, "Path analysis (MTR)")],
+            &[(Tab::Hosts, icon::HEARTBEAT, tr("Ping monitor")), (Tab::Path, icon::PATH, tr("Path analysis (MTR)"))],
         );
         ui.add_space(10.0);
         match self.tab {
@@ -287,23 +292,25 @@ impl Monitor {
         let mut add = None;
         ui.horizontal(|ui| {
             let r = ui.add(
-                egui::TextEdit::singleline(&mut self.input).hint_text("Address or name to watch").desired_width(260.0),
+                egui::TextEdit::singleline(&mut self.input)
+                    .hint_text(tr("Address or name to watch"))
+                    .desired_width(260.0),
             );
             if (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
                 || ui.button(icon_label(icon::PLUS, "Add")).clicked()
             {
                 add = Some(std::mem::take(&mut self.input));
             }
-            egui::ComboBox::from_id_salt("quick-hosts").selected_text("Quick add").width(120.0).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("quick-hosts").selected_text(tr("Quick add")).width(120.0).show_ui(ui, |ui| {
                 if let Some(g) = sh.default_adapter().and_then(|a| a.gateway)
-                    && ui.selectable_label(false, format!("Router ({g})")).clicked()
+                    && ui.selectable_label(false, trf("Router ({address})", &[("address", &g)])).clicked()
                 {
                     add = Some(g.to_string());
                 }
                 for (n, h) in [
-                    ("Cloudflare DNS", "1.1.1.1"),
-                    ("Google DNS", "8.8.8.8"),
-                    ("Quad9", "9.9.9.9"),
+                    (tr("Cloudflare DNS"), "1.1.1.1"),
+                    (tr("Google DNS"), "8.8.8.8"),
+                    (tr("Quad9"), "9.9.9.9"),
                     ("google.com", "google.com"),
                 ] {
                     if ui.selectable_label(false, format!("{n} ({h})")).clicked() {
@@ -318,14 +325,14 @@ impl Monitor {
             });
             ui.add_space(8.0);
             let mut secs = self.interval.load(Ordering::Relaxed);
-            egui::ComboBox::from_id_salt("interval").selected_text(format!("Every {secs} s")).width(100.0).show_ui(
-                ui,
-                |ui| {
+            egui::ComboBox::from_id_salt("interval")
+                .selected_text(trf("Every {n} s", &[("n", &secs)]))
+                .width(100.0)
+                .show_ui(ui, |ui| {
                     for s in [1, 2, 5, 10, 30] {
-                        ui.selectable_value(&mut secs, s, format!("Every {s} s"));
+                        ui.selectable_value(&mut secs, s, trf("Every {n} s", &[("n", &s)]));
                     }
-                },
-            );
+                });
             self.interval.store(secs, Ordering::Relaxed);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let has = self.hosts.lock().map(|h| !h.is_empty()).unwrap_or(false);
@@ -340,7 +347,7 @@ impl Monitor {
                     self.export(sh);
                 }
                 if has
-                    && ui.button(icon_label(icon::ARROW_COUNTER_CLOCKWISE, "Reset")).clicked()
+                    && ui.button(icon_label(icon::ARROW_COUNTER_CLOCKWISE, tr("Reset"))).clicked()
                     && let Ok(mut h) = self.hosts.lock()
                 {
                     for x in h.iter_mut() {
@@ -364,10 +371,10 @@ impl Monitor {
                     ui.add_space(14.0);
                     theme::icon_badge(ui, p, icon::HEARTBEAT, p.accent, 64.0);
                     ui.add_space(6.0);
-                    ui.label(theme::semibold("Watch your important hosts", 18.0).color(p.text));
+                    ui.label(theme::semibold(tr("Watch your important hosts"), 18.0).color(p.text));
                     theme::paragraph(
                         ui,
-                        "Add servers, switches, printers or the internet: each one is pinged continuously, with its delay, loss and jitter. You are told when one goes down and when it comes back.",
+                        trl("Add servers, switches, printers or the internet: each one is pinged continuously, with its delay, loss and jitter. You are told when one goes down and when it comes back."),
                         14.0,
                         p.weak,
                     );
@@ -392,7 +399,7 @@ impl Monitor {
                                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                                     if ui
                                         .add(egui::Button::new(RichText::new(icon::X).color(p.weak)).frame(false))
-                                        .on_hover_text("Stop watching")
+                                        .on_hover_text(tr("Stop watching"))
                                         .clicked()
                                     {
                                         remove = Some(h.ip);
@@ -406,10 +413,10 @@ impl Monitor {
                             ui.add_space(4.0);
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 18.0;
-                                theme::stat(ui, p, "Last", &ms(h.stats.last));
-                                theme::stat(ui, p, "Average", &ms(h.stats.avg()));
-                                theme::stat(ui, p, "Loss", &format!("{:.0} %", h.stats.loss_percent()));
-                                theme::stat(ui, p, "Jitter", &ms(h.stats.jitter()));
+                                theme::stat(ui, p, tr("Last"), &ms(h.stats.last));
+                                theme::stat(ui, p, tr("Average"), &ms(h.stats.avg()));
+                                theme::stat(ui, p, tr("Loss"), &format!("{:.0} %", h.stats.loss_percent()));
+                                theme::stat(ui, p, tr("Jitter"), &ms(h.stats.jitter()));
                             });
                             ui.add_space(6.0);
                             let w = ui.available_width();
@@ -423,17 +430,17 @@ impl Monitor {
             if !events.is_empty() {
                 theme::card(ui, p, |ui| {
                     ui.set_width(ui.available_width());
-                    theme::section_title(ui, p, icon::LIST_BULLETS, "Events");
+                    theme::section_title(ui, p, icon::LIST_BULLETS, tr("Events"));
                     for (t, host, up) in events.iter().rev().take(50) {
                         ui.horizontal(|ui| {
                             ui.label(RichText::new(t).monospace().color(p.weak));
                             let (g, c, what) = if *up {
-                                (icon::CHECK_CIRCLE, p.success, "is reachable again")
+                                (icon::CHECK_CIRCLE, p.success, trf("{host} is reachable again.", &[("host", host)]))
                             } else {
-                                (icon::X_CIRCLE, p.danger, "went down")
+                                (icon::X_CIRCLE, p.danger, trf("{host} went down.", &[("host", host)]))
                             };
                             ui.label(RichText::new(g).color(c));
-                            ui.label(RichText::new(format!("{host} {what}")).color(p.text));
+                            ui.label(RichText::new(what).color(p.text));
                         });
                     }
                 });
@@ -477,8 +484,8 @@ impl Monitor {
             );
         }
         match std::fs::write(&path, out) {
-            Ok(()) => sh.toast(format!("Saved to {}.", path.display())),
-            Err(e) => sh.fail("The file could not be saved.", &e.into()),
+            Ok(()) => sh.toast(trf("Saved to {file}.", &[("file", &path.display())])),
+            Err(e) => sh.fail(trl("The file could not be saved."), &e.into()),
         }
     }
 
@@ -582,7 +589,7 @@ impl Monitor {
         ui.horizontal(|ui| {
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.path_input)
-                    .hint_text("Address or name, e.g. google.com")
+                    .hint_text(tr("Address or name, e.g. google.com"))
                     .desired_width(280.0),
             );
             start = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -603,7 +610,9 @@ impl Monitor {
         ui.add_space(6.0);
         theme::paragraph(
             ui,
-            "Finds every router between this computer and the host, then pings each of them every second. Loss or delay that starts at one router and continues to the end shows where a problem is.",
+            trl(
+                "Finds every router between this computer and the host, then pings each of them every second. Loss or delay that starts at one router and continues to the end shows where a problem is.",
+            ),
             12.5,
             p.weak,
         );
@@ -625,8 +634,11 @@ impl Monitor {
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             if hops.is_empty() {
-                let msg =
-                    if discovering { "Finding the routers on the way…" } else { "Enter a host and click Start." };
+                let msg = if discovering {
+                    tr("Finding the routers on the way…")
+                } else {
+                    tr("Enter a host and click Start.")
+                };
                 ui.horizontal(|ui| {
                     if discovering {
                         ui.spinner();
@@ -638,10 +650,10 @@ impl Monitor {
             if discovering {
                 ui.horizontal(|ui| {
                     ui.spinner();
-                    ui.label(RichText::new("Finding the routers on the way…").color(p.weak));
+                    ui.label(RichText::new(tr("Finding the routers on the way…")).color(p.weak));
                 });
             } else {
-                ui.label(RichText::new(format!("{rounds} rounds")).color(p.weak).size(12.5));
+                ui.label(RichText::new(trn(rounds, "1 round", "{n} rounds")).color(p.weak).size(12.5));
             }
             TableBuilder::new(ui)
                 .striped(true)
@@ -656,7 +668,17 @@ impl Monitor {
                 .column(Column::exact(80.0))
                 .column(Column::exact(150.0))
                 .header(26.0, |mut h| {
-                    for t in ["#", "Router", "Loss", "Sent", "Last", "Average", "Worst", "Jitter", "History"] {
+                    for t in [
+                        "#",
+                        tr("Router"),
+                        tr("Loss"),
+                        tr("Sent"),
+                        tr("Last"),
+                        tr("Average"),
+                        tr("Worst"),
+                        tr("Jitter"),
+                        tr("History"),
+                    ] {
                         h.col(|ui| {
                             ui.label(RichText::new(t).color(p.weak).size(13.0));
                         });
@@ -677,7 +699,7 @@ impl Monitor {
                                 }
                             }
                             None => {
-                                ui.label(RichText::new("No answer (router hides itself)").color(p.weak).italics());
+                                ui.label(RichText::new(tr("No answer (router hides itself)")).color(p.weak).italics());
                             }
                         });
                         let loss = s.loss_percent();
@@ -728,11 +750,23 @@ fn verdict(hops: &[Hop]) -> Option<(bool, String)> {
             String::new()
         } else {
             format!(
-                " Router(s) {} answer pings slowly or not at all, but traffic passes them without loss: that is normal.",
-                noisy.join(", ")
+                " {}",
+                trlf(
+                    "Router(s) {routers} answer pings slowly or not at all, but traffic passes them without loss: that is normal.",
+                    &[("routers", &noisy.join(", "))]
+                )
             )
         };
-        return Some((false, format!("The path is healthy: the host answers with {:.0} % loss.{extra}", end_loss)));
+        return Some((
+            false,
+            format!(
+                "{}{extra}",
+                trlf(
+                    "The path is healthy: the host answers with {loss} % loss.",
+                    &[("loss", &format!("{end_loss:.0}"))]
+                )
+            ),
+        ));
     }
     // The first router from which loss continues to the end.
     let mut start = last;
@@ -744,9 +778,19 @@ fn verdict(hops: &[Hop]) -> Option<(bool, String)> {
         }
     }
     let place = match start.n {
-        1 => "at your own router or Wi-Fi: check the cable or the signal, or restart the router".to_string(),
-        2 | 3 => format!("at router {} — usually your internet provider: contact them with this result", start.n),
-        n => format!("at router {n}, further away on the internet (a provider or the host's network)"),
+        1 => trl("The loss starts at your own router or Wi-Fi: check the cable or the signal, or restart the router.")
+            .to_string(),
+        2 | 3 => trlf(
+            "The loss starts at router {n} — usually your internet provider: contact them with this result.",
+            &[("n", &start.n)],
+        ),
+        n => trlf(
+            "The loss starts at router {n}, further away on the internet (a provider or the host's network).",
+            &[("n", &n)],
+        ),
     };
-    Some((true, format!("{:.0} % of pings to the host are lost. The loss starts {place}.", end_loss)))
+    Some((
+        true,
+        format!("{} {place}", trlf("{loss} % of pings to the host are lost.", &[("loss", &format!("{end_loss:.0}"))])),
+    ))
 }
