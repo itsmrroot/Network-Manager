@@ -180,10 +180,11 @@ and a **syslog server** with severity colours, filters and export.
 </td>
 <td valign="top">
 
-### 🖥️ Serial console & SSH
+### 🖥️ Serial console, SSH & Telnet
 **Console cables** with a real terminal: every key goes to the device, so Tab,
-`?` and Ctrl+Shift+6 work; **send break** for password recovery, paste a whole
-configuration, log to file. **SSH / Telnet** open in your terminal.
+`?` and Ctrl+Shift+6 work; **send break** for password recovery. **SSH and
+Telnet in tabs inside the app**, with **saved sessions in groups** — like PuTTY
+or SecureCRT, with your SSH keys and `~/.ssh/config`.
 
 </td>
 </tr>
@@ -205,6 +206,43 @@ between two computers; and a one-click **network report** for tickets.
 
 </td>
 </tr>
+<tr>
+<td valign="top">
+
+### 🏗️ Network planner
+Say what you have — **12 rooms of 25 PCs, 150 IoT devices, 200 guests** — and
+get a subnet for each with room to grow (VLSM), **VLANs, gateways, DHCP ranges
+and IPv6 /64s**, plus ready-to-paste configuration for **Cisco, Juniper,
+Aruba / HP and MikroTik**. Plans are saved.
+
+</td>
+<td valign="top">
+
+### 📊 SNMP
+Read any switch, router, firewall or printer: name, uptime and **every port**
+with state, speed, **live traffic, errors and discards**, and its description.
+**Walk** any OID — LLDP neighbors, ARP table, the whole MIB-2. v1 and v2c.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🦈 Packet capture
+Capture on any adapter and see **each packet described** — DNS queries, TLS
+handshakes, ARP, DHCP, LLDP, VLAN tags — filter by protocol, port or address,
+see the bytes, and **save pcap files for Wireshark**. No extra driver needed.
+
+</td>
+<td valign="top">
+
+### 📶 Traffic per program
+Which program is **using your bandwidth right now**: download and upload speed
+per program, busiest first, and totals since you started watching. Windows,
+macOS and Linux.
+
+</td>
+</tr>
 </table>
 
 > [!NOTE]
@@ -218,6 +256,8 @@ between two computers; and a one-click **network report** for tickets.
 > **LLDP/CDP** port discovery (LDWin, PortFinder, a LinkSprinter), **rogue DHCP** detection, **MTR/PingPlotter**-style
 > path analysis, a multi-host **ping monitor**, **Tftpd64**-style TFTP and syslog servers, an **iperf**-style
 > throughput test, a **PuTTY**-style serial console, TLS and WHOIS checks, and netstat, route and hosts tools.
+> Version 0.4 adds a **VLSM network planner** with switch configuration, an **SNMP** browser, **saved SSH and
+> Telnet sessions** in a built-in terminal, **packet capture** with pcap files, and **traffic per program**.
 
 ## 🚀 Quick start
 
@@ -241,11 +281,11 @@ between two computers; and a one-click **network report** for tickets.
 | **Wi-Fi** | The current network in detail; **saved networks with passwords** (show, copy, QR, export); **nearby networks** with a channel chart. |
 | **Devices** | Every device on the network with IP, MAC, maker, name and services; new devices marked; your own names for devices; ping, ports, web page and Wake-on-LAN per device; CSV export. |
 | **Switch port** | The switch, port, VLAN, voice VLAN, PoE and management address of this cable (LLDP/CDP); every DHCP server on the network. |
-| **Monitor** | Ping monitor for many hosts with alerts and export; path analysis (MTR) with a verdict. |
+| **Monitor** | Ping monitor for many hosts with alerts and export; path analysis (MTR) with a verdict; traffic per program; packet capture with filters and pcap files. |
 | **Profiles** | Saved IP settings applied to any adapter in one click; shared with the command line. |
-| **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Network planner, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
+| **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Network planner, SNMP, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
 | **Servers** | TFTP server, syslog server, throughput test between two computers. |
-| **Console** | Serial console for console cables; SSH and Telnet launcher. |
+| **Console** | Serial console for console cables; SSH and Telnet sessions in tabs, with saved sessions in groups. |
 
 <table>
 <tr>
@@ -255,6 +295,14 @@ between two computers; and a one-click **network report** for tickets.
 <tr>
 <td width="50%"><img src="assets/app-monitor.png" alt="Ping monitor with several hosts"><p align="center"><sub>Ping monitor</sub></p></td>
 <td width="50%"><img src="assets/app-syslog.png" alt="Syslog server with messages from switches"><p align="center"><sub>Syslog server</sub></p></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/app-planner.png" alt="Network planner with rooms, IoT and guest networks"><p align="center"><sub>Network planner</sub></p></td>
+<td width="50%"><img src="assets/app-snmp.png" alt="SNMP: a switch's ports with state and errors"><p align="center"><sub>SNMP</sub></p></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/app-ssh.png" alt="Saved SSH and Telnet sessions with a terminal"><p align="center"><sub>SSH and Telnet sessions</sub></p></td>
+<td width="50%"><img src="assets/app-capture.png" alt="Packet capture with decoded packets"><p align="center"><sub>Packet capture</sub></p></td>
 </tr>
 <tr>
 <td width="50%"><img src="assets/app-wifi.png" alt="Saved Wi-Fi networks with passwords"><p align="center"><sub>Wi-Fi: saved networks and passwords</sub></p></td>
@@ -384,7 +432,10 @@ netmgr lookup 8.8.8.8 PTR
 netmgr ports 192.168.1.20 22,80,443,8000-8100
 netmgr subnet 10.20.0.0/22 --split 24
 netmgr plan Room=12x25 IoT=150 "Guest Wi-Fi"=200 --space 10.10.0.0/16   # one subnet per group
-netmgr plan Room=12x25 IoT=150 --cisco          # VLANs, gateways and DHCP pools to paste
+netmgr plan Room=12x25 IoT=150 --config juniper --ipv6 ula   # also aruba, mikrotik, cisco
+netmgr snmp 10.0.0.2 -c public                  # name, uptime and every port
+netmgr snmp 10.0.0.2 --walk 1.0.8802.1.1.2.1.4  # LLDP neighbors (any OID)
+sudo netmgr capture -i en0 --seconds 30 -o lab.pcap   # pcap for Wireshark
 netmgr wol AA:BB:CC:DD:EE:FF
 netmgr vendor B8:27:EB:12:34:56
 netmgr public-ip
@@ -468,7 +519,11 @@ is truncated), so resolvers can be compared without the system's cache in betwee
 | `report` | The network report |
 | `internet` | Public IP, speed test, connection check |
 | `subnet` | Subnet calculator |
-| `plan` | Network planner: subnets, VLANs and switch configuration for groups of devices |
+| `plan` | Network planner: subnets, VLANs, IPv6 and switch configuration (Cisco, Juniper, Aruba, MikroTik) |
+| `snmp` | SNMP v1/v2c client: system, interfaces, walks |
+| `capture` | Packet capture, pcap files and packet descriptions |
+| `traffic` | Traffic per program |
+| `remote` | SSH (system client in a pseudo-terminal) and built-in Telnet |
 | `mac` | MAC parsing, random addresses, IEEE vendor table |
 | `profiles` | Saved profiles shared by the app and the command line |
 | `cmd` | Running system tools, with administrator rights when needed |
@@ -546,14 +601,14 @@ Nothing about your networks, devices or passwords is ever sent.
 
 ## 🗺️ Roadmap
 
-Done in 0.3: ~~interface in eight languages~~. Done in 0.2: ~~LLDP/CDP~~, ~~serial console and SSH/Telnet~~, ~~continuous host monitoring~~, ~~hosts file
-editor~~, ~~listening ports~~. Next:
+Done in 0.4: ~~network planner~~, ~~SNMP~~, ~~packet capture with pcap export~~, ~~traffic per program~~,
+~~saved SSH sessions and a built-in terminal~~. Done in 0.3: ~~interface in eight languages~~. Done in 0.2:
+~~LLDP/CDP~~, ~~serial console~~, ~~continuous host monitoring~~, ~~hosts file editor~~, ~~listening ports~~. Next:
 
-- **SNMP** walk and interface counters of switches
 - **Several IP addresses** on one adapter, IPv6 static settings, proxy settings in profiles
-- **Packet capture** with filters and pcap export
-- **Bandwidth per program**
-- Saved **SSH sessions** with groups, and a built-in SSH terminal
+- **SNMPv3** and SNMP traps
+- **Configuration backups** of many switches at once over SSH, with differences between versions
+- **Network map** drawn from LLDP and CDP neighbors
 
 Suggestions are welcome in the [issues](https://github.com/itsmrroot/Network-Manager/issues).
 

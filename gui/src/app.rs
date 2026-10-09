@@ -710,7 +710,7 @@ impl App {
             return;
         }
         t.frames += 1;
-        let pages: [(Page, &str, u32); 15] = [
+        let pages: [(Page, &str, u32); 19] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -726,6 +726,10 @@ impl App {
             (Page::About, "13-about", 20),
             (Page::Monitor, "14-path", 20),
             (Page::Tools, "15-planner", 20),
+            (Page::Tools, "16-snmp", 400),
+            (Page::Console, "17-ssh", 120),
+            (Page::Monitor, "18-programs", 700),
+            (Page::Monitor, "19-capture", 60),
         ];
         // NETMGR_TOUR_LIGHT: the light theme instead.
         if t.frames == 1 && t.step == 0 && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {
@@ -812,6 +816,26 @@ impl App {
             }
             if name == "15-planner" {
                 self.tools.open(tools::Tab::Planner, "");
+            }
+            if name == "18-programs" {
+                self.monitor.show_programs();
+            }
+            if name == "19-capture" {
+                let pcap = std::env::var("NETMGR_TOUR_PCAP").ok();
+                self.monitor.show_capture(&mut self.shared, pcap.as_deref());
+            }
+            if name == "17-ssh" {
+                let target = std::env::var("NETMGR_TOUR_TELNET").ok();
+                self.console.demo(&mut self.shared, target.as_deref());
+            }
+            if name == "16-snmp" {
+                self.tools.open(tools::Tab::Snmp, "");
+                // NETMGR_TOUR_SNMP=host,community: read that device.
+                if let Ok(v) = std::env::var("NETMGR_TOUR_SNMP")
+                    && let Some((host, community)) = v.split_once(',')
+                {
+                    self.tools.snmp_demo(ctx, host, community);
+                }
             }
         }
         if t.frames > wait {

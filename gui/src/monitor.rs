@@ -20,6 +20,8 @@ enum Tab {
     #[default]
     Hosts,
     Path,
+    Programs,
+    Capture,
 }
 
 /// A watched host.
@@ -51,6 +53,8 @@ struct PathState {
 
 pub struct Monitor {
     tab: Tab,
+    programs: crate::programs::Programs,
+    capture: crate::capture_page::Capture,
     input: String,
     hosts: Arc<Mutex<Vec<Host>>>,
     running: Option<Arc<AtomicBool>>,
@@ -67,6 +71,8 @@ impl Default for Monitor {
     fn default() -> Self {
         Self {
             tab: Tab::Hosts,
+            programs: Default::default(),
+            capture: Default::default(),
             input: String::new(),
             hosts: Default::default(),
             running: None,
@@ -191,8 +197,21 @@ impl Monitor {
         self.path_input = "1.1.1.1".into();
     }
 
+    #[cfg(debug_assertions)]
+    pub fn show_programs(&mut self) {
+        self.tab = Tab::Programs;
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn show_capture(&mut self, sh: &mut Shared, pcap: Option<&str>) {
+        self.tab = Tab::Capture;
+        if let Some(path) = pcap {
+            self.capture.demo(std::path::Path::new(path), sh);
+        }
+    }
+
     pub fn running(&self) -> bool {
-        self.running.is_some() || self.path_stop.is_some()
+        self.running.is_some() || self.path_stop.is_some() || self.capture.running()
     }
 
     /// Adds a host (name or address) to the ping monitor.
@@ -279,12 +298,19 @@ impl Monitor {
             ui,
             p,
             &mut self.tab,
-            &[(Tab::Hosts, icon::HEARTBEAT, tr("Ping monitor")), (Tab::Path, icon::PATH, tr("Path analysis (MTR)"))],
+            &[
+                (Tab::Hosts, icon::HEARTBEAT, tr("Ping monitor")),
+                (Tab::Path, icon::PATH, tr("Path analysis (MTR)")),
+                (Tab::Programs, icon::CHART_BAR, tr("Traffic per program")),
+                (Tab::Capture, icon::FILE_MAGNIFYING_GLASS, tr("Packet capture")),
+            ],
         );
         ui.add_space(10.0);
         match self.tab {
             Tab::Hosts => self.hosts_tab(ui, p, sh),
             Tab::Path => self.path_tab(ui, p, sh),
+            Tab::Programs => self.programs.ui(ui, p, sh),
+            Tab::Capture => self.capture.ui(ui, p, sh),
         }
     }
 

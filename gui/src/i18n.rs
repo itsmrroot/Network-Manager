@@ -194,6 +194,14 @@ pub fn trf_dyn(en: &str, v: &dyn Display) -> String {
 /// others (see the test `every_string_is_translated`).
 #[cfg(test)]
 pub const LIBRARY: &[&str] = &[
+    // netmgr::snmp::WALK_PRESETS
+    "System",
+    "Interfaces",
+    "Interface names and 64-bit counters",
+    "IP addresses",
+    "ARP table",
+    "LLDP neighbors",
+    "Everything (MIB-2)",
     // adapters::Kind::label, Adapter::status
     "Ethernet",
     "Wi-Fi",
@@ -512,6 +520,7 @@ mod tests {
         include_str!("about.rs"),
         include_str!("adapters_page.rs"),
         include_str!("app.rs"),
+        include_str!("capture_page.rs"),
         include_str!("console.rs"),
         include_str!("devices.rs"),
         include_str!("help.rs"),
@@ -522,9 +531,12 @@ mod tests {
         include_str!("overview.rs"),
         include_str!("planner.rs"),
         include_str!("profiles.rs"),
+        include_str!("programs.rs"),
         include_str!("servers.rs"),
         include_str!("settings.rs"),
+        include_str!("snmp_tool.rs"),
         include_str!("switchport.rs"),
+        include_str!("term.rs"),
         include_str!("theme.rs"),
         include_str!("tools.rs"),
         include_str!("update.rs"),

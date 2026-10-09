@@ -12,7 +12,7 @@ use netmgr::dns::{self, RecordType};
 use netmgr::mac::Mac;
 use netmgr::profiles::{self, Profile};
 use netmgr::subnet::Subnet;
-use netmgr::{internet, plan, scan, tools, wifi};
+use netmgr::{internet, plan, scan, snmp, tools, wifi};
 
 #[derive(Parser)]
 #[command(
@@ -135,12 +135,51 @@ enum Cmd {
         /// Between consecutive VLANs.
         #[arg(long, default_value_t = 10)]
         vlan_step: u16,
-        /// Print the configuration for Cisco IOS switches and routers instead.
+        /// A /64 per network from this IPv6 prefix, e.g. 2001:db8:abcd::/48 ("ula": a random private one).
+        #[arg(long)]
+        ipv6: Option<String>,
+        /// Print the configuration instead: cisco, juniper, aruba or mikrotik.
+        #[arg(long, value_name = "VENDOR")]
+        config: Option<String>,
+        /// Same as --config cisco.
         #[arg(long)]
         cisco: bool,
         /// Print CSV instead.
         #[arg(long)]
         csv: bool,
+    },
+    /// Read a switch or router over SNMP: its name, uptime and interfaces, or walk any OID.
+    Snmp {
+        /// Address or name (with :port when not 161).
+        host: String,
+        #[arg(long, short, default_value = "public")]
+        community: String,
+        /// Use SNMP v1 instead of v2c.
+        #[arg(long)]
+        v1: bool,
+        /// Walk this OID instead, e.g. 1.3.6.1.2.1.1.
+        #[arg(long)]
+        walk: Option<String>,
+    },
+    /// Capture packets on an adapter into a pcap file for Wireshark (needs administrator rights).
+    Capture {
+        /// The adapter, e.g. en0, eth0 (Windows: its name or IPv4 address).
+        #[arg(long, short)]
+        interface: String,
+        #[arg(long, short, default_value = "capture.pcap")]
+        out: std::path::PathBuf,
+        /// Stop after this many seconds.
+        #[arg(long, default_value_t = 60)]
+        seconds: u64,
+        /// Stop when this file appears.
+        #[arg(long, hide = true)]
+        stop: Option<std::path::PathBuf>,
+        /// Stop when this process ends.
+        #[arg(long, hide = true)]
+        parent: Option<u32>,
+        /// Stop when the file reaches this many megabytes.
+        #[arg(long, default_value_t = 500)]
+        max_mb: u64,
     },
     /// Wake a computer with Wake-on-LAN.
     Wol { mac: String },
@@ -523,15 +562,28 @@ fn run(cli: Cli) -> Result<()> {
                 }
             }
         }
-        Cmd::Plan { space, groups, growth, vlan, vlan_step, cisco, csv } => {
+        Cmd::Plan { space, groups, growth, vlan, vlan_step, ipv6, config, cisco, csv } => {
             let groups = groups.iter().map(|g| plan::Group::parse(g)).collect::<Result<Vec<_>>>()?;
             let opt = plan::Options { growth, first_vlan: vlan, vlan_step };
             let space = match space {
                 Some(s) => Subnet::parse(&s)?,
                 None => Subnet::new(Ipv4Addr::new(10, 0, 0, 0), plan::size(&groups, &opt).1.max(8))?,
             };
-            let p = match plan::plan(&space, &groups, &opt) {
+            let ipv6 = match ipv6.as_deref() {
+                Some("ula") => plan::random_ula(),
+                Some(p) => p.to_string(),
+                None => String::new(),
+            };
+            let vendor = match (config, cisco) {
+                (Some(v), _) => Some(plan::Vendor::parse(&v)?),
+                (None, true) => Some(plan::Vendor::Cisco),
+                (None, false) => None,
+            };
+            let p = match plan::plan_dual(&space, &ipv6, &groups, &opt)? {
                 Ok(p) => p,
+                Err(plan::PlanError::Ipv6TooSmall { room }) => {
+                    bail!("{ipv6} has room for only {room} /64 networks: use a shorter prefix such as /48")
+                }
                 Err(plan::PlanError::Empty) => bail!("give at least one network with devices, e.g. Office=40"),
                 Err(plan::PlanError::TooSmall { needed, prefix }) => bail!(
                     "these networks need {needed} addresses (a /{prefix}), but {}/{} has {}",
@@ -543,8 +595,8 @@ fn run(cli: Cli) -> Result<()> {
             if json {
                 return print_json(&p);
             }
-            if cisco {
-                print!("{}", p.cisco());
+            if let Some(v) = vendor {
+                print!("{}", p.config(v));
             } else if csv {
                 print!("{}", p.csv());
             } else {
@@ -562,6 +614,76 @@ fn run(cli: Cli) -> Result<()> {
                 if !p.free.is_empty() {
                     let free: Vec<String> = p.free.iter().map(|s| format!("{}/{}", s.network, s.prefix)).collect();
                     println!("Free: {}", free.join(", "));
+                }
+            }
+        }
+        Cmd::Snmp { host, community, v1, walk } => {
+            let c = snmp::Client::new(&host, &community, if v1 { snmp::Version::V1 } else { snmp::Version::V2c })?;
+            if let Some(root) = walk {
+                let rows = c.walk(&snmp::Oid::parse(&root)?, 100_000)?;
+                if json {
+                    let list: Vec<serde_json::Value> = rows
+                        .iter()
+                        .map(|(o, v)| serde_json::json!({"oid": o.to_string(), "type": v.kind(), "value": v.to_string()}))
+                        .collect();
+                    return print_json(&list);
+                }
+                for (o, v) in &rows {
+                    println!("{o} = {}: {v}", v.kind());
+                }
+                return Ok(());
+            }
+            let sys = snmp::system(&c)?;
+            let ifaces = snmp::interfaces(&c)?;
+            if json {
+                return print_json(&serde_json::json!({"system": sys, "interfaces": ifaces}));
+            }
+            println!("Name         {}", sys.name);
+            println!("Description  {}", sys.description.lines().next().unwrap_or(""));
+            if let Some(t) = sys.uptime {
+                println!("Uptime       {}", snmp::uptime(t));
+            }
+            println!("Location     {}", sys.location);
+            println!("Contact      {}", sys.contact);
+            println!();
+            println!(
+                "{:>5}  {:<14} {:<6} {:>10}  {:>14}  {:>14}  {:>8}  Description",
+                "Index", "Name", "State", "Speed", "In", "Out", "Errors"
+            );
+            for i in &ifaces {
+                let state = match (i.admin_up, i.oper_up) {
+                    (false, _) => "off",
+                    (true, true) => "up",
+                    (true, false) => "down",
+                };
+                println!(
+                    "{:>5}  {:<14} {:<6} {:>10}  {:>14}  {:>14}  {:>8}  {}",
+                    i.index,
+                    i.name,
+                    state,
+                    format_speed(i.speed),
+                    format_bytes(i.in_octets),
+                    format_bytes(i.out_octets),
+                    i.in_errors + i.out_errors,
+                    i.alias
+                );
+            }
+        }
+        Cmd::Capture { interface, out, seconds, stop, parent, max_mb } => {
+            let stop = stop.unwrap_or_else(|| out.with_extension("stop"));
+            let _ = std::fs::remove_file(&stop);
+            if stop.parent() == out.parent() && parent.is_none() {
+                eprintln!("Capturing on {interface} for {seconds} s into {} …", out.display());
+            }
+            netmgr::capture::run(&interface, &out, &stop, parent, seconds, max_mb * 1_000_000)?;
+            if parent.is_none() {
+                let (link, frames) = netmgr::capture::read_file(&out)?;
+                println!("{} packets saved to {}", frames.len(), out.display());
+                if !json {
+                    for f in frames.iter().take(20) {
+                        let s = netmgr::capture::decode(link, &f.data);
+                        println!("  {:<6} {} → {}  {}", s.protocol, s.source, s.destination, s.info);
+                    }
                 }
             }
         }

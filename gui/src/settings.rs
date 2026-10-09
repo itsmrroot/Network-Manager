@@ -61,6 +61,13 @@ pub struct Settings {
     pub tftp_folder: String,
     pub serial_port: String,
     pub serial: netmgr::console::LineSettings,
+    /// Saved SSH and Telnet sessions.
+    pub sessions: Vec<netmgr::remote::Saved>,
+    // Network planner
+    /// What the planner showed last; `None` until it is first opened.
+    pub planner: Option<netmgr::plan::Input>,
+    pub saved_plans: BTreeMap<String, netmgr::plan::Input>,
+    pub plan_vendor: netmgr::plan::Vendor,
 }
 
 impl Default for Settings {
@@ -83,6 +90,10 @@ impl Default for Settings {
             tftp_folder: String::new(),
             serial_port: String::new(),
             serial: Default::default(),
+            sessions: Vec::new(),
+            planner: None,
+            saved_plans: BTreeMap::new(),
+            plan_vendor: Default::default(),
         }
     }
 }
@@ -261,12 +272,14 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
         ui.add_space(14.0);
         ui.horizontal(|ui| {
             if theme::secondary_button(ui, &icon_label(icon::ARROW_COUNTER_CLOCKWISE, tr("Reset to defaults"))).clicked() {
-                // Device names and original MAC addresses are the user's data.
+                // Device names, original MAC addresses, saved plans and sessions are the user's data.
                 *s = Settings {
                     language: s.language,
                     device_labels: std::mem::take(&mut s.device_labels),
                     known_devices: std::mem::take(&mut s.known_devices),
                     original_macs: std::mem::take(&mut s.original_macs),
+                    saved_plans: std::mem::take(&mut s.saved_plans),
+                    sessions: std::mem::take(&mut s.sessions),
                     ..Settings::default()
                 };
             }

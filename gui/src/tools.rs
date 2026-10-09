@@ -28,6 +28,7 @@ pub enum Tab {
     Ports,
     Subnet,
     Planner,
+    Snmp,
     Wol,
     MacLookup,
     Web,
@@ -60,6 +61,7 @@ pub struct Tools {
     wol_ip: String,
     lookup: String,
     planner: crate::planner::Planner,
+    snmp: crate::snmp_tool::SnmpTool,
     inspect: crate::inspect::Inspect,
 }
 
@@ -88,12 +90,18 @@ impl Default for Tools {
             wol_ip: String::new(),
             lookup: String::new(),
             planner: Default::default(),
+            snmp: Default::default(),
             inspect: Default::default(),
         }
     }
 }
 
 impl Tools {
+    #[cfg(debug_assertions)]
+    pub fn snmp_demo(&mut self, ctx: &egui::Context, host: &str, community: &str) {
+        self.snmp.demo(ctx, host, community);
+    }
+
     /// Opens `tab` with `host` filled in, and starts it.
     pub fn open(&mut self, tab: Tab, host: &str) {
         self.tab = tab;
@@ -104,6 +112,7 @@ impl Tools {
             Tab::MacLookup => self.lookup = host.to_string(),
             Tab::Web => self.inspect.open_web(host),
             Tab::Whois => self.inspect.open_whois(host),
+            Tab::Snmp => self.snmp.open(host),
             Tab::Planner | Tab::Connections | Tab::Routes | Tab::Hosts => {}
             _ => self.host = host.to_string(),
         }
@@ -162,6 +171,7 @@ impl Tools {
                 (Tab::Ports, icon::DOOR_OPEN, tr("Port check")),
                 (Tab::Subnet, icon::CALCULATOR, tr("Subnet calculator")),
                 (Tab::Planner, icon::TREE_STRUCTURE, tr("Network planner")),
+                (Tab::Snmp, icon::HARD_DRIVES, "SNMP"),
                 (Tab::Wol, icon::POWER, tr("Wake-on-LAN")),
                 (Tab::MacLookup, icon::FINGERPRINT, tr("MAC lookup")),
                 (Tab::Web, icon::LOCK, tr("Web & TLS check")),
@@ -179,6 +189,7 @@ impl Tools {
             Tab::Ports => self.ports_tab(ui, p, sh),
             Tab::Subnet => self.subnet_tab(ui, p, sh),
             Tab::Planner => self.planner.ui(ui, p, sh),
+            Tab::Snmp => self.snmp.ui(ui, p, sh),
             Tab::Wol => self.wol_tab(ui, p, sh),
             Tab::MacLookup => self.mac_tab(ui, p),
             Tab::Web => self.inspect.web_tab(ui, p, sh),

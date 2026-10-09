@@ -631,10 +631,16 @@ mod tests {
 
         // Download with blksize 1024.
         let c = UdpSocket::bind("127.0.0.1:0").unwrap();
-        c.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
-        c.send_to(b"\x00\x01fw.bin\x00octet\x00blksize\x001024\x00", ("127.0.0.1", port)).unwrap();
+        c.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
         let mut buf = [0u8; 2048];
-        let (n, peer) = c.recv_from(&mut buf).unwrap();
+        // The server may still be starting on a busy machine: ask again.
+        let (n, peer) = (0..10)
+            .find_map(|_| {
+                c.send_to(b"\x00\x01fw.bin\x00octet\x00blksize\x001024\x00", ("127.0.0.1", port)).unwrap();
+                c.recv_from(&mut buf).ok()
+            })
+            .expect("no answer from the TFTP server");
+        c.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
         assert_eq!(&buf[..2], &[0, 6], "OACK expected, got {:?}", &buf[..n]);
         c.send_to(&[0, 4, 0, 0], peer).unwrap();
         let mut got = Vec::new();

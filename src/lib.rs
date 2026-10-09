@@ -6,6 +6,7 @@
 //! Shared by the desktop app (`netmgr-gui`) and the command line (`netmgr`).
 
 pub mod adapters;
+pub mod capture;
 pub mod cmd;
 pub mod config;
 pub mod console;
@@ -18,12 +19,15 @@ pub mod mac;
 pub mod monitor;
 pub mod plan;
 pub mod profiles;
+pub mod remote;
 pub mod report;
 pub mod scan;
 pub mod servers;
+pub mod snmp;
 pub mod subnet;
 pub mod system;
 pub mod tools;
+pub mod traffic;
 pub mod web;
 pub mod wifi;
 

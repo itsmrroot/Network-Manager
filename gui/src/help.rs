@@ -225,6 +225,54 @@ fn guides() -> Vec<Guide> {
                 trl(
                     "Copy the table, export it as CSV, or copy the switch configuration: VLANs, gateway interfaces and DHCP pools, ready to paste.",
                 ),
+                trl(
+                    "Choose Cisco, Juniper, Aruba / HP or MikroTik for the configuration; add an IPv6 prefix to give every network a /64; save plans to open them again later.",
+                ),
+            ],
+        },
+        Guide {
+            icon: icon::HARD_DRIVES,
+            title: tr("Read a switch over SNMP"),
+            steps: vec![
+                trl("Tools → SNMP: enter the switch's address and community (often “public”) and click Read."),
+                trl(
+                    "Every port shows whether it is up, its speed, live traffic, errors and its description; errors that keep rising point to a bad cable or a duplex mismatch.",
+                ),
+                trl("Walk lists everything under an OID, such as the LLDP neighbors or the ARP table."),
+            ],
+        },
+        Guide {
+            icon: icon::TERMINAL_WINDOW,
+            title: tr("Saved SSH and Telnet sessions"),
+            steps: vec![
+                trl(
+                    "Console → SSH and Telnet: type user@address and click Connect; the session opens in a tab inside the app.",
+                ),
+                trl("Click Save… or + to keep a session in the list, in groups such as Building A or Datacenter."),
+                trl(
+                    "SSH uses the system's own client, so your keys and ~/.ssh/config work; Telnet is built in, also on Windows.",
+                ),
+            ],
+        },
+        Guide {
+            icon: icon::FILE_MAGNIFYING_GLASS,
+            title: tr("Capture packets"),
+            steps: vec![
+                trl(
+                    "Monitor → Packet capture: choose the adapter and click Start capture; the system asks for your password.",
+                ),
+                trl("Type in the filter to show only some packets: dns, 443, arp or an address."),
+                trl("Save… writes a pcap file that Wireshark opens; Open pcap… shows a file captured elsewhere."),
+            ],
+        },
+        Guide {
+            icon: icon::CHART_BAR,
+            title: tr("Which program is using the network?"),
+            steps: vec![
+                trl(
+                    "Monitor → Traffic per program lists every program using the network, with its download and upload speed, busiest first.",
+                ),
+                trl("The totals count from when you opened the page; Reset totals starts again."),
             ],
         },
         Guide {
