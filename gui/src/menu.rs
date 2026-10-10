@@ -13,6 +13,7 @@ use crate::settings::ThemeChoice;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Command {
     Page(Page),
+    Search,
     CheckUpdates,
     Undo,
     Redo,
@@ -211,7 +212,12 @@ mod imp {
                 })
                 .collect();
             let page_refs: Vec<&dyn muda::IsMenuItem> = pages.iter().map(|i| i as &dyn muda::IsMenuItem).collect();
-            let go = Submenu::with_items(tr("Go"), true, &page_refs)?;
+            let search = self.item(&format!("{}…", tr("Search")), Command::Search, acc(cmd, Code::KeyK));
+            let mut go_refs: Vec<&dyn muda::IsMenuItem> = vec![&search];
+            let go_sep = sep();
+            go_refs.push(&go_sep);
+            go_refs.extend(page_refs);
+            let go = Submenu::with_items(tr("Go"), true, &go_refs)?;
 
             let check = self.item(tr("Check connection"), Command::CheckConnection, acc(cmd_shift, Code::KeyK));
             let renew = self.item(tr("Renew IP"), Command::RenewIp, None);
@@ -276,6 +282,9 @@ mod imp {
                 }
                 if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Comma)) {
                     out.push(Command::Page(Page::Settings));
+                }
+                if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::K)) {
+                    out.push(Command::Search);
                 }
                 if i.consume_key(Modifiers::NONE, Key::F1) {
                     out.push(Command::Page(Page::Help));

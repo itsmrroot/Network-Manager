@@ -521,6 +521,31 @@ pub fn tabs<T: Copy + PartialEq>(ui: &mut Ui, p: &Palette, current: &mut T, item
     });
 }
 
+/// A lighter second row of tabs under [`tabs`]: text with an underline
+/// for the chosen one.
+pub fn subtabs<T: Copy + PartialEq>(ui: &mut Ui, p: &Palette, current: &mut T, items: &[(T, &str, &str)]) {
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = 18.0;
+        for (value, glyph, label) in items {
+            let selected = *current == *value;
+            let text =
+                RichText::new(format!("{glyph}  {label}")).size(13.5).color(if selected { p.accent } else { p.weak });
+            let r =
+                ui.add(egui::Label::new(text).sense(Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand);
+            if selected {
+                let y = r.rect.bottom() + 3.0;
+                ui.painter().line_segment(
+                    [egui::pos2(r.rect.left(), y), egui::pos2(r.rect.right(), y)],
+                    Stroke::new(2.0, p.accent),
+                );
+            }
+            if r.clicked() {
+                *current = *value;
+            }
+        }
+    });
+}
+
 /// Four bars showing a 0–100 signal quality.
 pub fn signal_bars(ui: &mut Ui, p: &Palette, quality: u8, height: f32) -> Response {
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(height * 1.2, height), Sense::hover());

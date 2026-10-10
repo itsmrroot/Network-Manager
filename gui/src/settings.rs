@@ -78,6 +78,8 @@ pub struct Settings {
     /// The DHCP server's last settings, and the adapter it served.
     pub dhcp_server: Option<netmgr::dhcpd::Config>,
     pub dhcp_adapter: String,
+    /// Hides Switch port, Monitor, Servers and Console.
+    pub simple_mode: bool,
     // Network planner
     /// What the planner showed last; `None` until it is first opened.
     pub planner: Option<netmgr::plan::Input>,
@@ -110,6 +112,7 @@ impl Default for Settings {
             notifications: true,
             dhcp_server: None,
             dhcp_adapter: String::new(),
+            simple_mode: false,
             planner: None,
             saved_plans: BTreeMap::new(),
             plan_vendor: Default::default(),
@@ -193,6 +196,13 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
                     }
                 }
             });
+            row(
+                ui,
+                p,
+                tr("Simple mode"),
+                trl("Hides the pages for network engineers: Switch port, Monitor, Servers and Console. Search (⌘K / Ctrl+K) still finds them."),
+                |ui| toggle(ui, &mut s.simple_mode),
+            );
             row(ui, p, tr("Interface size"), trl("Make everything larger or smaller (also Ctrl/⌘ + and −)."), |ui| {
                 // Applied when the mouse button is released: resizing during a
                 // drag would move the slider away under the mouse.

@@ -25,6 +25,7 @@ mod planner;
 mod profiles;
 mod programs;
 mod roaming;
+mod search;
 mod servers;
 mod settings;
 mod snmp_tool;

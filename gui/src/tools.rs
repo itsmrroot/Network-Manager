@@ -40,8 +40,45 @@ pub enum Tab {
     Hosts,
 }
 
+/// The Tools page's groups.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Group {
+    Test,
+    LookUp,
+    Plan,
+    Inspect,
+}
+
+/// Every tool: what it is, its icon and name, and its group.
+pub fn tool_list() -> [(Tab, &'static str, &'static str, Group); 16] {
+    [
+        (Tab::Ping, icon::PULSE, tr("Ping"), Group::Test),
+        (Tab::Trace, icon::PATH, tr("Traceroute"), Group::Test),
+        (Tab::Ports, icon::DOOR_OPEN, tr("Port check"), Group::Test),
+        (Tab::Mtu, icon::RULER, "MTU", Group::Test),
+        (Tab::Time, icon::CLOCK, tr("Time (NTP)"), Group::Test),
+        (Tab::Wol, icon::POWER, tr("Wake-on-LAN"), Group::Test),
+        (Tab::Dns, icon::LIST_MAGNIFYING_GLASS, tr("DNS lookup"), Group::LookUp),
+        (Tab::Whois, icon::IDENTIFICATION_CARD, "WHOIS", Group::LookUp),
+        (Tab::MacLookup, icon::FINGERPRINT, tr("MAC lookup"), Group::LookUp),
+        (Tab::Web, icon::LOCK, tr("Web & TLS check"), Group::LookUp),
+        (Tab::Subnet, icon::CALCULATOR, tr("Subnet calculator"), Group::Plan),
+        (Tab::Planner, icon::TREE_STRUCTURE, tr("Network planner"), Group::Plan),
+        (Tab::Snmp, icon::HARD_DRIVES, "SNMP", Group::Inspect),
+        (Tab::Connections, icon::PLUGS, tr("Connections"), Group::Inspect),
+        (Tab::Routes, icon::SIGNPOST, tr("Routes"), Group::Inspect),
+        (Tab::Hosts, icon::NOTE_PENCIL, tr("Hosts file"), Group::Inspect),
+    ]
+}
+
+pub fn group_of(tab: Tab) -> Group {
+    tool_list().iter().find(|t| t.0 == tab).map_or(Group::Test, |t| t.3)
+}
+
 pub struct Tools {
     tab: Tab,
+    /// The tool last used in each group.
+    last: std::collections::HashMap<Group, Tab>,
     host: String,
     ping: Option<Job<()>>,
     ping_lines: Vec<String>,
@@ -73,6 +110,7 @@ impl Default for Tools {
     fn default() -> Self {
         Self {
             tab: Tab::Ping,
+            last: Default::default(),
             host: String::new(),
             ping: None,
             ping_lines: Vec::new(),
@@ -106,6 +144,11 @@ impl Tools {
     #[cfg(debug_assertions)]
     pub fn snmp_demo(&mut self, ctx: &egui::Context, host: &str, community: &str) {
         self.snmp.demo(ctx, host, community);
+    }
+
+    /// Shows a tool without changing what is filled in.
+    pub fn select(&mut self, tab: Tab) {
+        self.tab = tab;
     }
 
     /// Opens `tab` with `host` filled in, and starts it.
@@ -166,30 +209,33 @@ impl Tools {
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         theme::page_title(ui, p, tr("Tools"), tr("Everyday network tools, in one place."));
+        // Groups first, then the tools of the chosen group.
+        let mut group = group_of(self.tab);
+        let before = group;
         theme::tabs(
             ui,
             p,
-            &mut self.tab,
+            &mut group,
             &[
-                (Tab::Ping, icon::PULSE, tr("Ping")),
-                (Tab::Trace, icon::PATH, tr("Traceroute")),
-                (Tab::Dns, icon::LIST_MAGNIFYING_GLASS, tr("DNS lookup")),
-                (Tab::Ports, icon::DOOR_OPEN, tr("Port check")),
-                (Tab::Subnet, icon::CALCULATOR, tr("Subnet calculator")),
-                (Tab::Planner, icon::TREE_STRUCTURE, tr("Network planner")),
-                (Tab::Snmp, icon::HARD_DRIVES, "SNMP"),
-                (Tab::Time, icon::CLOCK, tr("Time (NTP)")),
-                (Tab::Mtu, icon::RULER, "MTU"),
-                (Tab::Wol, icon::POWER, tr("Wake-on-LAN")),
-                (Tab::MacLookup, icon::FINGERPRINT, tr("MAC lookup")),
-                (Tab::Web, icon::LOCK, tr("Web & TLS check")),
-                (Tab::Whois, icon::IDENTIFICATION_CARD, "WHOIS"),
-                (Tab::Connections, icon::PLUGS, tr("Connections")),
-                (Tab::Routes, icon::SIGNPOST, tr("Routes")),
-                (Tab::Hosts, icon::NOTE_PENCIL, tr("Hosts file")),
+                (Group::Test, icon::PULSE, tr("Test")),
+                (Group::LookUp, icon::MAGNIFYING_GLASS, tr("Look up")),
+                (Group::Plan, icon::CALCULATOR, tr("Plan")),
+                (Group::Inspect, icon::BINOCULARS, tr("Inspect")),
             ],
         );
-        ui.add_space(10.0);
+        if group != before {
+            self.last.insert(before, self.tab);
+            self.tab = self
+                .last
+                .get(&group)
+                .copied()
+                .unwrap_or_else(|| tool_list().iter().find(|t| t.3 == group).map_or(Tab::Ping, |t| t.0));
+        }
+        let items: Vec<(Tab, &str, &str)> =
+            tool_list().iter().filter(|t| t.3 == group).map(|t| (t.0, t.1, t.2)).collect();
+        ui.add_space(4.0);
+        theme::subtabs(ui, p, &mut self.tab, &items);
+        ui.add_space(14.0);
         match self.tab {
             Tab::Ping => self.ping_tab(ui, p, sh),
             Tab::Trace => self.trace_tab(ui, p, sh),

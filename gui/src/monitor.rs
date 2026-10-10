@@ -221,6 +221,16 @@ impl Monitor {
         }
     }
 
+    /// Shows a tab by name (search).
+    pub fn open_tab(&mut self, id: &str) {
+        self.tab = match id {
+            "path" => Tab::Path,
+            "programs" => Tab::Programs,
+            "capture" => Tab::Capture,
+            _ => Tab::Hosts,
+        };
+    }
+
     pub fn running(&self) -> bool {
         self.running.is_some() || self.path_stop.is_some() || self.capture.running()
     }

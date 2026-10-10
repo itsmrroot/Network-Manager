@@ -70,6 +70,15 @@ impl Default for Console {
 }
 
 impl Console {
+    /// Shows a tab by name (search).
+    pub fn open_tab(&mut self, id: &str) {
+        self.view = match id {
+            "remote" => View::Remote,
+            "backups" => View::Backups,
+            _ => View::Serial,
+        };
+    }
+
     pub fn connected(&self) -> bool {
         self.session.is_some() || self.open.iter().any(|o| o.remote.is_some())
     }

@@ -41,6 +41,15 @@ enum Tab {
 }
 
 impl WifiPage {
+    /// Shows a tab by name (search).
+    pub fn open_tab(&mut self, id: &str) {
+        self.tab = match id {
+            "nearby" => Tab::Nearby,
+            "signal" => Tab::Signal,
+            _ => Tab::Saved,
+        };
+    }
+
     /// Development aid: the signal tab with sample data.
     #[cfg(debug_assertions)]
     pub fn show_signal(&mut self) {

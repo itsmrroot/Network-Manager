@@ -562,6 +562,7 @@ mod tests {
         include_str!("profiles.rs"),
         include_str!("programs.rs"),
         include_str!("roaming.rs"),
+        include_str!("search.rs"),
         include_str!("servers.rs"),
         include_str!("settings.rs"),
         include_str!("snmp_tool.rs"),

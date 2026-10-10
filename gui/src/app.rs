@@ -11,13 +11,13 @@ use netmgr::wifi;
 
 use crate::i18n::{self, tr, trl};
 use crate::jobs::{self, Job};
-use crate::menu;
 use crate::settings::{self, Settings};
 use crate::theme::{self, Palette};
 use crate::update::Updater;
 use crate::{
     about, adapters_page, console, devices, help, monitor, overview, profiles, servers, switchport, tools, wifi_page,
 };
+use crate::{menu, search};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
@@ -134,6 +134,7 @@ pub struct App {
     language: Option<i18n::Lang>,
     page: Page,
     menu: menu::MenuBar,
+    search: search::Search,
     logo: egui::TextureHandle,
     updater: Updater,
     fitted: bool,
@@ -226,6 +227,7 @@ impl App {
             language: Some(lang),
             page: Page::Overview,
             menu: Default::default(),
+            search: Default::default(),
             logo,
             updater,
             fitted: false,
@@ -261,11 +263,36 @@ impl App {
         };
     }
 
+    /// Goes where a search result leads.
+    fn go(&mut self, ctx: &egui::Context, t: search::Target) {
+        use search::Target;
+        match t {
+            Target::Page(p) => self.page = p,
+            Target::Tool(tab) => {
+                self.page = Page::Tools;
+                self.tools.select(tab);
+            }
+            Target::Tab(page, id) => {
+                self.page = page;
+                match page {
+                    Page::Wifi => self.wifi_page.open_tab(id),
+                    Page::Devices => self.devices.show(id),
+                    Page::Monitor => self.monitor.open_tab(id),
+                    Page::Servers => self.servers.open_tab(id),
+                    Page::Console => self.console.open_tab(id),
+                    _ => {}
+                }
+            }
+            Target::Command(c) => self.run(ctx, c),
+        }
+    }
+
     /// Does what the menu bar or a shortcut asked for.
     fn run(&mut self, ctx: &egui::Context, c: menu::Command) {
         use menu::Command as C;
         match c {
             C::Page(p) => self.page = p,
+            C::Search => self.search.show(),
             C::CheckUpdates => {
                 self.page = Page::About;
                 self.updater.check(ctx, true);
@@ -466,7 +493,21 @@ impl App {
                 });
             });
         }
-        ui.add_space(22.0);
+        ui.add_space(14.0);
+        // Search: also ⌘K / Ctrl+K.
+        let key = if cfg!(target_os = "macos") { "⌘K" } else { "Ctrl+K" };
+        let search = egui::Button::new(
+            RichText::new(format!("{}   {}", icon::MAGNIFYING_GLASS, tr("Search…"))).color(p.weak).size(13.5),
+        )
+        .right_text(RichText::new(key).color(p.weak).size(12.0))
+        .fill(p.card)
+        .stroke(Stroke::new(1.0, p.border))
+        .corner_radius(8)
+        .min_size(Vec2::new(ui.available_width(), 32.0));
+        if ui.add(search).clicked() {
+            self.search.show();
+        }
+        ui.add_space(12.0);
 
         let dot = |on: bool| on.then(|| "●".to_string());
         let devices_badge = dot(self.devices.scanning()).or(self.devices.count().map(|n| n.to_string()));
@@ -487,8 +528,15 @@ impl App {
         ];
         // Scrolls on small windows, above the "Powered by" footer.
         let height = (ui.available_height() - 86.0).max(120.0);
+        // Simple mode hides the pages for network engineers (unless one of
+        // them is running something).
+        let simple = self.shared.settings.simple_mode;
         egui::ScrollArea::vertical().id_salt("nav").max_height(height).show(ui, |ui| {
             for (i, (glyph, label, target, badge)) in items.into_iter().enumerate() {
+                let engineer = matches!(target, Page::SwitchPort | Page::Monitor | Page::Servers | Page::Console);
+                if simple && engineer && badge.is_none() && self.page != target {
+                    continue;
+                }
                 if i == 10 {
                     ui.add_space(4.0);
                     ui.separator();
@@ -655,6 +703,9 @@ impl eframe::App for App {
         egui::CentralPanel::default()
             .frame(Frame::new().fill(p.bg).inner_margin(Margin { left: 30, right: 30, top: 26, bottom: 22 }))
             .show(ui, |ui| self.content(ui, &p));
+        if let Some(t) = self.search.ui(&ctx, &p) {
+            self.go(&ctx, t);
+        }
         self.error_modal(&ctx, &p);
         self.toast(&ctx, &p);
         self.updater.dialog(&ctx, &p, false);
@@ -779,7 +830,7 @@ impl App {
             return;
         }
         t.frames += 1;
-        let pages: [(Page, &str, u32); 25] = [
+        let pages: [(Page, &str, u32); 26] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -805,6 +856,7 @@ impl App {
             (Page::Wifi, "23-signal", 60),
             (Page::Servers, "24-dhcp", 40),
             (Page::Servers, "25-traps", 40),
+            (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_LIGHT: the light theme instead.
         if t.frames == 1 && t.step == 0 && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {
@@ -891,6 +943,9 @@ impl App {
             }
             if name == "15-planner" {
                 self.tools.open(tools::Tab::Planner, "");
+            }
+            if name == "26-search" {
+                self.search.demo("dhcp");
             }
             if name == "24-dhcp" {
                 self.servers.show("dhcp");

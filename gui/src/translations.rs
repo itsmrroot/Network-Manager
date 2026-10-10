@@ -1936,6 +1936,17 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("optional, Cisco", "optional, Cisco"),
     ("optional, e.g. 1.1.1.1, 9.9.9.9", "optional, z. B. 1.1.1.1, 9.9.9.9"),
     ("optional, e.g. lab.local", "optional, z. B. lab.local"),
+    (
+        "Hides the pages for network engineers: Switch port, Monitor, Servers and Console. Search (⌘K / Ctrl+K) still finds them.",
+        "Blendet die Seiten für Netzwerktechniker aus: Switch-Port, Überwachung, Server und Konsole. Die Suche (⌘K / Strg+K) findet sie weiterhin.",
+    ),
+    ("Inspect", "Untersuchen"),
+    ("Nothing found.", "Nichts gefunden."),
+    ("Search pages, tools and actions", "Seiten, Werkzeuge und Aktionen suchen"),
+    ("Search…", "Suchen…"),
+    ("Simple mode", "Einfacher Modus"),
+    ("Test", "Testen"),
+    ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ zum Auswählen, Eingabe zum Öffnen, Esc zum Schließen"),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -3855,6 +3866,17 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("optional, Cisco", "opcional, Cisco"),
     ("optional, e.g. 1.1.1.1, 9.9.9.9", "opcional, p. ej. 1.1.1.1, 9.9.9.9"),
     ("optional, e.g. lab.local", "opcional, p. ej. lab.local"),
+    (
+        "Hides the pages for network engineers: Switch port, Monitor, Servers and Console. Search (⌘K / Ctrl+K) still finds them.",
+        "Oculta las páginas para ingenieros de redes: Puerto del switch, Supervisión, Servidores y Consola. La búsqueda (⌘K / Ctrl+K) las sigue encontrando.",
+    ),
+    ("Inspect", "Inspeccionar"),
+    ("Nothing found.", "No se encontró nada."),
+    ("Search pages, tools and actions", "Buscar páginas, herramientas y acciones"),
+    ("Search…", "Buscar…"),
+    ("Simple mode", "Modo sencillo"),
+    ("Test", "Probar"),
+    ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ para elegir, Intro para abrir, Esc para cerrar"),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -5795,6 +5817,17 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("optional, Cisco", "facultatif, Cisco"),
     ("optional, e.g. 1.1.1.1, 9.9.9.9", "facultatif, p. ex. 1.1.1.1, 9.9.9.9"),
     ("optional, e.g. lab.local", "facultatif, p. ex. lab.local"),
+    (
+        "Hides the pages for network engineers: Switch port, Monitor, Servers and Console. Search (⌘K / Ctrl+K) still finds them.",
+        "Masque les pages pour ingénieurs réseau : Port du switch, Surveillance, Serveurs et Console. La recherche (⌘K / Ctrl+K) les trouve toujours.",
+    ),
+    ("Inspect", "Inspecter"),
+    ("Nothing found.", "Aucun résultat."),
+    ("Search pages, tools and actions", "Rechercher des pages, outils et actions"),
+    ("Search…", "Rechercher…"),
+    ("Simple mode", "Mode simple"),
+    ("Test", "Tester"),
+    ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ pour choisir, Entrée pour ouvrir, Échap pour fermer"),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -7699,6 +7732,17 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("optional, Cisco", "isteğe bağlı, Cisco"),
     ("optional, e.g. 1.1.1.1, 9.9.9.9", "isteğe bağlı, ör. 1.1.1.1, 9.9.9.9"),
     ("optional, e.g. lab.local", "isteğe bağlı, ör. lab.local"),
+    (
+        "Hides the pages for network engineers: Switch port, Monitor, Servers and Console. Search (⌘K / Ctrl+K) still finds them.",
+        "Ağ mühendisleri için sayfaları gizler: Switch portu, İzleme, Sunucular ve Konsol. Arama (⌘K / Ctrl+K) onları yine bulur.",
+    ),
+    ("Inspect", "İncele"),
+    ("Nothing found.", "Hiçbir şey bulunamadı."),
+    ("Search pages, tools and actions", "Sayfa, araç ve işlem ara"),
+    ("Search…", "Ara…"),
+    ("Simple mode", "Basit mod"),
+    ("Test", "Test"),
+    ("↑ ↓ to choose, Enter to open, Esc to close", "Seçmek için ↑ ↓, açmak için Enter, kapatmak için Esc"),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -9612,6 +9656,17 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("optional, Cisco", "необязательно, Cisco"),
     ("optional, e.g. 1.1.1.1, 9.9.9.9", "необязательно, например 1.1.1.1, 9.9.9.9"),
     ("optional, e.g. lab.local", "необязательно, например lab.local"),
+    (
+        "Hides the pages for network engineers: Switch port, Monitor, Servers and Console. Search (⌘K / Ctrl+K) still finds them.",
+        "Скрывает страницы для сетевых инженеров: Порт коммутатора, Мониторинг, Серверы и Консоль. Поиск (⌘K / Ctrl+K) по-прежнему их находит.",
+    ),
+    ("Inspect", "Анализ"),
+    ("Nothing found.", "Ничего не найдено."),
+    ("Search pages, tools and actions", "Поиск страниц, инструментов и действий"),
+    ("Search…", "Поиск…"),
+    ("Simple mode", "Простой режим"),
+    ("Test", "Проверка"),
+    ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ — выбрать, Enter — открыть, Esc — закрыть"),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -11471,6 +11526,17 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("optional, Cisco", "اختياري، Cisco"),
     ("optional, e.g. 1.1.1.1, 9.9.9.9", "اختياري، مثل 1.1.1.1، 9.9.9.9"),
     ("optional, e.g. lab.local", "اختياري، مثل lab.local"),
+    (
+        "Hides the pages for network engineers: Switch port, Monitor, Servers and Console. Search (⌘K / Ctrl+K) still finds them.",
+        "يخفي صفحات مهندسي الشبكات: منفذ السويتش والمراقبة والخوادم والكونسول. يظل البحث (⌘K / Ctrl+K) يجدها.",
+    ),
+    ("Inspect", "فحص"),
+    ("Nothing found.", "لم يُعثر على شيء."),
+    ("Search pages, tools and actions", "ابحث في الصفحات والأدوات والإجراءات"),
+    ("Search…", "بحث…"),
+    ("Simple mode", "الوضع البسيط"),
+    ("Test", "اختبار"),
+    ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ للاختيار، Enter للفتح، Esc للإغلاق"),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -13309,4 +13375,15 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("optional, Cisco", "可选，Cisco"),
     ("optional, e.g. 1.1.1.1, 9.9.9.9", "可选，例如 1.1.1.1、9.9.9.9"),
     ("optional, e.g. lab.local", "可选，例如 lab.local"),
+    (
+        "Hides the pages for network engineers: Switch port, Monitor, Servers and Console. Search (⌘K / Ctrl+K) still finds them.",
+        "隐藏面向网络工程师的页面：交换机端口、监控、服务器和 Console。搜索（⌘K / Ctrl+K）仍能找到它们。",
+    ),
+    ("Inspect", "检查"),
+    ("Nothing found.", "未找到任何内容。"),
+    ("Search pages, tools and actions", "搜索页面、工具和操作"),
+    ("Search…", "搜索…"),
+    ("Simple mode", "简洁模式"),
+    ("Test", "测试"),
+    ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ 选择，Enter 打开，Esc 关闭"),
 ];

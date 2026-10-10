@@ -182,6 +182,19 @@ impl Servers {
         }
     }
 
+    /// Shows a tab by name (search).
+    pub fn open_tab(&mut self, id: &str) {
+        self.tab = match id {
+            "http" => Tab::Http,
+            "syslog" => Tab::Syslog,
+            "traps" => Tab::Traps,
+            "dhcp" => Tab::Dhcp,
+            "time" => Tab::Time,
+            "throughput" => Tab::Throughput,
+            _ => Tab::Tftp,
+        };
+    }
+
     pub fn running(&self) -> bool {
         self.tftp.is_some()
             || self.syslog.is_some()

@@ -60,10 +60,7 @@ pub fn kind_icon(k: DeviceKind) -> &'static str {
 }
 
 impl Devices {
-    /// Development aid: sample devices for README screenshots.
-    #[cfg(debug_assertions)]
-    /// Development aid: shows one of the tabs for screenshots.
-    #[cfg(debug_assertions)]
+    /// Shows a tab by name (search, screenshots).
     pub fn show(&mut self, tab: &str) {
         self.view = match tab {
             "map" => View::Map,
@@ -73,6 +70,7 @@ impl Devices {
         };
     }
 
+    /// Development aid: sample devices for README screenshots.
     #[cfg(debug_assertions)]
     pub fn demo(&mut self) {
         let d = |ip: &str, mac: &str, name: Option<&str>, ports: &[u16], me: bool, gw: bool| {
