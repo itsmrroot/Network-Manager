@@ -1947,6 +1947,20 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("Simple mode", "Einfacher Modus"),
     ("Test", "Testen"),
     ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ zum Auswählen, Eingabe zum Öffnen, Esc zum Schließen"),
+    ("1 server is running.", "1 Server läuft."),
+    (
+        "Anyone on this Wi-Fi network can reach the server. Fine at home or in your lab; on public Wi-Fi, use a cable or stop the server.",
+        "Jeder in diesem WLAN kann den Server erreichen. Zu Hause oder im Labor in Ordnung; in öffentlichen WLANs ein Kabel verwenden oder den Server beenden.",
+    ),
+    ("Every network (less safe)", "Jedes Netzwerk (weniger sicher)"),
+    ("Listen on", "Lauschen auf"),
+    ("Open Servers to see or stop them", "Server öffnen, um sie zu sehen oder zu beenden"),
+    ("Stop all servers", "Alle Server beenden"),
+    (
+        "The server is reachable from every network this computer is on, including Wi-Fi in cafés and hotels. Choose the adapter cabled to your devices instead.",
+        "Der Server ist aus jedem Netzwerk erreichbar, mit dem dieser Computer verbunden ist, auch aus WLANs in Cafés und Hotels. Wählen Sie stattdessen den Adapter, der per Kabel mit Ihren Geräten verbunden ist.",
+    ),
+    ("{n} servers are running.", "{n} Server laufen."),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -3877,6 +3891,20 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("Simple mode", "Modo sencillo"),
     ("Test", "Probar"),
     ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ para elegir, Intro para abrir, Esc para cerrar"),
+    ("1 server is running.", "1 servidor en marcha."),
+    (
+        "Anyone on this Wi-Fi network can reach the server. Fine at home or in your lab; on public Wi-Fi, use a cable or stop the server.",
+        "Cualquiera en esta red Wi-Fi puede llegar al servidor. Bien en casa o en el laboratorio; en una Wi-Fi pública, use un cable o detenga el servidor.",
+    ),
+    ("Every network (less safe)", "Todas las redes (menos seguro)"),
+    ("Listen on", "Escuchar en"),
+    ("Open Servers to see or stop them", "Abrir Servidores para verlos o detenerlos"),
+    ("Stop all servers", "Detener todos los servidores"),
+    (
+        "The server is reachable from every network this computer is on, including Wi-Fi in cafés and hotels. Choose the adapter cabled to your devices instead.",
+        "El servidor es accesible desde todas las redes a las que está conectado este equipo, incluida la Wi-Fi de cafeterías y hoteles. Elija en su lugar el adaptador conectado por cable a sus dispositivos.",
+    ),
+    ("{n} servers are running.", "{n} servidores en marcha."),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -5828,6 +5856,20 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("Simple mode", "Mode simple"),
     ("Test", "Tester"),
     ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ pour choisir, Entrée pour ouvrir, Échap pour fermer"),
+    ("1 server is running.", "1 serveur est en marche."),
+    (
+        "Anyone on this Wi-Fi network can reach the server. Fine at home or in your lab; on public Wi-Fi, use a cable or stop the server.",
+        "Toute personne sur ce Wi-Fi peut atteindre le serveur. Très bien chez soi ou au labo ; sur un Wi-Fi public, utilisez un câble ou arrêtez le serveur.",
+    ),
+    ("Every network (less safe)", "Tous les réseaux (moins sûr)"),
+    ("Listen on", "Écouter sur"),
+    ("Open Servers to see or stop them", "Ouvrir Serveurs pour les voir ou les arrêter"),
+    ("Stop all servers", "Arrêter tous les serveurs"),
+    (
+        "The server is reachable from every network this computer is on, including Wi-Fi in cafés and hotels. Choose the adapter cabled to your devices instead.",
+        "Le serveur est joignable depuis tous les réseaux de cet ordinateur, y compris le Wi-Fi des cafés et des hôtels. Choisissez plutôt l’adaptateur relié par câble à vos appareils.",
+    ),
+    ("{n} servers are running.", "{n} serveurs sont en marche."),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -7743,6 +7785,20 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("Simple mode", "Basit mod"),
     ("Test", "Test"),
     ("↑ ↓ to choose, Enter to open, Esc to close", "Seçmek için ↑ ↓, açmak için Enter, kapatmak için Esc"),
+    ("1 server is running.", "1 sunucu çalışıyor."),
+    (
+        "Anyone on this Wi-Fi network can reach the server. Fine at home or in your lab; on public Wi-Fi, use a cable or stop the server.",
+        "Bu Wi-Fi ağındaki herkes sunucuya ulaşabilir. Evde veya labda sorun değil; herkese açık Wi-Fi'da kablo kullanın ya da sunucuyu durdurun.",
+    ),
+    ("Every network (less safe)", "Tüm ağlar (daha az güvenli)"),
+    ("Listen on", "Dinlenecek yer"),
+    ("Open Servers to see or stop them", "Görmek veya durdurmak için Sunucular'ı açın"),
+    ("Stop all servers", "Tüm sunucuları durdur"),
+    (
+        "The server is reachable from every network this computer is on, including Wi-Fi in cafés and hotels. Choose the adapter cabled to your devices instead.",
+        "Sunucuya bu bilgisayarın bağlı olduğu her ağdan, kafe ve otellerdeki Wi-Fi dahil, ulaşılabilir. Bunun yerine cihazlarınıza kabloyla bağlı bağdaştırıcıyı seçin.",
+    ),
+    ("{n} servers are running.", "{n} sunucu çalışıyor."),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -9667,6 +9723,20 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("Simple mode", "Простой режим"),
     ("Test", "Проверка"),
     ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ — выбрать, Enter — открыть, Esc — закрыть"),
+    ("1 server is running.", "Работает 1 сервер."),
+    (
+        "Anyone on this Wi-Fi network can reach the server. Fine at home or in your lab; on public Wi-Fi, use a cable or stop the server.",
+        "Любой в этой сети Wi-Fi может обратиться к серверу. Дома или в лаборатории это нормально; в публичной Wi-Fi используйте кабель или остановите сервер.",
+    ),
+    ("Every network (less safe)", "Все сети (менее безопасно)"),
+    ("Listen on", "Слушать на"),
+    ("Open Servers to see or stop them", "Откройте Серверы, чтобы увидеть или остановить их"),
+    ("Stop all servers", "Остановить все серверы"),
+    (
+        "The server is reachable from every network this computer is on, including Wi-Fi in cafés and hotels. Choose the adapter cabled to your devices instead.",
+        "Сервер доступен из всех сетей, к которым подключён этот компьютер, включая Wi-Fi в кафе и отелях. Выберите вместо этого адаптер, подключённый кабелем к вашим устройствам.",
+    ),
+    ("{n} servers are running.", "Работает серверов: {n}."),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -11537,6 +11607,20 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Simple mode", "الوضع البسيط"),
     ("Test", "اختبار"),
     ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ للاختيار، Enter للفتح، Esc للإغلاق"),
+    ("1 server is running.", "خادم واحد يعمل."),
+    (
+        "Anyone on this Wi-Fi network can reach the server. Fine at home or in your lab; on public Wi-Fi, use a cable or stop the server.",
+        "يمكن لأي شخص على شبكة Wi-Fi هذه الوصول إلى الخادم. لا بأس في المنزل أو المختبر؛ أما على Wi-Fi عامة فاستخدم كابلًا أو أوقف الخادم.",
+    ),
+    ("Every network (less safe)", "كل الشبكات (أقل أمانًا)"),
+    ("Listen on", "الاستماع على"),
+    ("Open Servers to see or stop them", "افتح الخوادم لرؤيتها أو إيقافها"),
+    ("Stop all servers", "إيقاف كل الخوادم"),
+    (
+        "The server is reachable from every network this computer is on, including Wi-Fi in cafés and hotels. Choose the adapter cabled to your devices instead.",
+        "يمكن الوصول إلى الخادم من كل شبكة متصل بها هذا الكمبيوتر، بما فيها Wi-Fi في المقاهي والفنادق. اختر بدلًا من ذلك المحوّل الموصول بكابل بأجهزتك.",
+    ),
+    ("{n} servers are running.", "{n} خوادم تعمل."),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -13386,4 +13470,18 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Simple mode", "简洁模式"),
     ("Test", "测试"),
     ("↑ ↓ to choose, Enter to open, Esc to close", "↑ ↓ 选择，Enter 打开，Esc 关闭"),
+    ("1 server is running.", "1 个服务器正在运行。"),
+    (
+        "Anyone on this Wi-Fi network can reach the server. Fine at home or in your lab; on public Wi-Fi, use a cable or stop the server.",
+        "此 Wi-Fi 网络上的任何人都能访问该服务器。在家或实验室没问题；在公共 Wi-Fi 上，请改用网线或停止服务器。",
+    ),
+    ("Every network (less safe)", "所有网络（安全性较低）"),
+    ("Listen on", "监听于"),
+    ("Open Servers to see or stop them", "打开“服务器”页查看或停止它们"),
+    ("Stop all servers", "停止所有服务器"),
+    (
+        "The server is reachable from every network this computer is on, including Wi-Fi in cafés and hotels. Choose the adapter cabled to your devices instead.",
+        "本机连接的每个网络都能访问该服务器，包括咖啡馆和酒店的 Wi-Fi。请改为选择用网线连接到设备的适配器。",
+    ),
+    ("{n} servers are running.", "{n} 个服务器正在运行。"),
 ];

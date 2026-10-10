@@ -44,6 +44,8 @@ pub struct Transfer {
 pub struct TftpOptions {
     pub root: PathBuf,
     pub port: u16,
+    /// The address to listen on: one adapter's, or 0.0.0.0 for every network.
+    pub listen: Ipv4Addr,
     /// Let devices upload files (configuration backups).
     pub allow_upload: bool,
     /// Let uploads replace existing files.
@@ -114,9 +116,9 @@ pub fn tftp_serve(
     log: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<()> {
     ensure!(opts.root.is_dir(), "the folder {} does not exist", opts.root.display());
-    let sock = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, opts.port)).with_context(|| port_hint(opts.port))?;
+    let sock = UdpSocket::bind((opts.listen, opts.port)).with_context(|| port_hint(opts.port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
-    log(format!("TFTP server listening on port {}, folder {}", opts.port, opts.root.display()));
+    log(format!("TFTP server listening on {}:{}, folder {}", opts.listen, opts.port, opts.root.display()));
     let mut buf = [0u8; 1500];
     while !stop.load(Ordering::Relaxed) {
         let Ok((n, peer)) = sock.recv_from(&mut buf) else { continue };
@@ -176,7 +178,7 @@ fn transfer(
     update: &Update,
 ) -> Result<u64> {
     // A new port for this transfer (the "transfer identifier").
-    let sock = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))?;
+    let sock = UdpSocket::bind((opts.listen, 0))?;
     sock.connect(peer)?;
     let fail = |code: u16, msg: String| -> Result<u64> {
         let _ = sock.send(&error_packet(code, &msg));
@@ -444,12 +446,17 @@ pub fn split_tcp_syslog(buf: &[u8]) -> (Vec<Vec<u8>>, usize) {
 }
 
 /// Receives syslog messages on UDP and TCP `port` until `stop` is set.
-pub fn syslog_serve(port: u16, stop: Arc<AtomicBool>, message: Arc<dyn Fn(SyslogMessage) + Send + Sync>) -> Result<()> {
-    let sock = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port)).with_context(|| port_hint(port))?;
+pub fn syslog_serve(
+    listen: Ipv4Addr,
+    port: u16,
+    stop: Arc<AtomicBool>,
+    message: Arc<dyn Fn(SyslogMessage) + Send + Sync>,
+) -> Result<()> {
+    let sock = UdpSocket::bind((listen, port)).with_context(|| port_hint(port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     // TCP too, for devices that must not lose messages; optional, since
     // another program may hold the TCP port.
-    if let Ok(listener) = std::net::TcpListener::bind((Ipv4Addr::UNSPECIFIED, port)) {
+    if let Ok(listener) = std::net::TcpListener::bind((listen, port)) {
         let (stop, message) = (stop.clone(), message.clone());
         let _ = listener.set_nonblocking(true);
         std::thread::spawn(move || {
@@ -517,8 +524,13 @@ pub enum Direction {
 }
 
 /// Accepts throughput tests until `stop` is set. `log` gets a line per test.
-pub fn throughput_serve(port: u16, stop: Arc<AtomicBool>, log: Arc<dyn Fn(String) + Send + Sync>) -> Result<()> {
-    let listener = TcpListener::bind((Ipv4Addr::UNSPECIFIED, port)).with_context(|| port_hint(port))?;
+pub fn throughput_serve(
+    listen: Ipv4Addr,
+    port: u16,
+    stop: Arc<AtomicBool>,
+    log: Arc<dyn Fn(String) + Send + Sync>,
+) -> Result<()> {
+    let listener = TcpListener::bind((listen, port)).with_context(|| port_hint(port))?;
     listener.set_nonblocking(true)?;
     log(format!("Throughput server listening on port {port}"));
     while !stop.load(Ordering::Relaxed) {
@@ -697,7 +709,8 @@ mod tests {
         // Find a free port.
         let port = UdpSocket::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
         let stop = Arc::new(AtomicBool::new(false));
-        let opts = TftpOptions { root: dir.clone(), port, allow_upload: true, overwrite: false };
+        let opts =
+            TftpOptions { root: dir.clone(), port, listen: Ipv4Addr::LOCALHOST, allow_upload: true, overwrite: false };
         let transfers: Transfers = Default::default();
         let s = stop.clone();
         let server = std::thread::spawn(move || tftp_serve(opts, transfers, s, Arc::new(|_| {})));
@@ -756,7 +769,7 @@ mod tests {
         let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
         let stop = Arc::new(AtomicBool::new(false));
         let s = stop.clone();
-        let server = std::thread::spawn(move || throughput_serve(port, s, Arc::new(|_| {})));
+        let server = std::thread::spawn(move || throughput_serve(Ipv4Addr::LOCALHOST, port, s, Arc::new(|_| {})));
         std::thread::sleep(Duration::from_millis(200));
         let cancel = AtomicBool::new(false);
         let up = throughput_test("127.0.0.1", port, Direction::Upload, 1, &cancel, &|_| {}).unwrap();

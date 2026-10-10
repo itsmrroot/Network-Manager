@@ -14,7 +14,7 @@ use netmgr::snmp::{self, Trap};
 
 use crate::app::{Nav, Page, Shared};
 use crate::i18n::{tr, trf, trl};
-use crate::servers::{Running, my_addresses};
+use crate::servers::{Running, listen_address, listen_picker, my_addresses};
 use crate::theme::{self, Palette, icon_label};
 
 fn clock() -> String {
@@ -81,6 +81,12 @@ impl Default for HttpTab {
 }
 
 impl HttpTab {
+    pub fn stop(&mut self) {
+        if let Some(r) = self.server.take() {
+            r.stop.store(true, Ordering::Relaxed);
+        }
+    }
+
     pub fn running(&self) -> bool {
         self.server.is_some()
     }
@@ -99,6 +105,7 @@ impl HttpTab {
             );
             ui.add_space(8.0);
             let running = self.server.is_some();
+            listen_picker(ui, p, sh, !running);
             ui.add_enabled_ui(!running, |ui| {
                 egui::Grid::new("http-settings").num_columns(2).spacing([14.0, 8.0]).show(ui, |ui| {
                     ui.label(tr("Folder"));
@@ -128,10 +135,11 @@ impl HttpTab {
             ui.horizontal(|ui| {
                 let (port, upload, overwrite, log) = (self.port, self.upload, self.overwrite, self.log.clone());
                 let root = PathBuf::from(sh.settings.tftp_folder.trim());
+                let listen = listen_address(sh);
                 start_stop(ui, p, &mut self.server, || {
                     Some(Running::spawn(move |stop| {
                         netmgr::httpd::serve(
-                            netmgr::httpd::Options { root, port, allow_upload: upload, overwrite },
+                            netmgr::httpd::Options { root, port, listen, allow_upload: upload, overwrite },
                             stop,
                             Arc::new(move |e| {
                                 if let Ok(mut v) = log.lock() {
@@ -215,6 +223,12 @@ impl Default for TrapTab {
 }
 
 impl TrapTab {
+    pub fn stop(&mut self) {
+        if let Some(r) = self.server.take() {
+            r.stop.store(true, Ordering::Relaxed);
+        }
+    }
+
     /// Development aid: sample traps for screenshots.
     #[cfg(debug_assertions)]
     pub fn demo(&mut self) {
@@ -278,6 +292,8 @@ impl TrapTab {
                 p.weak,
             );
             ui.add_space(8.0);
+            listen_picker(ui, p, sh, self.server.is_none());
+            let listen = listen_address(sh);
             ui.horizontal_wrapped(|ui| {
                 ui.add_enabled_ui(self.server.is_none(), |ui| {
                     ui.label(tr("UDP port"));
@@ -287,6 +303,7 @@ impl TrapTab {
                 start_stop(ui, p, &mut self.server, || {
                     Some(Running::spawn(move |stop| {
                         snmp::trap_serve(
+                            listen,
                             port,
                             stop,
                             Arc::new(move |t| {
@@ -432,6 +449,12 @@ impl Default for NtpTab {
 }
 
 impl NtpTab {
+    pub fn stop(&mut self) {
+        if let Some(r) = self.server.take() {
+            r.stop.store(true, Ordering::Relaxed);
+        }
+    }
+
     pub fn running(&self) -> bool {
         self.server.is_some()
     }
@@ -449,6 +472,8 @@ impl NtpTab {
                 p.weak,
             );
             ui.add_space(8.0);
+            listen_picker(ui, p, sh, self.server.is_none());
+            let listen = listen_address(sh);
             ui.horizontal_wrapped(|ui| {
                 ui.add_enabled_ui(self.server.is_none(), |ui| {
                     ui.label(tr("UDP port"));
@@ -461,6 +486,7 @@ impl NtpTab {
                 start_stop(ui, p, &mut self.server, || {
                     Some(Running::spawn(move |stop| {
                         netmgr::ntp::serve(
+                            listen,
                             port,
                             stratum,
                             stop,
@@ -548,6 +574,12 @@ fn ip_list(s: &str) -> anyhow::Result<Vec<Ipv4Addr>> {
 }
 
 impl DhcpTab {
+    pub fn stop(&mut self) {
+        if let Some(r) = self.server.take() {
+            r.stop.store(true, Ordering::Relaxed);
+        }
+    }
+
     /// Development aid: a running server with sample leases.
     #[cfg(debug_assertions)]
     pub fn demo(&mut self) {

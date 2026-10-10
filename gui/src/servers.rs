@@ -89,7 +89,7 @@ impl Default for Servers {
         Self {
             tab: Tab::Tftp,
             tftp_port: 69,
-            tftp_upload: true,
+            tftp_upload: false,
             tftp_overwrite: false,
             tftp: None,
             transfers: Default::default(),
@@ -118,13 +118,93 @@ impl Default for Servers {
 
 /// The addresses devices can reach this computer at.
 pub(crate) fn my_addresses(sh: &Shared) -> Vec<String> {
+    let chosen = listen_adapter(sh).map(|a| a.id.clone());
     sh.visible_adapters()
         .iter()
-        .filter(|a| a.up)
+        .filter(|a| a.up && chosen.as_ref().is_none_or(|id| *id == a.id))
         .flat_map(|a| {
             a.ipv4.iter().filter(|(ip, _)| !ip.is_link_local()).map(move |(ip, _)| format!("{ip} ({})", a.name))
         })
         .collect()
+}
+
+/// "Every network" in the listen setting.
+pub(crate) const ALL_NETWORKS: &str = "*";
+
+/// The adapter the servers listen on: the one chosen, else a cabled one with
+/// an address, else the default. `None` means every network.
+pub(crate) fn listen_adapter(sh: &Shared) -> Option<&netmgr::adapters::Adapter> {
+    let choice = sh.settings.servers_listen.as_str();
+    if choice == ALL_NETWORKS {
+        return None;
+    }
+    let usable = |a: &&netmgr::adapters::Adapter| a.up && a.main_ipv4().is_some();
+    sh.adapters
+        .iter()
+        .filter(usable)
+        .find(|a| a.id == choice)
+        .or_else(|| sh.adapters.iter().filter(usable).find(|a| a.kind == netmgr::adapters::Kind::Ethernet))
+        .or_else(|| sh.default_adapter())
+}
+
+/// The address to listen on, for starting a server.
+pub(crate) fn listen_address(sh: &Shared) -> std::net::Ipv4Addr {
+    listen_adapter(sh).and_then(|a| a.main_ipv4()).map_or(std::net::Ipv4Addr::UNSPECIFIED, |(ip, _)| ip)
+}
+
+/// "Listen on" with the adapters, and a warning when the choice is Wi-Fi
+/// or every network: strangers on the same network can then reach the
+/// server.
+pub(crate) fn listen_picker(ui: &mut Ui, p: &Palette, sh: &mut Shared, enabled: bool) {
+    ui.add_enabled_ui(enabled, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(tr("Listen on"));
+            let current = listen_adapter(sh)
+                .map(|a| format!("{} — {}", a.name, a.main_ipv4().map(|(ip, _)| ip.to_string()).unwrap_or_default()))
+                .unwrap_or_else(|| tr("Every network (less safe)").to_string());
+            let options: Vec<(String, String)> = sh
+                .visible_adapters()
+                .iter()
+                .filter(|a| a.up)
+                .filter_map(|a| a.main_ipv4().map(|(ip, _)| (a.id.clone(), format!("{} — {ip}", a.name))))
+                .collect();
+            egui::ComboBox::from_id_salt("listen-on").selected_text(current).width(280.0).show_ui(ui, |ui| {
+                for (id, label) in options {
+                    ui.selectable_value(&mut sh.settings.servers_listen, id, label);
+                }
+                ui.selectable_value(
+                    &mut sh.settings.servers_listen,
+                    ALL_NETWORKS.to_string(),
+                    tr("Every network (less safe)"),
+                );
+            });
+        });
+    });
+    let wifi = listen_adapter(sh).is_some_and(|a| a.kind == netmgr::adapters::Kind::WiFi);
+    if listen_adapter(sh).is_none() {
+        ui.add_space(4.0);
+        theme::notice(
+            ui,
+            p,
+            p.warning,
+            icon::WARNING,
+            trl(
+                "The server is reachable from every network this computer is on, including Wi-Fi in cafés and hotels. Choose the adapter cabled to your devices instead.",
+            ),
+        );
+    } else if wifi {
+        ui.add_space(4.0);
+        theme::notice(
+            ui,
+            p,
+            p.warning,
+            icon::WARNING,
+            trl(
+                "Anyone on this Wi-Fi network can reach the server. Fine at home or in your lab; on public Wi-Fi, use a cable or stop the server.",
+            ),
+        );
+    }
+    ui.add_space(6.0);
 }
 
 fn severity_color(p: &Palette, s: u8) -> Color32 {
@@ -195,6 +275,32 @@ impl Servers {
         };
     }
 
+    /// Servers running now (not the throughput test as a client).
+    pub fn running_count(&self) -> usize {
+        [
+            self.tftp.is_some(),
+            self.syslog.is_some(),
+            self.tp_server.is_some(),
+            self.http.running(),
+            self.traps.running(),
+            self.dhcp.running(),
+            self.ntp.running(),
+        ]
+        .iter()
+        .filter(|on| **on)
+        .count()
+    }
+
+    pub fn stop_all(&mut self) {
+        for r in [self.tftp.take(), self.syslog.take(), self.tp_server.take()].into_iter().flatten() {
+            r.stop.store(true, Ordering::Relaxed);
+        }
+        self.http.stop();
+        self.traps.stop();
+        self.dhcp.stop();
+        self.ntp.stop();
+    }
+
     pub fn running(&self) -> bool {
         self.tftp.is_some()
             || self.syslog.is_some()
@@ -218,6 +324,22 @@ impl Servers {
                 "TFTP, HTTP, syslog, SNMP trap, DHCP and time servers for network devices, and a throughput test between two computers.",
             ),
         );
+        let n = self.running_count();
+        if n > 0 {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(format!(
+                        "● {}",
+                        crate::i18n::trn(n as u64, "1 server is running.", "{n} servers are running.")
+                    ))
+                    .color(p.success),
+                );
+                if theme::danger_button(ui, p, &icon_label(icon::STOP, "Stop all servers")).clicked() {
+                    self.stop_all();
+                }
+            });
+            ui.add_space(6.0);
+        }
         let badge =
             |on: bool, label: &'static str| if on { format!("{} ●", tr(label)) } else { tr(label).to_string() };
         let (t, s, tp) = (
@@ -277,6 +399,7 @@ impl Servers {
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             let running = self.tftp.is_some();
+            listen_picker(ui, p, sh, !running);
             ui.add_enabled_ui(!running, |ui| {
                 egui::Grid::new("tftp-settings").num_columns(2).spacing([14.0, 8.0]).show(ui, |ui| {
                     ui.label(tr("Folder"));
@@ -318,6 +441,7 @@ impl Servers {
                     let opts = ns::TftpOptions {
                         root,
                         port: self.tftp_port,
+                        listen: listen_address(sh),
                         allow_upload: self.tftp_upload,
                         overwrite: self.tftp_overwrite,
                     };
@@ -454,6 +578,8 @@ impl Servers {
             self.syslog = None;
             sh.error = Some(format!("{}\n\n{e}", trl("The syslog server could not start.")));
         }
+        listen_picker(ui, p, sh, self.syslog.is_none());
+        let listen = listen_address(sh);
         ui.horizontal(|ui| {
             ui.add_enabled_ui(self.syslog.is_none(), |ui| {
                 ui.label(tr("UDP port"));
@@ -470,6 +596,7 @@ impl Servers {
                 let (port, messages, file) = (self.syslog_port, self.messages.clone(), self.syslog_file.clone());
                 self.syslog = Some(Running::spawn(move |stop| {
                     ns::syslog_serve(
+                        listen,
                         port,
                         stop,
                         Arc::new(move |m| {
@@ -689,6 +816,8 @@ impl Servers {
             p.weak,
         );
         ui.add_space(10.0);
+        listen_picker(ui, p, sh, self.tp_server.is_none());
+        let listen = listen_address(sh);
         ui.columns(2, |c| {
             theme::card(&mut c[0], p, |ui| {
                 ui.set_width(ui.available_width());
@@ -709,6 +838,7 @@ impl Servers {
                     let log = self.tp_log.clone();
                     self.tp_server = Some(Running::spawn(move |stop| {
                         ns::throughput_serve(
+                            listen,
                             ns::THROUGHPUT_PORT,
                             stop,
                             Arc::new(move |l| {

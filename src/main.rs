@@ -254,6 +254,9 @@ enum Cmd {
     TftpServer {
         /// The folder to serve.
         folder: std::path::PathBuf,
+        /// Listen only on this address (one adapter's); default: every network.
+        #[arg(long, default_value = "0.0.0.0")]
+        listen: Ipv4Addr,
         #[arg(long, default_value_t = 69)]
         port: u16,
         /// Let devices upload (configuration backups).
@@ -264,10 +267,16 @@ enum Cmd {
     SyslogServer {
         #[arg(long, default_value_t = 514)]
         port: u16,
+        /// Listen only on this address (one adapter's); default: every network.
+        #[arg(long, default_value = "0.0.0.0")]
+        listen: Ipv4Addr,
     },
     /// Serve a folder over HTTP (firmware downloads; uploads with PUT).
     HttpServer {
         folder: std::path::PathBuf,
+        /// Listen only on this address (one adapter's); default: every network.
+        #[arg(long, default_value = "0.0.0.0")]
+        listen: Ipv4Addr,
         #[arg(long, default_value_t = 8080)]
         port: u16,
         /// Let devices upload files with PUT.
@@ -278,6 +287,9 @@ enum Cmd {
     NtpServer {
         #[arg(long, default_value_t = 123)]
         port: u16,
+        /// Listen only on this address (one adapter's); default: every network.
+        #[arg(long, default_value = "0.0.0.0")]
+        listen: Ipv4Addr,
         #[arg(long, default_value_t = 3)]
         stratum: u8,
     },
@@ -285,6 +297,9 @@ enum Cmd {
     TrapServer {
         #[arg(long, default_value_t = 162)]
         port: u16,
+        /// Listen only on this address (one adapter's); default: every network.
+        #[arg(long, default_value = "0.0.0.0")]
+        listen: Ipv4Addr,
     },
     /// Run a DHCP server for a lab or staging network (never on a network that has one).
     DhcpServer {
@@ -1148,15 +1163,16 @@ fn run(cli: Cli) -> Result<()> {
                 std::thread::sleep(Duration::from_secs(1));
             }
         }
-        Cmd::TftpServer { folder, port, allow_upload } => {
+        Cmd::TftpServer { folder, listen, port, allow_upload } => {
             let stop = std::sync::Arc::new(AtomicBool::new(false));
-            let opts = netmgr::servers::TftpOptions { root: folder, port, allow_upload, overwrite: false };
+            let opts = netmgr::servers::TftpOptions { root: folder, port, listen, allow_upload, overwrite: false };
             netmgr::servers::tftp_serve(opts, Default::default(), stop, std::sync::Arc::new(|l| println!("{l}")))?;
         }
-        Cmd::SyslogServer { port } => {
+        Cmd::SyslogServer { port, listen } => {
             let stop = std::sync::Arc::new(AtomicBool::new(false));
             println!("Listening for syslog on UDP and TCP port {port}…");
             netmgr::servers::syslog_serve(
+                listen,
                 port,
                 stop,
                 std::sync::Arc::new(move |m| {
@@ -1173,10 +1189,10 @@ fn run(cli: Cli) -> Result<()> {
                 }),
             )?;
         }
-        Cmd::HttpServer { folder, port, allow_upload } => {
+        Cmd::HttpServer { folder, listen, port, allow_upload } => {
             let stop = std::sync::Arc::new(AtomicBool::new(false));
             println!("Serving {} on http port {port}…", folder.display());
-            let opts = netmgr::httpd::Options { root: folder, port, allow_upload, overwrite: false };
+            let opts = netmgr::httpd::Options { root: folder, port, listen, allow_upload, overwrite: false };
             netmgr::httpd::serve(
                 opts,
                 stop,
@@ -1185,15 +1201,22 @@ fn run(cli: Cli) -> Result<()> {
                 }),
             )?;
         }
-        Cmd::NtpServer { port, stratum } => {
+        Cmd::NtpServer { port, listen, stratum } => {
             let stop = std::sync::Arc::new(AtomicBool::new(false));
             println!("Answering time requests on UDP port {port}…");
-            netmgr::ntp::serve(port, stratum, stop, std::sync::Arc::new(|ip| println!("{ip} asked for the time")))?;
+            netmgr::ntp::serve(
+                listen,
+                port,
+                stratum,
+                stop,
+                std::sync::Arc::new(|ip| println!("{ip} asked for the time")),
+            )?;
         }
-        Cmd::TrapServer { port } => {
+        Cmd::TrapServer { port, listen } => {
             let stop = std::sync::Arc::new(AtomicBool::new(false));
             println!("Listening for SNMP traps on UDP port {port}…");
             snmp::trap_serve(
+                listen,
                 port,
                 stop,
                 std::sync::Arc::new(move |t| {
@@ -1231,7 +1254,12 @@ fn run(cli: Cli) -> Result<()> {
             let port = netmgr::servers::THROUGHPUT_PORT;
             if target == "server" {
                 let stop = std::sync::Arc::new(AtomicBool::new(false));
-                netmgr::servers::throughput_serve(port, stop, std::sync::Arc::new(|l| println!("{l}")))?;
+                netmgr::servers::throughput_serve(
+                    Ipv4Addr::UNSPECIFIED,
+                    port,
+                    stop,
+                    std::sync::Arc::new(|l| println!("{l}")),
+                )?;
             } else {
                 let dir =
                     if download { netmgr::servers::Direction::Download } else { netmgr::servers::Direction::Upload };

@@ -181,6 +181,8 @@ big images many times faster, and resumes); a **DHCP server** with zero-touch
 options **66, 67, 150 and 43** to set up new switches automatically; a **syslog**
 server (UDP and TCP, saved to a file as it arrives), an **SNMP trap receiver** and
 an **NTP time server** — with ready-made commands for Cisco, Aruba, Juniper and MikroTik.
+Servers listen only on the adapter you choose (a cabled one by default), warn on Wi-Fi,
+and one click stops them all.
 
 </td>
 <td valign="top">

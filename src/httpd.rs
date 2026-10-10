@@ -17,6 +17,8 @@ use crate::servers::safe_path;
 pub struct Options {
     pub root: PathBuf,
     pub port: u16,
+    /// The address to listen on: one adapter's, or 0.0.0.0 for every network.
+    pub listen: Ipv4Addr,
     /// Accept PUT (and POST) uploads into the folder.
     pub allow_upload: bool,
     pub overwrite: bool,
@@ -38,7 +40,7 @@ pub type Log = Arc<dyn Fn(Event) + Send + Sync>;
 /// Serves `opts.root` until `stop` is set.
 pub fn serve(opts: Options, stop: Arc<AtomicBool>, log: Log) -> Result<()> {
     std::fs::create_dir_all(&opts.root).with_context(|| format!("could not create {}", opts.root.display()))?;
-    let listener = TcpListener::bind((Ipv4Addr::UNSPECIFIED, opts.port)).map_err(|e| match e.kind() {
+    let listener = TcpListener::bind((opts.listen, opts.port)).map_err(|e| match e.kind() {
         std::io::ErrorKind::AddrInUse => {
             anyhow::anyhow!("TCP port {} is in use by another program: choose another, such as 8080", opts.port)
         }
@@ -323,7 +325,8 @@ mod tests {
         let stop = Arc::new(AtomicBool::new(false));
         let events = Arc::new(Mutex::new(Vec::new()));
         let (s2, e2) = (stop.clone(), events.clone());
-        let opts = Options { root: dir.clone(), port, allow_upload: true, overwrite: false };
+        let opts =
+            Options { root: dir.clone(), port, listen: Ipv4Addr::LOCALHOST, allow_upload: true, overwrite: false };
         let t = std::thread::spawn(move || serve(opts, s2, Arc::new(move |e| e2.lock().unwrap().push(e))));
         std::thread::sleep(Duration::from_millis(300));
         let r = get(port, "GET /images/ HTTP/1.1\r\nHost: x\r\n\r\n");

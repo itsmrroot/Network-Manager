@@ -449,6 +449,29 @@ impl App {
     // Layout
 
     /// The top bar of the Midnight theme: name on the left, updates on the right.
+    /// "● 2 servers are running", opening the Servers page: servers are
+    /// easy to forget, and they stay reachable until stopped.
+    fn servers_reminder(&mut self, ui: &mut Ui, p: &Palette) {
+        let n = self.servers.running_count();
+        if n == 0 {
+            return;
+        }
+        ui.add_space(14.0);
+        let text = i18n::trn(n as u64, "1 server is running.", "{n} servers are running.");
+        let r = ui
+            .add(
+                egui::Button::new(
+                    RichText::new(format!("● {}", text.trim_end_matches('.'))).color(p.success).size(13.0),
+                )
+                .fill(p.success.gamma_multiply(0.15))
+                .corner_radius(8),
+            )
+            .on_hover_text(tr("Open Servers to see or stop them"));
+        if r.clicked() {
+            self.page = Page::Servers;
+        }
+    }
+
     fn header(&mut self, ui: &mut Ui, p: &Palette) {
         let white = Color32::from_rgb(245, 247, 252);
         ui.horizontal_centered(|ui| {
@@ -462,6 +485,7 @@ impl App {
                 } else {
                     ui.label(RichText::new(format!("v{}", env!("CARGO_PKG_VERSION"))).color(white.gamma_multiply(0.7)));
                 }
+                self.servers_reminder(ui, p);
                 if let Some(a) = self.shared.default_adapter() {
                     let (glyph, text) = match a.kind {
                         adapters::Kind::WiFi => (
@@ -506,6 +530,10 @@ impl App {
         .min_size(Vec2::new(ui.available_width(), 32.0));
         if ui.add(search).clicked() {
             self.search.show();
+        }
+        if p.header.is_none() && self.servers.running_count() > 0 {
+            ui.add_space(6.0);
+            ui.horizontal(|ui| self.servers_reminder(ui, p));
         }
         ui.add_space(12.0);
 

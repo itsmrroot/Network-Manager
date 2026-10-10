@@ -198,12 +198,13 @@ mod tests {
 /// `stop` is set, for devices in labs without internet. `stratum` is what
 /// the answers claim (one more than the source this computer follows).
 pub fn serve(
+    listen: std::net::Ipv4Addr,
     port: u16,
     stratum: u8,
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     asked: std::sync::Arc<dyn Fn(std::net::IpAddr) + Send + Sync>,
 ) -> Result<()> {
-    let sock = UdpSocket::bind(("0.0.0.0", port)).map_err(|e| match e.kind() {
+    let sock = UdpSocket::bind((listen, port)).map_err(|e| match e.kind() {
         std::io::ErrorKind::AddrInUse => {
             anyhow::anyhow!("UDP port {port} is in use: the system's own time service may hold it")
         }

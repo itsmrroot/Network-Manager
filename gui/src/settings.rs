@@ -80,6 +80,9 @@ pub struct Settings {
     pub dhcp_adapter: String,
     /// Hides Switch port, Monitor, Servers and Console.
     pub simple_mode: bool,
+    /// The adapter servers listen on (its id), "*" for every network, empty
+    /// for automatic (a cabled adapter if there is one).
+    pub servers_listen: String,
     // Network planner
     /// What the planner showed last; `None` until it is first opened.
     pub planner: Option<netmgr::plan::Input>,
@@ -113,6 +116,7 @@ impl Default for Settings {
             dhcp_server: None,
             dhcp_adapter: String::new(),
             simple_mode: false,
+            servers_listen: String::new(),
             planner: None,
             saved_plans: BTreeMap::new(),
             plan_vendor: Default::default(),
