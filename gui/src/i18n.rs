@@ -552,6 +552,7 @@ mod tests {
         include_str!("i18n.rs"),
         include_str!("inspect.rs"),
         include_str!("jobs.rs"),
+        include_str!("lab_servers.rs"),
         include_str!("lan_extra.rs"),
         include_str!("menu.rs"),
         include_str!("monitor.rs"),

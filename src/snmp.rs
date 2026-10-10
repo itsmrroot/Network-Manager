@@ -849,3 +849,219 @@ mod live_tests {
         assert!(m.iter().any(|(mac, port)| mac == "02:1A:2B:3C:4D:5E" && port == "Gi1/0/2"));
     }
 }
+
+// ---------------------------------------------------------------- traps
+
+/// A notification a device sent (trap or inform).
+#[derive(Debug, Clone, Serialize)]
+pub struct Trap {
+    pub received: std::time::SystemTime,
+    pub from: IpAddr,
+    /// "v1", "v2c", "inform".
+    pub kind: &'static str,
+    pub community: String,
+    /// The trap's OID (v1: built from enterprise and trap numbers).
+    pub oid: Oid,
+    /// "linkDown", "coldStart", … or empty.
+    pub name: &'static str,
+    pub uptime: Option<u32>,
+    pub varbinds: Vec<(Oid, Value)>,
+}
+
+/// Well-known notifications by OID.
+pub fn trap_name(oid: &Oid) -> &'static str {
+    match oid.to_string().as_str() {
+        "1.3.6.1.6.3.1.1.5.1" => "coldStart",
+        "1.3.6.1.6.3.1.1.5.2" => "warmStart",
+        "1.3.6.1.6.3.1.1.5.3" => "linkDown",
+        "1.3.6.1.6.3.1.1.5.4" => "linkUp",
+        "1.3.6.1.6.3.1.1.5.5" => "authenticationFailure",
+        "1.3.6.1.6.3.1.1.5.6" => "egpNeighborLoss",
+        "1.3.6.1.4.1.9.9.43.2.0.1" => "ciscoConfigManEvent",
+        "1.3.6.1.4.1.9.9.41.2.0.1" => "clogMessageGenerated",
+        "1.3.6.1.4.1.9.0.1" => "tcpConnectionClose",
+        "1.3.6.1.2.1.17.0.1" => "newRoot",
+        "1.3.6.1.2.1.17.0.2" => "topologyChange",
+        "1.3.6.1.2.1.105.0.1" => "pethPsePortOnOffNotification",
+        "1.0.8802.1.1.2.0.0.1" => "lldpRemTablesChange",
+        "1.3.6.1.2.1.14.16.2.2" => "ospfNbrStateChange",
+        "1.3.6.1.2.1.15.7.2" => "bgpBackwardTransition",
+        "1.3.6.1.2.1.15.7.1" => "bgpEstablished",
+        _ => "",
+    }
+}
+
+const SNMP_TRAP_OID: &str = "1.3.6.1.6.3.1.1.4.1.0";
+const SYS_UPTIME: &str = "1.3.6.1.2.1.1.3.0";
+
+/// Reads a trap or inform. For an inform, also returns the response to
+/// send back (devices resend informs until they get one).
+pub fn decode_trap(msg: &[u8], from: IpAddr) -> Result<(Trap, Option<Vec<u8>>)> {
+    let mut top = Reader { b: msg };
+    let mut m = Reader { b: top.expect(0x30)? };
+    let version = read_int(m.expect(0x02)?);
+    let community = String::from_utf8_lossy(m.expect(0x04)?).to_string();
+    let (tag, body) = m.next()?;
+    let mut pdu = Reader { b: body };
+    let read_list = |r: &mut Reader| -> Result<Vec<(Oid, Value)>> {
+        let mut list = Reader { b: r.expect(0x30)? };
+        let mut out = Vec::new();
+        while !list.b.is_empty() {
+            let mut vb = Reader { b: list.expect(0x30)? };
+            let o = read_oid(vb.expect(0x06)?)?;
+            let (t, v) = vb.next()?;
+            out.push((o, read_value(t, v)?));
+        }
+        Ok(out)
+    };
+    let now = std::time::SystemTime::now();
+    match tag {
+        // SNMPv1 Trap-PDU.
+        0xa4 => {
+            let enterprise = read_oid(pdu.expect(0x06)?)?;
+            let agent = pdu.expect(0x40)?;
+            let generic = read_int(pdu.expect(0x02)?);
+            let specific = read_int(pdu.expect(0x02)?);
+            let uptime = read_uint(pdu.expect(0x43)?) as u32;
+            let varbinds = read_list(&mut pdu)?;
+            // RFC 3584: generic traps map to snmpTraps.N+1, others to
+            // enterprise.0.specific.
+            let oid = if (0..6).contains(&generic) {
+                Oid::parse(&format!("1.3.6.1.6.3.1.1.5.{}", generic + 1))?
+            } else {
+                enterprise.child(0).child(specific as u32)
+            };
+            let from = if agent.len() == 4 && agent != [0, 0, 0, 0] {
+                IpAddr::V4(Ipv4Addr::new(agent[0], agent[1], agent[2], agent[3]))
+            } else {
+                from
+            };
+            let name = trap_name(&oid);
+            Ok((Trap { received: now, from, kind: "v1", community, oid, name, uptime: Some(uptime), varbinds }, None))
+        }
+        // SNMPv2-Trap and InformRequest.
+        0xa7 | 0xa6 => {
+            let id = read_int(pdu.expect(0x02)?);
+            pdu.expect(0x02)?;
+            pdu.expect(0x02)?;
+            let mut varbinds = read_list(&mut pdu)?;
+            let mut oid = Oid(Vec::new());
+            let mut uptime = None;
+            varbinds.retain(|(o, v)| match o.to_string().as_str() {
+                SNMP_TRAP_OID => {
+                    if let Value::Oid(x) = v {
+                        oid = x.clone();
+                    }
+                    false
+                }
+                SYS_UPTIME => {
+                    uptime = v.as_u64().map(|t| t as u32);
+                    false
+                }
+                _ => true,
+            });
+            let response = (tag == 0xa6).then(|| {
+                // The same varbinds, as a Response with no error.
+                let list: Vec<u8> = body_varbinds(body).unwrap_or_default();
+                let pdu_body = [int(id), int(0), int(0), list].concat();
+                tlv(0x30, &[int(version), tlv(0x04, community.as_bytes()), tlv(RESPONSE, &pdu_body)].concat())
+            });
+            let name = trap_name(&oid);
+            let kind = if tag == 0xa6 { "inform" } else { "v2c" };
+            Ok((Trap { received: now, from, kind, community, oid, name, uptime, varbinds }, response))
+        }
+        t => bail!("not a trap (PDU type {t:#x})"),
+    }
+}
+
+/// The encoded varbind list of a PDU body (request ID, error, index, list).
+fn body_varbinds(body: &[u8]) -> Result<Vec<u8>> {
+    let mut r = Reader { b: body };
+    r.expect(0x02)?;
+    r.expect(0x02)?;
+    r.expect(0x02)?;
+    let start = body.len() - r.b.len();
+    let (_, list) = r.next()?;
+    let header = body.len() - r.b.len() - list.len() - start;
+    Ok(body[start..start + header + list.len()].to_vec())
+}
+
+/// Receives traps on UDP `port` until `stop` is set; answers informs.
+pub fn trap_serve(
+    port: u16,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    trap: std::sync::Arc<dyn Fn(Trap) + Send + Sync>,
+) -> Result<()> {
+    let sock = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port)).map_err(|e| match e.kind() {
+        std::io::ErrorKind::AddrInUse => anyhow::anyhow!("UDP port {port} is in use by another program"),
+        std::io::ErrorKind::PermissionDenied => {
+            anyhow::anyhow!("port {port} needs administrator rights on this system")
+        }
+        _ => anyhow::anyhow!("could not open UDP port {port}: {e}"),
+    })?;
+    sock.set_read_timeout(Some(Duration::from_millis(300)))?;
+    let mut buf = vec![0u8; 65535];
+    while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+        let Ok((n, from)) = sock.recv_from(&mut buf) else { continue };
+        if let Ok((t, response)) = decode_trap(&buf[..n], from.ip()) {
+            if let Some(r) = response {
+                let _ = sock.send_to(&r, from);
+            }
+            trap(t);
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod trap_tests {
+    use super::*;
+
+    fn vb(o: &str, v: Vec<u8>) -> Vec<u8> {
+        tlv(0x30, &[oid(&Oid::parse(o).unwrap()), v].concat())
+    }
+
+    #[test]
+    fn v2c_link_down() {
+        let list = [
+            vb(SYS_UPTIME, tlv(0x43, &[0x01, 0x00])),
+            vb(SNMP_TRAP_OID, oid(&Oid::parse("1.3.6.1.6.3.1.1.5.3").unwrap())),
+            vb("1.3.6.1.2.1.2.2.1.1.12", int(12)),
+            vb("1.3.6.1.2.1.2.2.1.2.12", tlv(0x04, b"GigabitEthernet1/0/12")),
+        ]
+        .concat();
+        let pdu = [int(5), int(0), int(0), tlv(0x30, &list)].concat();
+        let msg = tlv(0x30, &[int(1), tlv(0x04, b"public"), tlv(0xa7, &pdu)].concat());
+        let (t, r) = decode_trap(&msg, "10.0.0.2".parse().unwrap()).unwrap();
+        assert_eq!((t.kind, t.name, t.uptime), ("v2c", "linkDown", Some(256)));
+        assert_eq!(t.varbinds.len(), 2);
+        assert_eq!(t.varbinds[1].1.as_text(), "GigabitEthernet1/0/12");
+        assert!(r.is_none());
+    }
+
+    #[test]
+    fn inform_gets_an_answer() {
+        let list = [vb(SNMP_TRAP_OID, oid(&Oid::parse("1.3.6.1.6.3.1.1.5.1").unwrap()))].concat();
+        let pdu = [int(77), int(0), int(0), tlv(0x30, &list)].concat();
+        let msg = tlv(0x30, &[int(1), tlv(0x04, b"public"), tlv(0xa6, &pdu)].concat());
+        let (t, r) = decode_trap(&msg, "10.0.0.2".parse().unwrap()).unwrap();
+        assert_eq!((t.kind, t.name), ("inform", "coldStart"));
+        let r = decode(&r.unwrap()).unwrap();
+        assert_eq!((r.id, r.error), (77, 0));
+        assert_eq!(r.varbinds.len(), 1);
+    }
+
+    #[test]
+    fn v1_generic_and_specific() {
+        let ent = oid(&Oid::parse("1.3.6.1.4.1.9").unwrap());
+        let pdu = [ent.clone(), tlv(0x40, &[10, 0, 0, 9]), int(2), int(0), tlv(0x43, &[0x10]), tlv(0x30, &[])].concat();
+        let msg = tlv(0x30, &[int(0), tlv(0x04, b"public"), tlv(0xa4, &pdu)].concat());
+        let (t, _) = decode_trap(&msg, "192.0.2.1".parse().unwrap()).unwrap();
+        assert_eq!((t.kind, t.name, t.from.to_string().as_str()), ("v1", "linkDown", "10.0.0.9"));
+        let pdu = [ent, tlv(0x40, &[0, 0, 0, 0]), int(6), int(17), tlv(0x43, &[0x10]), tlv(0x30, &[])].concat();
+        let msg = tlv(0x30, &[int(0), tlv(0x04, b"public"), tlv(0xa4, &pdu)].concat());
+        let (t, _) = decode_trap(&msg, "192.0.2.1".parse().unwrap()).unwrap();
+        assert_eq!(t.oid.to_string(), "1.3.6.1.4.1.9.0.17");
+        assert_eq!(t.from.to_string(), "192.0.2.1");
+    }
+}

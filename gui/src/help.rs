@@ -266,6 +266,41 @@ fn guides() -> Vec<Guide> {
             ],
         },
         Guide {
+            icon: icon::TREE_STRUCTURE,
+            title: tr("Set up new switches automatically (DHCP and TFTP)"),
+            steps: vec![
+                trl(
+                    "Cable the new switches to this computer (or to a lab switch), then put their configuration or software in the TFTP folder and start the TFTP server.",
+                ),
+                trl(
+                    "Servers → DHCP: choose the adapter, set the boot file (67) — for Cisco, network-confg or the switch's own file — and start the server. The switches get an address, load the file and configure themselves.",
+                ),
+                trl(
+                    "Only on a lab network: on a network that already has a DHCP server, two servers cause address conflicts.",
+                ),
+            ],
+        },
+        Guide {
+            icon: icon::GLOBE,
+            title: tr("Copy firmware faster with HTTP"),
+            steps: vec![trl(
+                "Servers → HTTP serves the TFTP folder over HTTP: large firmware images copy many times faster than over TFTP, and an interrupted copy can resume. The example commands show the copy command for each make.",
+            )],
+        },
+        Guide {
+            icon: icon::BELL_RINGING,
+            title: tr("Receive SNMP traps and keep syslog"),
+            steps: vec![
+                trl(
+                    "Servers → SNMP traps receives the notifications switches send when a port goes down or up, the device restarts or a login fails.",
+                ),
+                trl(
+                    "Servers → Syslog receives messages over UDP and TCP; Save to file… writes every message to a file as it arrives.",
+                ),
+                trl("Servers → Time (NTP) gives the time to devices in a lab without internet."),
+            ],
+        },
+        Guide {
             icon: icon::CLOUD_ARROW_DOWN,
             title: tr("Back up switch configurations"),
             steps: vec![

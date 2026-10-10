@@ -14,6 +14,7 @@ mod help;
 mod i18n;
 mod inspect;
 mod jobs;
+mod lab_servers;
 mod lan_extra;
 mod menu;
 mod monitor;

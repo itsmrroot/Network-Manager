@@ -174,10 +174,12 @@ loss really starts, and which routers merely ignore pings.
 <tr>
 <td valign="top">
 
-### 📦 TFTP & syslog servers
-A built-in **TFTP server** (with large-file block sizes) for firmware upgrades
-and configuration backups — with ready-made Cisco, Aruba and Juniper commands —
-and a **syslog server** with severity colours, filters and export.
+### 📦 Servers for the lab and the field
+**TFTP** and **HTTP** file servers for firmware and configurations (HTTP copies
+big images many times faster, and resumes); a **DHCP server** with zero-touch
+options **66, 67, 150 and 43** to set up new switches automatically; a **syslog**
+server (UDP and TCP, saved to a file as it arrives), an **SNMP trap receiver** and
+an **NTP time server** — with ready-made commands for Cisco, Aruba, Juniper and MikroTik.
 
 </td>
 <td valign="top">
@@ -312,6 +314,8 @@ down or a new device joins; ping history of 5 min, 30 min or 2 h.
 > **LLDP/CDP** port discovery (LDWin, PortFinder, a LinkSprinter), **rogue DHCP** detection, **MTR/PingPlotter**-style
 > path analysis, a multi-host **ping monitor**, **Tftpd64**-style TFTP and syslog servers, an **iperf**-style
 > throughput test, a **PuTTY**-style serial console, TLS and WHOIS checks, and netstat, route and hosts tools.
+> Version 0.7 adds a **DHCP server** for zero-touch provisioning, an **HTTP file server**, an **SNMP trap receiver**,
+> an **NTP server** and TCP syslog with saving to a file; 0.6 a native **macOS menu bar**.
 > Version 0.5 adds **configuration backups** with differences, a **network map**, **free-address and IP
 > conflict** checks, **NTP**, **path MTU**, a **Bonjour browser**, **Wi-Fi roaming**, proxy, printer and drives
 > in **profiles**, a shared **host list** and **desktop notifications**.
@@ -343,13 +347,17 @@ down or a new device joins; ping history of 5 min, 30 min or 2 h.
 | **Monitor** | Ping monitor for many hosts with alerts and export; path analysis (MTR) with a verdict; traffic per program; packet capture with filters and pcap files. |
 | **Profiles** | Saved IP settings applied to any adapter in one click; shared with the command line. |
 | **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Network planner, SNMP, Time (NTP), MTU, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
-| **Servers** | TFTP server, syslog server, throughput test between two computers. |
+| **Servers** | TFTP and HTTP file servers, DHCP server with zero-touch options (66, 67, 150, 43), syslog (UDP/TCP, save to file), SNMP trap receiver, NTP time server, throughput test between two computers. |
 | **Console** | Serial console for console cables; SSH and Telnet sessions in tabs, with saved sessions in groups; **configuration backups** with differences. |
 
 <table>
 <tr>
 <td width="50%"><img src="assets/app-switch-port.png" alt="The switch port, VLAN and PoE heard through LLDP"><p align="center"><sub>Switch port (LLDP / CDP)</sub></p></td>
 <td width="50%"><img src="assets/app-path.png" alt="Path analysis with loss per router"><p align="center"><sub>Path analysis (MTR)</sub></p></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/app-dhcp.png" alt="DHCP server with zero-touch options" ><p align="center"><sub>DHCP server (zero-touch)</sub></p></td>
+<td width="50%"><img src="assets/app-traps.png" alt="SNMP traps from switches"><p align="center"><sub>SNMP trap receiver</sub></p></td>
 </tr>
 <tr>
 <td width="50%"><img src="assets/app-monitor.png" alt="Ping monitor with several hosts"><p align="center"><sub>Ping monitor</sub></p></td>
@@ -508,6 +516,10 @@ netmgr check-ip 192.168.1.50                    # free, in use, or an IP conflic
 netmgr time                                     # this clock against public NTP servers
 netmgr mtu vpn.example.com                      # path MTU
 netmgr bonjour                                  # printers, AirPlay, Chromecast, shares…
+netmgr http-server ~/TFTP --port 8080           # firmware over HTTP (add --allow-upload for PUT)
+netmgr dhcp-server -i en5 --pool 192.168.50.100-192.168.50.199 --tftp 192.168.50.1 --bootfile network-confg
+netmgr trap-server                              # SNMP traps and informs
+netmgr ntp-server                               # time for a lab without internet
 netmgr wol AA:BB:CC:DD:EE:FF
 netmgr vendor B8:27:EB:12:34:56
 netmgr public-ip
@@ -600,6 +612,8 @@ is truncated), so resolvers can be compared without the system's cache in betwee
 | `ntp` | SNTP client: clock offset, delay, stratum |
 | `mdns` | Bonjour / mDNS service browser |
 | `extras` | Proxy, default printer and network drives for profiles |
+| `dhcpd` | DHCP server with reservations and zero-touch options |
+| `httpd` | HTTP file server with resume and uploads |
 | `mac` | MAC parsing, random addresses, IEEE vendor table |
 | `profiles` | Saved profiles shared by the app and the command line |
 | `cmd` | Running system tools, with administrator rights when needed |
@@ -677,6 +691,8 @@ Nothing about your networks, devices or passwords is ever sent.
 
 ## 🗺️ Roadmap
 
+Done in 0.7: ~~DHCP server with zero-touch provisioning~~, ~~HTTP file server~~, ~~SNMP trap receiver~~,
+~~NTP server~~, ~~TCP syslog~~. Done in 0.6: ~~macOS menu bar~~.
 Done in 0.5: ~~configuration backups~~, ~~network map~~, ~~IP conflicts and free addresses~~, ~~NTP and MTU~~,
 ~~Bonjour~~, ~~Wi-Fi roaming~~, ~~proxy, printer and drives in profiles~~, ~~shared host list~~, ~~notifications~~.
 Done in 0.4: ~~network planner~~, ~~SNMP~~, ~~packet capture~~, ~~traffic per program~~, ~~built-in SSH terminal~~.

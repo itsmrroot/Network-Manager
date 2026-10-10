@@ -414,10 +414,84 @@ pub fn parse_syslog(data: &[u8], from: IpAddr) -> SyslogMessage {
     }
 }
 
-/// Receives syslog messages on UDP `port` until `stop` is set.
+/// Splits a TCP syslog stream into messages: "LEN MSG" (octet counting,
+/// RFC 6587) or one message per line. Returns the messages and what is
+/// left for the next read.
+pub fn split_tcp_syslog(buf: &[u8]) -> (Vec<Vec<u8>>, usize) {
+    let mut out = Vec::new();
+    let mut at = 0;
+    while at < buf.len() {
+        let rest = &buf[at..];
+        let digits = rest.iter().take_while(|c| c.is_ascii_digit()).count();
+        if digits > 0 && rest.get(digits) == Some(&b' ') {
+            let len: usize = std::str::from_utf8(&rest[..digits]).ok().and_then(|d| d.parse().ok()).unwrap_or(0);
+            let start = digits + 1;
+            if rest.len() < start + len {
+                break;
+            }
+            out.push(rest[start..start + len].to_vec());
+            at += start + len;
+        } else if let Some(nl) = rest.iter().position(|&c| c == b'\n') {
+            if nl > 0 {
+                out.push(rest[..nl].to_vec());
+            }
+            at += nl + 1;
+        } else {
+            break;
+        }
+    }
+    (out, at)
+}
+
+/// Receives syslog messages on UDP and TCP `port` until `stop` is set.
 pub fn syslog_serve(port: u16, stop: Arc<AtomicBool>, message: Arc<dyn Fn(SyslogMessage) + Send + Sync>) -> Result<()> {
     let sock = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port)).with_context(|| port_hint(port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
+    // TCP too, for devices that must not lose messages; optional, since
+    // another program may hold the TCP port.
+    if let Ok(listener) = std::net::TcpListener::bind((Ipv4Addr::UNSPECIFIED, port)) {
+        let (stop, message) = (stop.clone(), message.clone());
+        let _ = listener.set_nonblocking(true);
+        std::thread::spawn(move || {
+            while !stop.load(Ordering::Relaxed) {
+                match listener.accept() {
+                    Ok((mut conn, from)) => {
+                        let (stop, message) = (stop.clone(), message.clone());
+                        std::thread::spawn(move || {
+                            use std::io::Read;
+                            let _ = conn.set_nonblocking(false);
+                            let _ = conn.set_read_timeout(Some(Duration::from_millis(500)));
+                            let mut pending: Vec<u8> = Vec::new();
+                            let mut buf = [0u8; 8192];
+                            while !stop.load(Ordering::Relaxed) {
+                                match conn.read(&mut buf) {
+                                    Ok(0) => break,
+                                    Ok(n) => {
+                                        pending.extend_from_slice(&buf[..n]);
+                                        let (msgs, used) = split_tcp_syslog(&pending);
+                                        pending.drain(..used);
+                                        for m in msgs {
+                                            message(parse_syslog(&m, from.ip()));
+                                        }
+                                        if pending.len() > 1 << 20 {
+                                            pending.clear();
+                                        }
+                                    }
+                                    Err(e)
+                                        if matches!(
+                                            e.kind(),
+                                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                                        ) => {}
+                                    Err(_) => break,
+                                }
+                            }
+                        });
+                    }
+                    Err(_) => std::thread::sleep(Duration::from_millis(150)),
+                }
+            }
+        });
+    }
     let mut buf = vec![0u8; 8192];
     while !stop.load(Ordering::Relaxed) {
         if let Ok((n, from)) = sock.recv_from(&mut buf) {
@@ -690,5 +764,24 @@ mod tests {
         assert!(up > 10.0 && down > 10.0, "{up} {down}");
         stop.store(true, Ordering::Relaxed);
         server.join().unwrap().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tcp_syslog_tests {
+    use super::*;
+
+    #[test]
+    fn frames() {
+        // A whole counted message, then one still arriving.
+        let msg = b"<13>1 - host app - - - hello world";
+        let mut data = format!("{} ", msg.len()).into_bytes();
+        data.extend_from_slice(msg);
+        data.extend_from_slice(b"20 <14>partial");
+        let (m, used) = split_tcp_syslog(&data);
+        assert_eq!(m, [msg.to_vec()]);
+        assert_eq!(used, 3 + msg.len());
+        let (m, used) = split_tcp_syslog(b"<13>line one\n<14>line two\n<15>part");
+        assert_eq!((m.len(), used), (2, 26));
     }
 }

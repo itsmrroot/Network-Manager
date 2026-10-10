@@ -21,18 +21,22 @@ use crate::theme::{self, Palette, icon_label};
 enum Tab {
     #[default]
     Tftp,
+    Http,
     Syslog,
+    Traps,
+    Dhcp,
+    Time,
     Throughput,
 }
 
 /// A running server: its stop switch, its log, and the error it ended with.
-struct Running {
-    stop: Arc<AtomicBool>,
+pub(crate) struct Running {
+    pub(crate) stop: Arc<AtomicBool>,
     error: Arc<Mutex<Option<String>>>,
 }
 
 impl Running {
-    fn spawn(work: impl FnOnce(Arc<AtomicBool>) -> anyhow::Result<()> + Send + 'static) -> Self {
+    pub(crate) fn spawn(work: impl FnOnce(Arc<AtomicBool>) -> anyhow::Result<()> + Send + 'static) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
         let error = Arc::new(Mutex::new(None));
         let (s, e) = (stop.clone(), error.clone());
@@ -46,7 +50,7 @@ impl Running {
         Self { stop, error }
     }
 
-    fn failed(&self) -> Option<String> {
+    pub(crate) fn failed(&self) -> Option<String> {
         self.error.lock().ok().and_then(|e| e.clone())
     }
 }
@@ -72,6 +76,12 @@ pub struct Servers {
     tp_job: Option<Job<f64>>,
     tp_samples: Arc<Mutex<Vec<f64>>>,
     tp_result: Option<(Direction, f64)>,
+    http: crate::lab_servers::HttpTab,
+    traps: crate::lab_servers::TrapTab,
+    dhcp: crate::lab_servers::DhcpTab,
+    ntp: crate::lab_servers::NtpTab,
+    /// Syslog messages are also written here, as they arrive.
+    syslog_file: Arc<Mutex<Option<(PathBuf, std::fs::File)>>>,
 }
 
 impl Default for Servers {
@@ -97,12 +107,17 @@ impl Default for Servers {
             tp_job: None,
             tp_samples: Default::default(),
             tp_result: None,
+            http: Default::default(),
+            traps: Default::default(),
+            dhcp: Default::default(),
+            ntp: Default::default(),
+            syslog_file: Default::default(),
         }
     }
 }
 
 /// The addresses devices can reach this computer at.
-fn my_addresses(sh: &Shared) -> Vec<String> {
+pub(crate) fn my_addresses(sh: &Shared) -> Vec<String> {
     sh.visible_adapters()
         .iter()
         .filter(|a| a.up)
@@ -152,8 +167,30 @@ impl Servers {
         self.tab = Tab::Syslog;
     }
 
+    /// Development aid: shows the DHCP or trap tab with sample data.
+    #[cfg(debug_assertions)]
+    pub fn show(&mut self, tab: &str) {
+        match tab {
+            "dhcp" => {
+                self.dhcp.demo();
+                self.tab = Tab::Dhcp;
+            }
+            _ => {
+                self.traps.demo();
+                self.tab = Tab::Traps;
+            }
+        }
+    }
+
     pub fn running(&self) -> bool {
-        self.tftp.is_some() || self.syslog.is_some() || self.tp_server.is_some() || self.tp_job.is_some()
+        self.tftp.is_some()
+            || self.syslog.is_some()
+            || self.tp_server.is_some()
+            || self.tp_job.is_some()
+            || self.http.running()
+            || self.traps.running()
+            || self.dhcp.running()
+            || self.ntp.running()
     }
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
@@ -164,7 +201,9 @@ impl Servers {
             ui,
             p,
             tr("Servers"),
-            tr("TFTP and syslog servers for network devices, and a throughput test between two computers."),
+            tr(
+                "TFTP, HTTP, syslog, SNMP trap, DHCP and time servers for network devices, and a throughput test between two computers.",
+            ),
         );
         let badge =
             |on: bool, label: &'static str| if on { format!("{} ●", tr(label)) } else { tr(label).to_string() };
@@ -173,20 +212,40 @@ impl Servers {
             badge(self.syslog.is_some(), tr("Syslog server")),
             badge(self.tp_server.is_some(), tr("Throughput test")),
         );
+        let (h, tr_, d, n) = (
+            badge(self.http.running(), "HTTP"),
+            badge(self.traps.running(), tr("SNMP traps")),
+            badge(self.dhcp.running(), "DHCP"),
+            badge(self.ntp.running(), tr("Time (NTP)")),
+        );
         theme::tabs(
             ui,
             p,
             &mut self.tab,
             &[
                 (Tab::Tftp, icon::HARD_DRIVES, &t),
+                (Tab::Http, icon::GLOBE, &h),
                 (Tab::Syslog, icon::LIST_BULLETS, &s),
+                (Tab::Traps, icon::BELL_RINGING, &tr_),
+                (Tab::Dhcp, icon::TREE_STRUCTURE, &d),
+                (Tab::Time, icon::CLOCK, &n),
                 (Tab::Throughput, icon::GAUGE, &tp),
             ],
         );
         ui.add_space(10.0);
         match self.tab {
             Tab::Tftp => self.tftp_tab(ui, p, sh),
+            Tab::Http => {
+                egui::ScrollArea::vertical().id_salt("http-tab").show(ui, |ui| self.http.ui(ui, p, sh));
+            }
             Tab::Syslog => self.syslog_tab(ui, p, sh),
+            Tab::Traps => self.traps.ui(ui, p, sh),
+            Tab::Dhcp => {
+                egui::ScrollArea::vertical().id_salt("dhcp-tab").show(ui, |ui| self.dhcp.ui(ui, p, sh));
+            }
+            Tab::Time => {
+                egui::ScrollArea::vertical().id_salt("ntp-tab").show(ui, |ui| self.ntp.ui(ui, p, sh));
+            }
             Tab::Throughput => self.throughput_tab(ui, p, sh),
         }
     }
@@ -395,12 +454,26 @@ impl Servers {
                 }
                 ui.spinner();
             } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start"), true).clicked() {
-                let (port, messages) = (self.syslog_port, self.messages.clone());
+                let (port, messages, file) = (self.syslog_port, self.messages.clone(), self.syslog_file.clone());
                 self.syslog = Some(Running::spawn(move |stop| {
                     ns::syslog_serve(
                         port,
                         stop,
                         Arc::new(move |m| {
+                            if let Ok(mut f) = file.lock()
+                                && let Some((_, f)) = f.as_mut()
+                            {
+                                use std::io::Write;
+                                let when: chrono::DateTime<chrono::Local> = m.received.into();
+                                let _ = writeln!(
+                                    f,
+                                    "{} {} {} {}",
+                                    when.format("%Y-%m-%d %H:%M:%S"),
+                                    m.from,
+                                    ns::SEVERITIES[m.severity as usize % 8],
+                                    m.text
+                                );
+                            }
                             if let Ok(mut v) = messages.lock() {
                                 v.push_back(m);
                                 while v.len() > 20_000 {
@@ -440,6 +513,28 @@ impl Servers {
                 }
                 if ui.button(icon_label(icon::EXPORT, "Export…")).clicked() {
                     self.export_syslog(sh);
+                }
+                let saving = self.syslog_file.lock().map(|f| f.is_some()).unwrap_or(false);
+                if saving {
+                    if ui.button(icon_label(icon::FLOPPY_DISK, "Stop saving")).clicked()
+                        && let Ok(mut f) = self.syslog_file.lock()
+                    {
+                        *f = None;
+                    }
+                } else if ui
+                    .button(icon_label(icon::FLOPPY_DISK, "Save to file…"))
+                    .on_hover_text(tr("Write every message to a file as it arrives"))
+                    .clicked()
+                    && let Some(path) = rfd::FileDialog::new().set_file_name("syslog.log").save_file()
+                {
+                    match std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+                        Ok(f) => {
+                            if let Ok(mut slot) = self.syslog_file.lock() {
+                                *slot = Some((path, f));
+                            }
+                        }
+                        Err(e) => sh.fail(trl("The log file could not be created."), &e.into()),
+                    }
                 }
             });
         });

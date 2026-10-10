@@ -75,6 +75,9 @@ pub struct Settings {
     pub saved_hosts: Vec<SavedHost>,
     /// Desktop notifications for monitored hosts and new devices.
     pub notifications: bool,
+    /// The DHCP server's last settings, and the adapter it served.
+    pub dhcp_server: Option<netmgr::dhcpd::Config>,
+    pub dhcp_adapter: String,
     // Network planner
     /// What the planner showed last; `None` until it is first opened.
     pub planner: Option<netmgr::plan::Input>,
@@ -105,6 +108,8 @@ impl Default for Settings {
             sessions: Vec::new(),
             saved_hosts: Vec::new(),
             notifications: true,
+            dhcp_server: None,
+            dhcp_adapter: String::new(),
             planner: None,
             saved_plans: BTreeMap::new(),
             plan_vendor: Default::default(),

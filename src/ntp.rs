@@ -191,3 +191,74 @@ mod tests {
         assert_eq!(describe_offset(-192.0), "−3 min 12 s");
     }
 }
+
+// ---------------------------------------------------------------- server
+
+/// Answers time requests on UDP `port` with this computer's clock until
+/// `stop` is set, for devices in labs without internet. `stratum` is what
+/// the answers claim (one more than the source this computer follows).
+pub fn serve(
+    port: u16,
+    stratum: u8,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    asked: std::sync::Arc<dyn Fn(std::net::IpAddr) + Send + Sync>,
+) -> Result<()> {
+    let sock = UdpSocket::bind(("0.0.0.0", port)).map_err(|e| match e.kind() {
+        std::io::ErrorKind::AddrInUse => {
+            anyhow::anyhow!("UDP port {port} is in use: the system's own time service may hold it")
+        }
+        std::io::ErrorKind::PermissionDenied => {
+            anyhow::anyhow!("port {port} needs administrator rights on this system")
+        }
+        _ => anyhow::anyhow!("could not open UDP port {port}: {e}"),
+    })?;
+    sock.set_read_timeout(Some(Duration::from_millis(300)))?;
+    let mut buf = [0u8; 512];
+    while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+        let Ok((n, from)) = sock.recv_from(&mut buf) else { continue };
+        let received = SystemTime::now();
+        if let Some(r) = answer(&buf[..n], received, SystemTime::now(), stratum) {
+            let _ = sock.send_to(&r, from);
+            asked(from.ip());
+        }
+    }
+    Ok(())
+}
+
+/// The server's answer to a client request, or `None` for anything else.
+pub fn answer(req: &[u8], received: SystemTime, sent: SystemTime, stratum: u8) -> Option<[u8; 48]> {
+    if req.len() < 48 || req[0] & 7 != 3 {
+        return None;
+    }
+    let version = (req[0] >> 3) & 7;
+    let mut r = [0u8; 48];
+    r[0] = (version.clamp(1, 4) << 3) | 4; // no leap warning, server
+    r[1] = stratum.clamp(1, 15);
+    r[2] = req[2]; // poll interval, as asked
+    r[3] = 0xec; // precision: about a microsecond
+    r[12..16].copy_from_slice(b"LOCL");
+    let now = to_ntp(sent);
+    r[16..24].copy_from_slice(&now.to_be_bytes()); // reference time
+    r[24..32].copy_from_slice(&req[40..48]); // originate = client's transmit
+    r[32..40].copy_from_slice(&to_ntp(received).to_be_bytes());
+    r[40..48].copy_from_slice(&now.to_be_bytes());
+    Some(r)
+}
+
+#[cfg(test)]
+mod server_tests {
+    use super::*;
+
+    #[test]
+    fn answers_our_own_client() {
+        let sent = UNIX_EPOCH + Duration::from_secs(1_760_000_000);
+        let req = request(sent);
+        let server: SocketAddr = "192.0.2.1:123".parse().unwrap();
+        let at = sent + Duration::from_millis(5);
+        let r = answer(&req, at, at, 3).unwrap();
+        let reading = parse(server, &r, sent, sent + Duration::from_millis(10)).unwrap();
+        assert_eq!(reading.stratum, 3);
+        assert!(reading.offset.abs() < 0.001 && (reading.delay - 0.010).abs() < 0.001);
+        assert!(answer(&r, at, at, 3).is_none(), "server answers are not requests");
+    }
+}

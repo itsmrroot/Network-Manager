@@ -265,6 +265,54 @@ enum Cmd {
         #[arg(long, default_value_t = 514)]
         port: u16,
     },
+    /// Serve a folder over HTTP (firmware downloads; uploads with PUT).
+    HttpServer {
+        folder: std::path::PathBuf,
+        #[arg(long, default_value_t = 8080)]
+        port: u16,
+        /// Let devices upload files with PUT.
+        #[arg(long)]
+        allow_upload: bool,
+    },
+    /// Answer time requests (NTP) with this computer's clock, for labs without internet.
+    NtpServer {
+        #[arg(long, default_value_t = 123)]
+        port: u16,
+        #[arg(long, default_value_t = 3)]
+        stratum: u8,
+    },
+    /// Receive and print SNMP traps and informs from devices.
+    TrapServer {
+        #[arg(long, default_value_t = 162)]
+        port: u16,
+    },
+    /// Run a DHCP server for a lab or staging network (never on a network that has one).
+    DhcpServer {
+        /// The adapter facing the devices (en0, eth0; Windows: its name).
+        #[arg(long, short)]
+        interface: String,
+        /// First and last address handed out, e.g. 192.168.50.100-192.168.50.199.
+        #[arg(long)]
+        pool: String,
+        #[arg(long)]
+        router: Option<Ipv4Addr>,
+        #[arg(long, value_delimiter = ',')]
+        dns: Vec<Ipv4Addr>,
+        /// Option 66: TFTP server.
+        #[arg(long)]
+        tftp: Option<String>,
+        /// Option 67: boot or configuration file.
+        #[arg(long)]
+        bootfile: Option<String>,
+        /// Option 150: TFTP servers (Cisco).
+        #[arg(long, value_delimiter = ',')]
+        option150: Vec<Ipv4Addr>,
+        /// Option 43, as hex.
+        #[arg(long)]
+        option43: Option<String>,
+        #[arg(long, default_value_t = 3600)]
+        lease: u32,
+    },
     /// Throughput test between two computers: "server", or a host to test to.
     Throughput {
         target: String,
@@ -1107,7 +1155,7 @@ fn run(cli: Cli) -> Result<()> {
         }
         Cmd::SyslogServer { port } => {
             let stop = std::sync::Arc::new(AtomicBool::new(false));
-            println!("Listening for syslog on UDP port {port}…");
+            println!("Listening for syslog on UDP and TCP port {port}…");
             netmgr::servers::syslog_serve(
                 port,
                 stop,
@@ -1124,6 +1172,60 @@ fn run(cli: Cli) -> Result<()> {
                     }
                 }),
             )?;
+        }
+        Cmd::HttpServer { folder, port, allow_upload } => {
+            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            println!("Serving {} on http port {port}…", folder.display());
+            let opts = netmgr::httpd::Options { root: folder, port, allow_upload, overwrite: false };
+            netmgr::httpd::serve(
+                opts,
+                stop,
+                std::sync::Arc::new(|e| {
+                    println!("{:<15} {} {} {} {} bytes {:.1} s", e.from, e.method, e.path, e.status, e.bytes, e.seconds)
+                }),
+            )?;
+        }
+        Cmd::NtpServer { port, stratum } => {
+            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            println!("Answering time requests on UDP port {port}…");
+            netmgr::ntp::serve(port, stratum, stop, std::sync::Arc::new(|ip| println!("{ip} asked for the time")))?;
+        }
+        Cmd::TrapServer { port } => {
+            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            println!("Listening for SNMP traps on UDP port {port}…");
+            snmp::trap_serve(
+                port,
+                stop,
+                std::sync::Arc::new(move |t| {
+                    let name = if t.name.is_empty() { t.oid.to_string() } else { t.name.to_string() };
+                    println!("{:<15} {:<7} {name}", t.from, t.kind);
+                    for (o, v) in &t.varbinds {
+                        println!("    {o} = {v}");
+                    }
+                }),
+            )?;
+        }
+        Cmd::DhcpServer { interface, pool, router, dns, tftp, bootfile, option150, option43, lease } => {
+            let a = adapters::find(&interface)?;
+            let (server, prefix) = a.main_ipv4().with_context(|| format!("{interface} has no IPv4 address"))?;
+            let (first, last) = pool.split_once('-').context("write the pool as FIRST-LAST")?;
+            let cfg = netmgr::dhcpd::Config {
+                server,
+                first: first.trim().parse()?,
+                last: last.trim().parse()?,
+                mask: adapters::prefix_to_mask(prefix),
+                router,
+                dns,
+                lease_secs: lease,
+                tftp_server: tftp.unwrap_or_default(),
+                bootfile: bootfile.unwrap_or_default(),
+                tftp_150: option150,
+                vendor_hex: option43.unwrap_or_default(),
+                ..Default::default()
+            };
+            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            let iface = if cfg!(windows) { a.name.clone() } else { a.device.clone() };
+            netmgr::dhcpd::serve(cfg, &iface, Default::default(), stop, std::sync::Arc::new(|l| println!("{l}")))?;
         }
         Cmd::Throughput { target, seconds, download } => {
             let port = netmgr::servers::THROUGHPUT_PORT;
