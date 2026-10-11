@@ -332,6 +332,12 @@ enum Cmd {
         #[arg(long, default_value_t = 3600)]
         lease: u32,
     },
+    /// This computer's SSH server, so other devices can sign in to it:
+    /// on, off or status (macOS: Remote Login). Asks for administrator rights.
+    SshServer {
+        #[arg(default_value = "status", value_parser = ["on", "off", "status"])]
+        action: String,
+    },
     /// Throughput test between two computers: "server", or a host to test to.
     Throughput {
         target: String,
@@ -1291,6 +1297,22 @@ fn run(cli: Cli) -> Result<()> {
             let stop = std::sync::Arc::new(AtomicBool::new(false));
             let iface = if cfg!(windows) { a.name.clone() } else { a.device.clone() };
             netmgr::dhcpd::serve(cfg, &iface, Default::default(), stop, std::sync::Arc::new(|l| println!("{l}")))?;
+        }
+        Cmd::SshServer { action } => {
+            if action != "status" {
+                netmgr::sshd::set(action == "on")?;
+            }
+            let s = netmgr::sshd::status();
+            if json {
+                return print_json(&s);
+            }
+            if s.running {
+                println!("The SSH server is on. From another device: ssh {}@<this computer's address>", s.user);
+            } else if s.installed {
+                println!("The SSH server is off. Turn it on with: netmgr ssh-server on");
+            } else {
+                println!("No SSH server is installed. netmgr ssh-server on installs and starts it.");
+            }
         }
         Cmd::Throughput { target, seconds, download, port, listen } => {
             if target == "server" {

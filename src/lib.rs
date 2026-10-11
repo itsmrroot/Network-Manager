@@ -30,6 +30,7 @@ pub mod report;
 pub mod scan;
 pub mod servers;
 pub mod snmp;
+pub mod sshd;
 pub mod subnet;
 pub mod system;
 pub mod tools;

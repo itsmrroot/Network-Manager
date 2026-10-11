@@ -153,6 +153,13 @@ fn entries() -> Vec<Entry> {
         ),
         e(icon::CLOCK, tr("Time (NTP)"), tr("Servers"), "ntp time server", Target::Tab(Page::Servers, "time")),
         e(
+            icon::TERMINAL_WINDOW,
+            tr("SSH server"),
+            tr("Servers"),
+            "ssh server sshd remote login openssh sign in",
+            Target::Tab(Page::Servers, "ssh"),
+        ),
+        e(
             icon::GAUGE,
             tr("Throughput test"),
             tr("Servers"),

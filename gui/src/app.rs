@@ -863,7 +863,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 26] = [
+        let pages: [(Page, &str, u32); 27] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -889,6 +889,7 @@ impl App {
             (Page::Wifi, "23-signal", 60),
             (Page::Servers, "24-dhcp", 40),
             (Page::Servers, "25-traps", 40),
+            (Page::Servers, "27-ssh", 30),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_LIGHT: the light theme instead.
@@ -992,6 +993,9 @@ impl App {
             }
             if name == "25-traps" {
                 self.servers.show("traps");
+            }
+            if name == "27-ssh" {
+                self.servers.show("ssh");
             }
             if name == "20-map" {
                 self.devices.show("map");

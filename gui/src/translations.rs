@@ -1961,6 +1961,28 @@ pub const GERMAN: &[(&str, &str)] = &[
         "Der Server ist aus jedem Netzwerk erreichbar, mit dem dieser Computer verbunden ist, auch aus WLANs in Cafés und Hotels. Wählen Sie stattdessen den Adapter, der per Kabel mit Ihren Geräten verbunden ist.",
     ),
     ("{n} servers are running.", "{n} Server laufen."),
+    (
+        "Anyone on your network who knows this computer's password can sign in. Turn it off when you no longer need it.",
+        "Jeder in Ihrem Netzwerk, der das Passwort dieses Computers kennt, kann sich anmelden. Schalten Sie ihn aus, wenn Sie ihn nicht mehr brauchen.",
+    ),
+    (
+        "Lets other devices sign in to this computer with SSH (on macOS: Remote Login). It is a service of the system: it keeps running when this app is closed.",
+        "Andere Geräte können sich per SSH an diesem Computer anmelden (unter macOS: Entfernte Anmeldung). Es ist ein Dienst des Systems: Er läuft weiter, wenn diese App geschlossen ist.",
+    ),
+    (
+        "No SSH server is installed yet: turning it on installs it first.",
+        "Noch kein SSH-Server installiert: Beim Einschalten wird er zuerst installiert.",
+    ),
+    ("Open the system setting", "Systemeinstellung öffnen"),
+    ("SSH server", "SSH-Server"),
+    ("Sign in from another device", "Von einem anderen Gerät anmelden"),
+    ("The SSH server could not be changed.", "Der SSH-Server konnte nicht geändert werden."),
+    ("The SSH server is off.", "Der SSH-Server ist aus."),
+    ("The SSH server is on.", "Der SSH-Server ist an."),
+    (
+        "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
+        "Beim ersten Mal lädt Windows den OpenSSH-Server herunter: Das dauert einige Minuten.",
+    ),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -3905,6 +3927,28 @@ pub const SPANISH: &[(&str, &str)] = &[
         "El servidor es accesible desde todas las redes a las que está conectado este equipo, incluida la Wi-Fi de cafeterías y hoteles. Elija en su lugar el adaptador conectado por cable a sus dispositivos.",
     ),
     ("{n} servers are running.", "{n} servidores en marcha."),
+    (
+        "Anyone on your network who knows this computer's password can sign in. Turn it off when you no longer need it.",
+        "Cualquiera en tu red que conozca la contraseña de este equipo puede iniciar sesión. Desactívalo cuando ya no lo necesites.",
+    ),
+    (
+        "Lets other devices sign in to this computer with SSH (on macOS: Remote Login). It is a service of the system: it keeps running when this app is closed.",
+        "Permite que otros dispositivos inicien sesión en este equipo por SSH (en macOS: Sesión remota). Es un servicio del sistema: sigue funcionando cuando esta app está cerrada.",
+    ),
+    (
+        "No SSH server is installed yet: turning it on installs it first.",
+        "Aún no hay un servidor SSH instalado: al activarlo, primero se instala.",
+    ),
+    ("Open the system setting", "Abrir el ajuste del sistema"),
+    ("SSH server", "Servidor SSH"),
+    ("Sign in from another device", "Iniciar sesión desde otro dispositivo"),
+    ("The SSH server could not be changed.", "No se pudo cambiar el servidor SSH."),
+    ("The SSH server is off.", "El servidor SSH está desactivado."),
+    ("The SSH server is on.", "El servidor SSH está activado."),
+    (
+        "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
+        "La primera vez, Windows descarga OpenSSH Server: tarda unos minutos.",
+    ),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -5870,6 +5914,28 @@ pub const FRENCH: &[(&str, &str)] = &[
         "Le serveur est joignable depuis tous les réseaux de cet ordinateur, y compris le Wi-Fi des cafés et des hôtels. Choisissez plutôt l’adaptateur relié par câble à vos appareils.",
     ),
     ("{n} servers are running.", "{n} serveurs sont en marche."),
+    (
+        "Anyone on your network who knows this computer's password can sign in. Turn it off when you no longer need it.",
+        "Toute personne de votre réseau qui connaît le mot de passe de cet ordinateur peut se connecter. Désactivez-le quand vous n’en avez plus besoin.",
+    ),
+    (
+        "Lets other devices sign in to this computer with SSH (on macOS: Remote Login). It is a service of the system: it keeps running when this app is closed.",
+        "Permet à d’autres appareils de se connecter à cet ordinateur en SSH (sur macOS : Session à distance). C’est un service du système : il continue de fonctionner quand cette app est fermée.",
+    ),
+    (
+        "No SSH server is installed yet: turning it on installs it first.",
+        "Aucun serveur SSH n’est encore installé : l’activer l’installe d’abord.",
+    ),
+    ("Open the system setting", "Ouvrir le réglage du système"),
+    ("SSH server", "Serveur SSH"),
+    ("Sign in from another device", "Se connecter depuis un autre appareil"),
+    ("The SSH server could not be changed.", "Le serveur SSH n’a pas pu être modifié."),
+    ("The SSH server is off.", "Le serveur SSH est désactivé."),
+    ("The SSH server is on.", "Le serveur SSH est activé."),
+    (
+        "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
+        "La première fois, Windows télécharge OpenSSH Server : cela prend quelques minutes.",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -7799,6 +7865,28 @@ pub const TURKISH: &[(&str, &str)] = &[
         "Sunucuya bu bilgisayarın bağlı olduğu her ağdan, kafe ve otellerdeki Wi-Fi dahil, ulaşılabilir. Bunun yerine cihazlarınıza kabloyla bağlı bağdaştırıcıyı seçin.",
     ),
     ("{n} servers are running.", "{n} sunucu çalışıyor."),
+    (
+        "Anyone on your network who knows this computer's password can sign in. Turn it off when you no longer need it.",
+        "Ağınızda bu bilgisayarın parolasını bilen herkes oturum açabilir. Artık gerekmediğinde kapatın.",
+    ),
+    (
+        "Lets other devices sign in to this computer with SSH (on macOS: Remote Login). It is a service of the system: it keeps running when this app is closed.",
+        "Diğer cihazların SSH ile bu bilgisayarda oturum açmasını sağlar (macOS'ta: Uzaktan Oturum Açma). Sistemin bir hizmetidir: bu uygulama kapatıldığında da çalışmaya devam eder.",
+    ),
+    (
+        "No SSH server is installed yet: turning it on installs it first.",
+        "Henüz SSH sunucusu yüklü değil: açıldığında önce yüklenir.",
+    ),
+    ("Open the system setting", "Sistem ayarını aç"),
+    ("SSH server", "SSH sunucusu"),
+    ("Sign in from another device", "Başka bir cihazdan oturum açın"),
+    ("The SSH server could not be changed.", "SSH sunucusu değiştirilemedi."),
+    ("The SSH server is off.", "SSH sunucusu kapalı."),
+    ("The SSH server is on.", "SSH sunucusu açık."),
+    (
+        "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
+        "Windows ilk seferde OpenSSH Server'ı indirir: bu birkaç dakika sürer.",
+    ),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -9737,6 +9825,28 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "Сервер доступен из всех сетей, к которым подключён этот компьютер, включая Wi-Fi в кафе и отелях. Выберите вместо этого адаптер, подключённый кабелем к вашим устройствам.",
     ),
     ("{n} servers are running.", "Работает серверов: {n}."),
+    (
+        "Anyone on your network who knows this computer's password can sign in. Turn it off when you no longer need it.",
+        "Любой в вашей сети, кто знает пароль этого компьютера, может войти. Выключите сервер, когда он больше не нужен.",
+    ),
+    (
+        "Lets other devices sign in to this computer with SSH (on macOS: Remote Login). It is a service of the system: it keeps running when this app is closed.",
+        "Позволяет другим устройствам входить на этот компьютер по SSH (в macOS: «Удаленный вход»). Это служба системы: она продолжает работать, когда приложение закрыто.",
+    ),
+    (
+        "No SSH server is installed yet: turning it on installs it first.",
+        "SSH-сервер ещё не установлен: при включении он сначала будет установлен.",
+    ),
+    ("Open the system setting", "Открыть настройку системы"),
+    ("SSH server", "SSH-сервер"),
+    ("Sign in from another device", "Вход с другого устройства"),
+    ("The SSH server could not be changed.", "Не удалось изменить SSH-сервер."),
+    ("The SSH server is off.", "SSH-сервер выключен."),
+    ("The SSH server is on.", "SSH-сервер включён."),
+    (
+        "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
+        "В первый раз Windows скачивает OpenSSH Server: это занимает несколько минут.",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -11621,6 +11731,28 @@ pub const ARABIC: &[(&str, &str)] = &[
         "يمكن الوصول إلى الخادم من كل شبكة متصل بها هذا الكمبيوتر، بما فيها Wi-Fi في المقاهي والفنادق. اختر بدلًا من ذلك المحوّل الموصول بكابل بأجهزتك.",
     ),
     ("{n} servers are running.", "{n} خوادم تعمل."),
+    (
+        "Anyone on your network who knows this computer's password can sign in. Turn it off when you no longer need it.",
+        "يمكن لأي شخص على شبكتك يعرف كلمة مرور هذا الكمبيوتر تسجيل الدخول. أوقفه عندما لا تحتاج إليه.",
+    ),
+    (
+        "Lets other devices sign in to this computer with SSH (on macOS: Remote Login). It is a service of the system: it keeps running when this app is closed.",
+        "يسمح للأجهزة الأخرى بتسجيل الدخول إلى هذا الكمبيوتر عبر SSH (في macOS: تسجيل الدخول عن بعد). إنه خدمة من خدمات النظام: يستمر في العمل عند إغلاق هذا التطبيق.",
+    ),
+    (
+        "No SSH server is installed yet: turning it on installs it first.",
+        "لا يوجد خادم SSH مثبت بعد: عند تشغيله يُثبَّت أولًا.",
+    ),
+    ("Open the system setting", "فتح إعداد النظام"),
+    ("SSH server", "خادم SSH"),
+    ("Sign in from another device", "تسجيل الدخول من جهاز آخر"),
+    ("The SSH server could not be changed.", "تعذّر تغيير خادم SSH."),
+    ("The SSH server is off.", "خادم SSH متوقف."),
+    ("The SSH server is on.", "خادم SSH يعمل."),
+    (
+        "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
+        "في المرة الأولى، ينزّل Windows خادم OpenSSH: يستغرق ذلك بضع دقائق.",
+    ),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -13484,4 +13616,23 @@ pub const CHINESE: &[(&str, &str)] = &[
         "本机连接的每个网络都能访问该服务器，包括咖啡馆和酒店的 Wi-Fi。请改为选择用网线连接到设备的适配器。",
     ),
     ("{n} servers are running.", "{n} 个服务器正在运行。"),
+    (
+        "Anyone on your network who knows this computer's password can sign in. Turn it off when you no longer need it.",
+        "网络中任何知道这台电脑密码的人都能登录。不再需要时请关闭。",
+    ),
+    (
+        "Lets other devices sign in to this computer with SSH (on macOS: Remote Login). It is a service of the system: it keeps running when this app is closed.",
+        "让其他设备通过 SSH 登录这台电脑（macOS 上称为“远程登录”）。它是系统服务：关闭本应用后仍会继续运行。",
+    ),
+    ("No SSH server is installed yet: turning it on installs it first.", "尚未安装 SSH 服务器：开启时会先安装。"),
+    ("Open the system setting", "打开系统设置"),
+    ("SSH server", "SSH 服务器"),
+    ("Sign in from another device", "从另一台设备登录"),
+    ("The SSH server could not be changed.", "无法更改 SSH 服务器。"),
+    ("The SSH server is off.", "SSH 服务器已关闭。"),
+    ("The SSH server is on.", "SSH 服务器已开启。"),
+    (
+        "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
+        "首次使用时，Windows 会下载 OpenSSH Server：需要几分钟。",
+    ),
 ];

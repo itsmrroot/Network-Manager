@@ -150,6 +150,11 @@ impl Term {
         for e in ui.input(|i| i.events.clone()) {
             match e {
                 egui::Event::Text(t) => out.extend_from_slice(t.as_bytes()),
+                // Windows and Linux: egui turns Ctrl+C and Ctrl+X into Copy and
+                // Cut (and sends no key): in a terminal they stop a program
+                // (top, ping) and cut, as everywhere. macOS copies with Cmd.
+                egui::Event::Copy if !cfg!(target_os = "macos") => out.push(0x03),
+                egui::Event::Cut if !cfg!(target_os = "macos") => out.push(0x18),
                 egui::Event::Paste(t) => {
                     let t = t.replace("\r\n", "\r").replace('\n', "\r");
                     if bracketed {

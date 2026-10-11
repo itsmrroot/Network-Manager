@@ -893,3 +893,152 @@ impl DhcpTab {
         });
     }
 }
+
+// ---------------------------------------------------------------- SSH
+
+/// This computer's own SSH server (a service of the system).
+#[derive(Default)]
+pub struct SshTab {
+    status: Option<netmgr::sshd::Status>,
+    check: Option<crate::jobs::Job<netmgr::sshd::Status>>,
+    change: Option<crate::jobs::Job<netmgr::sshd::Status>>,
+}
+
+impl SshTab {
+    /// Development aid: shown as on, for a sample account.
+    #[cfg(debug_assertions)]
+    pub fn demo(&mut self) {
+        self.status = Some(netmgr::sshd::Status { installed: true, running: true, user: "alex".into() });
+    }
+
+    fn refresh(&mut self, ctx: &egui::Context) {
+        if self.check.is_none() {
+            self.check = Some(crate::jobs::Job::spawn(ctx, |_, _| Ok(netmgr::sshd::status())));
+        }
+    }
+
+    pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
+        if self.status.is_none() {
+            self.refresh(ui.ctx());
+        }
+        if let Some(Ok(s)) = crate::jobs::finished(&mut self.check) {
+            self.status = Some(s);
+        }
+        match crate::jobs::finished(&mut self.change) {
+            Some(Ok(s)) => self.status = Some(s),
+            Some(Err(e)) => {
+                sh.fail(trl("The SSH server could not be changed."), &e);
+                self.refresh(ui.ctx());
+            }
+            None => {}
+        }
+        let busy = self.check.is_some() || self.change.is_some();
+        theme::card(ui, p, |ui| {
+            ui.set_width(ui.available_width());
+            theme::paragraph(
+                ui,
+                trl(
+                    "Lets other devices sign in to this computer with SSH (on macOS: Remote Login). It is a service of the system: it keeps running when this app is closed.",
+                ),
+                14.0,
+                p.weak,
+            );
+            ui.add_space(10.0);
+            ui.horizontal_wrapped(|ui| {
+                match &self.status {
+                    None => {
+                        ui.spinner();
+                        ui.label(RichText::new(tr("Checking…")).color(p.weak));
+                    }
+                    Some(s) if s.running => {
+                        theme::pill(ui, p, tr("On"), p.success);
+                        ui.label(RichText::new(tr("The SSH server is on.")).color(p.text));
+                    }
+                    Some(s) => {
+                        theme::pill(ui, p, tr("Off"), p.weak);
+                        let text = if s.installed {
+                            tr("The SSH server is off.")
+                        } else {
+                            tr("No SSH server is installed yet: turning it on installs it first.")
+                        };
+                        ui.label(RichText::new(text).color(p.text));
+                    }
+                }
+                theme::trailing(ui, "ssh-server", |ui| {
+                    let on = self.status.as_ref().is_some_and(|s| s.running);
+                    if busy {
+                        ui.spinner();
+                    } else if on {
+                        if theme::danger_button(ui, p, &icon_label(icon::STOP, "Turn off")).clicked() {
+                            self.change = Some(crate::jobs::Job::spawn(ui.ctx(), |_, _| {
+                                netmgr::sshd::set(false)?;
+                                Ok(netmgr::sshd::status())
+                            }));
+                        }
+                    } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Turn on"), self.status.is_some())
+                        .clicked()
+                    {
+                        self.change = Some(crate::jobs::Job::spawn(ui.ctx(), |_, _| {
+                            netmgr::sshd::set(true)?;
+                            Ok(netmgr::sshd::status())
+                        }));
+                    }
+                    if !busy && ui.button(icon_label(icon::ARROWS_CLOCKWISE, "Refresh")).clicked() {
+                        self.refresh(ui.ctx());
+                    }
+                    if !cfg!(target_os = "linux")
+                        && ui.button(icon_label(icon::GEAR_SIX, "Open the system setting")).clicked()
+                        && let Err(e) = netmgr::sshd::open_settings()
+                    {
+                        sh.fail(trl("That did not work."), &e);
+                    }
+                });
+            });
+            if cfg!(windows) && self.status.as_ref().is_some_and(|s| !s.installed) {
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new(tr("The first time, Windows downloads OpenSSH Server: this takes a few minutes."))
+                        .color(p.weak)
+                        .size(12.5),
+                );
+            }
+            let Some(s) = self.status.clone().filter(|s| s.running) else { return };
+            ui.add_space(10.0);
+            theme::notice(
+                ui,
+                p,
+                p.warning,
+                icon::WARNING,
+                tr(
+                    "Anyone on your network who knows this computer's password can sign in. Turn it off when you no longer need it.",
+                ),
+            );
+            ui.add_space(10.0);
+            ui.label(RichText::new(tr("Sign in from another device")).color(p.weak).size(12.5));
+            let commands: Vec<(String, String)> = sh
+                .visible_adapters()
+                .iter()
+                .filter(|a| a.up)
+                .flat_map(|a| {
+                    a.ipv4
+                        .iter()
+                        .filter(|(ip, _)| !ip.is_link_local() && !ip.is_loopback())
+                        .map(|(ip, _)| (format!("ssh {}@{ip}", s.user), a.name.clone()))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            for (command, adapter) in commands {
+                ui.horizontal(|ui| {
+                    let r = ui.add(
+                        egui::Label::new(RichText::new(&command).monospace().color(p.text)).sense(egui::Sense::click()),
+                    );
+                    if r.on_hover_text(tr("Click to copy")).clicked() {
+                        ui.ctx().copy_text(command.clone());
+                        sh.toast(tr("Copied."));
+                    }
+                    ui.label(RichText::new(adapter).color(p.weak).size(12.5));
+                });
+            }
+        });
+    }
+}

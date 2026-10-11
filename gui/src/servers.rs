@@ -26,6 +26,7 @@ enum Tab {
     Traps,
     Dhcp,
     Time,
+    Ssh,
     Throughput,
 }
 
@@ -80,6 +81,7 @@ pub struct Servers {
     traps: crate::lab_servers::TrapTab,
     dhcp: crate::lab_servers::DhcpTab,
     ntp: crate::lab_servers::NtpTab,
+    ssh: crate::lab_servers::SshTab,
     /// Syslog messages are also written here, as they arrive.
     syslog_file: Arc<Mutex<Option<(PathBuf, std::fs::File)>>>,
 }
@@ -111,6 +113,7 @@ impl Default for Servers {
             traps: Default::default(),
             dhcp: Default::default(),
             ntp: Default::default(),
+            ssh: Default::default(),
             syslog_file: Default::default(),
         }
     }
@@ -255,6 +258,10 @@ impl Servers {
                 self.dhcp.demo();
                 self.tab = Tab::Dhcp;
             }
+            "ssh" => {
+                self.ssh.demo();
+                self.tab = Tab::Ssh;
+            }
             _ => {
                 self.traps.demo();
                 self.tab = Tab::Traps;
@@ -270,6 +277,7 @@ impl Servers {
             "traps" => Tab::Traps,
             "dhcp" => Tab::Dhcp,
             "time" => Tab::Time,
+            "ssh" => Tab::Ssh,
             "throughput" => Tab::Throughput,
             _ => Tab::Tftp,
         };
@@ -364,6 +372,7 @@ impl Servers {
                 (Tab::Traps, icon::BELL_RINGING, &tr_),
                 (Tab::Dhcp, icon::TREE_STRUCTURE, &d),
                 (Tab::Time, icon::CLOCK, &n),
+                (Tab::Ssh, icon::TERMINAL_WINDOW, "SSH"),
                 (Tab::Throughput, icon::GAUGE, &tp),
             ],
         );
@@ -380,6 +389,9 @@ impl Servers {
             }
             Tab::Time => {
                 egui::ScrollArea::vertical().id_salt("ntp-tab").show(ui, |ui| self.ntp.ui(ui, p, sh));
+            }
+            Tab::Ssh => {
+                egui::ScrollArea::vertical().id_salt("ssh-tab").show(ui, |ui| self.ssh.ui(ui, p, sh));
             }
             Tab::Throughput => self.throughput_tab(ui, p, sh),
         }
