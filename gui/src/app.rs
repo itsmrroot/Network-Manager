@@ -652,7 +652,10 @@ impl App {
             ui.add_space(8.0);
             theme::paragraph(ui, &msg, 14.5, p.text);
             let lower = msg.to_lowercase();
-            if lower.contains("denied") || lower.contains("administrator") || lower.contains("elevation") || lower.contains("access is") {
+            // Not for a server's port: its message says what to do.
+            if (lower.contains("denied") || lower.contains("administrator") || lower.contains("elevation") || lower.contains("access is"))
+                && !lower.contains("port ")
+            {
                 ui.add_space(8.0);
                 let hint = if cfg!(windows) {
                     trl("Changing network settings needs administrator rights: close the app, right-click it and choose \"Run as administrator\".")

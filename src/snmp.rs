@@ -1014,7 +1014,7 @@ pub fn trap_serve(
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     trap: std::sync::Arc<dyn Fn(Trap) + Send + Sync>,
 ) -> Result<()> {
-    let sock = UdpSocket::bind((listen, port)).map_err(|e| match e.kind() {
+    let sock = crate::servers::bind_udp(listen, port).map_err(|e| match e.kind() {
         std::io::ErrorKind::AddrInUse => anyhow::anyhow!("UDP port {port} is in use by another program"),
         std::io::ErrorKind::PermissionDenied => {
             anyhow::anyhow!("port {port} needs administrator rights on this system")

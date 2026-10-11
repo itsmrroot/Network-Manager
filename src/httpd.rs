@@ -3,7 +3,7 @@
 //! configuration with PUT when uploads are allowed.
 
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{IpAddr, Ipv4Addr, TcpListener, TcpStream};
+use std::net::{IpAddr, Ipv4Addr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -43,7 +43,7 @@ pub type Log = Arc<dyn Fn(Event) + Send + Sync>;
 /// Serves `opts.root` until `stop` is set.
 pub fn serve(opts: Options, stop: Arc<AtomicBool>, log: Log) -> Result<()> {
     std::fs::create_dir_all(&opts.root).with_context(|| format!("could not create {}", opts.root.display()))?;
-    let listener = TcpListener::bind((opts.listen, opts.port)).map_err(|e| match e.kind() {
+    let listener = crate::servers::bind_tcp(opts.listen, opts.port).map_err(|e| match e.kind() {
         std::io::ErrorKind::AddrInUse => {
             anyhow::anyhow!("TCP port {} is in use by another program: choose another, such as 8080", opts.port)
         }
@@ -413,7 +413,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("images")).unwrap();
         std::fs::write(dir.join("images/c9300 firmware.bin"), b"0123456789").unwrap();
-        let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
         let stop = Arc::new(AtomicBool::new(false));
         let events = Arc::new(Mutex::new(Vec::new()));
         let (s2, e2) = (stop.clone(), events.clone());

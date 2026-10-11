@@ -149,7 +149,7 @@ pub fn tftp_serve(
     log: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<()> {
     ensure!(opts.root.is_dir(), "the folder {} does not exist", opts.root.display());
-    let sock = UdpSocket::bind((opts.listen, opts.port)).with_context(|| port_hint(opts.port))?;
+    let sock = bind_udp(opts.listen, opts.port).with_context(|| port_hint(opts.port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     log(format!("TFTP server listening on {}:{}, folder {}", opts.listen, opts.port, opts.root.display()));
     let mut buf = [0u8; 1500];
@@ -426,6 +426,86 @@ fn transfer(
     }
 }
 
+/// Opens UDP `port` on `listen`: one adapter's address, or 0.0.0.0 for
+/// every network. See [`bind_tcp`].
+pub fn bind_udp(listen: Ipv4Addr, port: u16) -> std::io::Result<UdpSocket> {
+    #[cfg(target_os = "macos")]
+    if let Some(index) = mac::low_port_interface(listen, port) {
+        let s = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port))?;
+        mac::bind_to_interface(&s, index)?;
+        return Ok(s);
+    }
+    UdpSocket::bind((listen, port))
+}
+
+/// Opens TCP `port` on `listen`. macOS lets apps without administrator
+/// rights take ports below 1024 (TFTP 69, syslog 514…) only on every
+/// address: there the port is opened on every address but tied to the
+/// adapter that has `listen`, which keeps others out the same way.
+pub fn bind_tcp(listen: Ipv4Addr, port: u16) -> std::io::Result<TcpListener> {
+    #[cfg(target_os = "macos")]
+    if let Some(index) = mac::low_port_interface(listen, port) {
+        let s = TcpListener::bind((Ipv4Addr::UNSPECIFIED, port))?;
+        mac::bind_to_interface(&s, index)?;
+        return Ok(s);
+    }
+    TcpListener::bind((listen, port))
+}
+
+#[cfg(target_os = "macos")]
+mod mac {
+    use std::net::Ipv4Addr;
+    use std::os::fd::AsRawFd;
+
+    /// The interface that has `listen`, when the port needs the workaround.
+    pub fn low_port_interface(listen: Ipv4Addr, port: u16) -> Option<u32> {
+        if port >= 1024 || listen.is_unspecified() || crate::cmd::is_admin() {
+            return None;
+        }
+        // SAFETY: getifaddrs' list is read while it is alive, then freed.
+        unsafe {
+            let mut list: *mut libc::ifaddrs = std::ptr::null_mut();
+            if libc::getifaddrs(&mut list) != 0 {
+                return None;
+            }
+            let mut found = None;
+            let mut cur = list;
+            while !cur.is_null() {
+                let a = &*cur;
+                if !a.ifa_addr.is_null() && i32::from((*a.ifa_addr).sa_family) == libc::AF_INET {
+                    let sin = &*(a.ifa_addr as *const libc::sockaddr_in);
+                    if Ipv4Addr::from(u32::from_be(sin.sin_addr.s_addr)) == listen {
+                        let index = libc::if_nametoindex(a.ifa_name);
+                        if index != 0 {
+                            found = Some(index);
+                            break;
+                        }
+                    }
+                }
+                cur = a.ifa_next;
+            }
+            libc::freeifaddrs(list);
+            found
+        }
+    }
+
+    /// IP_BOUND_IF: only packets of that interface reach the socket.
+    pub fn bind_to_interface(s: &impl AsRawFd, index: u32) -> std::io::Result<()> {
+        let index = index as libc::c_int;
+        // SAFETY: a plain integer option on a socket this process owns.
+        let r = unsafe {
+            libc::setsockopt(
+                s.as_raw_fd(),
+                libc::IPPROTO_IP,
+                libc::IP_BOUND_IF,
+                (&raw const index).cast(),
+                std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+            )
+        };
+        if r == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+    }
+}
+
 fn port_hint(port: u16) -> String {
     if port < 1024 && cfg!(target_os = "linux") {
         format!(
@@ -525,11 +605,11 @@ pub fn syslog_serve(
     stop: Arc<AtomicBool>,
     message: Arc<dyn Fn(SyslogMessage) + Send + Sync>,
 ) -> Result<()> {
-    let sock = UdpSocket::bind((listen, port)).with_context(|| port_hint(port))?;
+    let sock = bind_udp(listen, port).with_context(|| port_hint(port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     // TCP too, for devices that must not lose messages; optional, since
     // another program may hold the TCP port.
-    if let Ok(listener) = std::net::TcpListener::bind((listen, port)) {
+    if let Ok(listener) = bind_tcp(listen, port) {
         let (stop, message) = (stop.clone(), message.clone());
         let _ = listener.set_nonblocking(true);
         std::thread::spawn(move || {
@@ -610,7 +690,7 @@ pub fn throughput_serve(
     stop: Arc<AtomicBool>,
     log: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<()> {
-    let listener = TcpListener::bind((listen, port)).with_context(|| port_hint(port))?;
+    let listener = bind_tcp(listen, port).with_context(|| port_hint(port))?;
     listener.set_nonblocking(true)?;
     log(format!("Throughput server listening on port {port}"));
     let slots = Slots::default();
