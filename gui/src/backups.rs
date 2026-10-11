@@ -11,7 +11,7 @@ use netmgr::backup::{self, Line, Outcome, Version};
 use netmgr::remote::Saved;
 
 use crate::app::Shared;
-use crate::i18n::{tr, trf, trl};
+use crate::i18n::{tr, trf, trl, with_icon};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -84,7 +84,7 @@ impl Backups {
                 if theme::primary_button(
                     ui,
                     p,
-                    &format!("{}  {}", icon::CLOUD_ARROW_DOWN, trf("Back up {n} devices", &[("n", &devices.len())])),
+                    &with_icon(icon::CLOUD_ARROW_DOWN, &trf("Back up {n} devices", &[("n", &devices.len())])),
                     !busy && !devices.is_empty(),
                 )
                 .clicked()

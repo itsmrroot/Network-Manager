@@ -13,7 +13,7 @@ use egui_phosphor::regular as icon;
 use netmgr::servers::{self as ns, Direction, SyslogMessage, Transfers};
 
 use crate::app::Shared;
-use crate::i18n::{tr, tr_dyn, trf, trl, trlf};
+use crate::i18n::{tr, tr_dyn, trf, trl, trlf, with_icon};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -580,7 +580,7 @@ impl Servers {
         }
         listen_picker(ui, p, sh, self.syslog.is_none());
         let listen = listen_address(sh);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.add_enabled_ui(self.syslog.is_none(), |ui| {
                 ui.label(tr("UDP port"));
                 ui.add(egui::DragValue::new(&mut self.syslog_port).range(1..=65535));
@@ -625,6 +625,7 @@ impl Servers {
                 }));
             }
             ui.add_space(12.0);
+            theme::fit(ui, 160.0);
             egui::ComboBox::from_id_salt("severity")
                 .selected_text(trf(
                     "{severity} and worse",
@@ -642,10 +643,10 @@ impl Servers {
                 });
             ui.add(
                 egui::TextEdit::singleline(&mut self.filter)
-                    .hint_text(format!("{}  {}", icon::MAGNIFYING_GLASS, tr("Filter")))
+                    .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Filter")))
                     .desired_width(180.0),
             );
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            theme::trailing(ui, "syslog", |ui| {
                 if ui.button(icon_label(icon::TRASH, "Clear")).clicked()
                     && let Ok(mut m) = self.messages.lock()
                 {

@@ -74,19 +74,12 @@ impl Capture {
     fn start(&mut self, ctx: &egui::Context, sh: &Shared) {
         let Some(a) = sh.adapters.iter().find(|a| a.id == self.interface) else { return };
         let iface = if cfg!(windows) { a.name.clone() } else { a.device.clone() };
-        let dir = std::env::temp_dir().join(format!(
-            "netmgr-capture-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis())
-        ));
         if let Some(old) = self.last_file.take()
             && let Some(parent) = old.parent()
         {
             let _ = std::fs::remove_dir_all(parent);
         }
-        if std::fs::create_dir_all(&dir).is_err() {
-            return;
-        }
+        let Ok(dir) = netmgr::cmd::private_dir("netmgr-capture") else { return };
         let out = dir.join("capture.pcap");
         let stop = dir.join("stop");
         self.packets.clear();

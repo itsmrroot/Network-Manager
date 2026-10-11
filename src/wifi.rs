@@ -208,14 +208,32 @@ pub fn standard_name(phy: &str) -> String {
 mod imp {
     use super::*;
 
+    /// "{8a3c…}" or "8a3c1f2e-…": the adapter's GUID, the same in every language.
+    fn is_guid(v: &str) -> bool {
+        let v = v.trim_matches(['{', '}']);
+        v.len() == 36
+            && v.char_indices()
+                .all(|(i, c)| if [8, 13, 18, 23].contains(&i) { c == '-' } else { c.is_ascii_hexdigit() })
+    }
+
+    /// "92%", or "%92" as Turkish writes it.
+    fn percent(v: &str) -> Option<u8> {
+        if v.ends_with('%') || v.starts_with('%') { v.trim_matches('%').trim().parse().ok() } else { None }
+    }
+
     pub fn parse_interfaces(text: &str) -> Vec<Connection> {
         let mut out = Vec::new();
         let mut cur: Option<Connection> = None;
-        for (k, v) in key_values(text) {
+        let pairs = key_values(text);
+        for (i, (k, v)) in pairs.iter().cloned().enumerate() {
             let kl = k.to_lowercase();
-            if kl == "name" || kl == "nom" {
-                out.extend(cur.take());
-                cur = Some(Connection { interface: v, ..Default::default() });
+            // Each interface starts with its name, then its description and
+            // GUID; the name's label is translated (Name, Nombre, Ad, Имя…).
+            if kl == "name" || kl == "nom" || pairs.get(i + 2).is_some_and(|(_, g)| is_guid(g)) {
+                if cur.as_ref().is_none_or(|c| c.interface != v) {
+                    out.extend(cur.take());
+                    cur = Some(Connection { interface: v, ..Default::default() });
+                }
                 continue;
             }
             let Some(c) = cur.as_mut() else { continue };
@@ -223,17 +241,23 @@ mod imp {
                 c.ssid = Some(v).filter(|s| !s.is_empty());
             } else if k == "BSSID" || k == "AP BSSID" {
                 c.bssid = Some(v.to_uppercase());
-            } else if v.ends_with('%') {
-                c.signal = v.trim_end_matches('%').trim().parse().ok();
+            } else if let Some(p) = percent(&v) {
+                c.signal = Some(p);
             } else if v.starts_with("802.11") {
                 c.standard = Some(standard_name(&v));
             } else if kl.starts_with("channel") || kl.starts_with("kanal") || kl.starts_with("canal") {
                 c.channel = v.parse().ok();
             } else if kl.starts_with("band") {
                 c.band = Some(v.replace("GHz", " GHz").replace("  ", " "));
-            } else if kl.starts_with("authentication") || kl.starts_with("authentifizierung") {
+            } else if ["authentication", "authentifizierung", "authentification", "autenticación"]
+                .iter()
+                .any(|a| kl.starts_with(a))
+            {
                 c.security = Some(v);
-            } else if kl.starts_with("receive rate") || kl.starts_with("empfangsrate") {
+            } else if kl.starts_with("receive rate")
+                || kl.starts_with("empfangsrate")
+                || kl.starts_with("vitesse de réception")
+            {
                 c.rate_mbps = v.parse().ok();
             } else if kl.starts_with("rssi") {
                 c.rssi = v.parse().ok();
@@ -249,8 +273,27 @@ mod imp {
         out
     }
 
+    /// `netsh wlan show …`. Windows 11 24H2 and later answer only when
+    /// apps may use the location (a Wi-Fi scan reveals where you are).
+    fn netsh_wlan(args: &[&str]) -> Result<String> {
+        use anyhow::bail;
+        let mut all = vec!["wlan"];
+        all.extend_from_slice(args);
+        let out = cmd::output("netsh", &all)?;
+        if out.stdout.contains("privacy-location") || out.stderr.contains("privacy-location") {
+            let _ = cmd::command("explorer").arg("ms-settings:privacy-location").spawn();
+            bail!(
+                "Windows shows Wi-Fi details only when Location is on: turn on Location and \"Let desktop apps access your location\" in Settings → Privacy & security → Location"
+            );
+        }
+        if !out.success {
+            bail!("{}", out.message());
+        }
+        Ok(out.stdout)
+    }
+
     pub fn current() -> Result<Vec<Connection>> {
-        let text = cmd::run("netsh", &["wlan", "show", "interfaces"])?;
+        let text = netsh_wlan(&["show", "interfaces"])?;
         Ok(parse_interfaces(&text))
     }
 
@@ -290,9 +333,7 @@ mod imp {
     pub fn saved() -> Result<Vec<SavedNetwork>> {
         // The profiles are exported as XML (the same in every language) into
         // a private folder that is removed right after.
-        let dir = std::env::temp_dir().join(format!("netmgr-wlan-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir)?;
+        let dir = cmd::private_dir("netmgr-wlan")?;
         let folder = format!("folder={}", dir.display());
         let result = cmd::run("netsh", &["wlan", "export", "profile", "key=clear", &folder]).and_then(|_| {
             let mut out = Vec::new();
@@ -334,11 +375,14 @@ mod imp {
                     security: security.clone(),
                     ..Default::default()
                 });
-            } else if kl.starts_with("authentication") || kl.starts_with("authentifizierung") {
+            } else if ["authentication", "authentifizierung", "authentification", "autenticación"]
+                .iter()
+                .any(|a| kl.starts_with(a))
+            {
                 security = Some(v);
             } else if let Some(n) = out.last_mut().filter(|n| n.ssid == ssid) {
-                if v.ends_with('%') {
-                    n.signal = v.trim_end_matches('%').trim().parse().ok();
+                if let Some(p) = percent(&v) {
+                    n.signal = Some(p);
                 } else if kl.starts_with("channel") || kl.starts_with("kanal") || kl.starts_with("canal") {
                     n.channel = v.parse().ok();
                 } else if kl.starts_with("band") {
@@ -358,7 +402,7 @@ mod imp {
     }
 
     pub fn nearby() -> Result<Vec<Nearby>> {
-        let text = cmd::run("netsh", &["wlan", "show", "networks", "mode=bssid"])?;
+        let text = netsh_wlan(&["show", "networks", "mode=bssid"])?;
         let mut list = parse_networks(&text);
         let joined: Vec<String> = current().unwrap_or_default().into_iter().filter_map(|c| c.bssid).collect();
         for n in &mut list {
@@ -655,7 +699,8 @@ mod imp {
         let mut out = Vec::new();
         for (name, uuid) in connections()? {
             // -s shows secrets when NetworkManager allows this user to see them.
-            let text = cmd::run("nmcli", &["-s", "-g", FIELDS, "connection", "show", &uuid]).unwrap_or_default();
+            let text =
+                cmd::run("nmcli", &["-s", "-e", "no", "-g", FIELDS, "connection", "show", &uuid]).unwrap_or_default();
             out.push(network(&uuid, &name, &text));
         }
         out.sort_by_key(|n| n.ssid.to_lowercase());
@@ -669,7 +714,9 @@ mod imp {
         }
         let script: Vec<String> = conns
             .iter()
-            .map(|(_, uuid)| format!("nmcli -s -g {FIELDS} connection show {}; echo '@@netmgr@@'", sh_quote(uuid)))
+            .map(|(_, uuid)| {
+                format!("nmcli -s -e no -g {FIELDS} connection show {}; echo '@@netmgr@@'", sh_quote(uuid))
+            })
             .collect();
         let text = cmd::admin_sh(&script.join("; "))?;
         let mut out: Vec<SavedNetwork> = conns
@@ -682,7 +729,8 @@ mod imp {
     }
 
     pub fn password(n: &SavedNetwork) -> Result<Option<String>> {
-        let text = cmd::run("nmcli", &["-s", "-g", "802-11-wireless-security.psk", "connection", "show", &n.id])?;
+        let text =
+            cmd::run("nmcli", &["-s", "-e", "no", "-g", "802-11-wireless-security.psk", "connection", "show", &n.id])?;
         let p = text.trim();
         if !p.is_empty() {
             return Ok(Some(p.to_string()));
@@ -753,6 +801,10 @@ mod tests {
         assert_eq!(c.ssid.as_deref(), Some("Home 5G"));
         assert_eq!(c.signal, Some(92));
         assert_eq!(c.channel, Some(36));
+        // Turkish: translated labels, the GUID line, "%85".
+        let tr = "Sistemde 1 arabirim var:\n\n    Ad                     : Wi-Fi\n    Açıklama               : Intel(R) Wi-Fi 6 AX201\n    GUID                   : 8a3c1f2e-1b2c-4d5e-8f90-1234567890ab\n    Durum                  : bağlı\n    SSID                   : Ev\n    AP BSSID               : aa:bb:cc:dd:ee:ff\n    Sinyal                 : %85\n";
+        let c = &imp::parse_interfaces(tr)[0];
+        assert_eq!((c.interface.as_str(), c.ssid.as_deref(), c.signal), ("Wi-Fi", Some("Ev"), Some(85)));
         let xml = "<WLANProfile><name>Home</name><SSIDConfig><SSID><name>Home &amp; Co</name></SSID><nonBroadcast>true</nonBroadcast></SSIDConfig><MSM><security><authEncryption><authentication>WPA2PSK</authentication></authEncryption><sharedKey><keyMaterial>pa&lt;ss</keyMaterial></sharedKey></security></MSM></WLANProfile>";
         let n = imp::parse_profile(xml).unwrap();
         assert_eq!((n.ssid.as_str(), n.password.as_deref(), n.hidden), ("Home & Co", Some("pa<ss"), true));

@@ -11,7 +11,7 @@ use egui_phosphor::regular as icon;
 use netmgr::scan::{self, Device, DeviceKind, Range};
 
 use crate::app::{Nav, Shared};
-use crate::i18n::{tr, tr_dyn, trf, trl, trn};
+use crate::i18n::{tr, tr_dyn, trf, trl, trn, with_icon};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 use crate::tools::Tab;
@@ -286,7 +286,7 @@ impl Devices {
 
         ui.add(
             egui::TextEdit::singleline(&mut self.search)
-                .hint_text(format!("{}  {}", icon::MAGNIFYING_GLASS, tr("Search by name, address or maker")))
+                .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Search by name, address or maker")))
                 .desired_width(320.0),
         );
         ui.add_space(8.0);
@@ -305,11 +305,16 @@ impl Devices {
             })
             .collect();
         let selected = self.selected.and_then(|ip| self.devices.iter().find(|d| d.ip == ip).cloned());
-        let height = ui.available_height();
         let detail_w = if selected.is_some() { 300.0 } else { 0.0 };
-        ui.horizontal_top(|ui| {
+        // Too narrow for the table and the details side by side: the details
+        // go below the table.
+        let below = selected.is_some() && ui.available_width() < 880.0;
+        let height = if below { ui.available_height() * 0.5 } else { ui.available_height() };
+        let layout = if below { Layout::top_down(Align::Min) } else { Layout::left_to_right(Align::Min) };
+        ui.with_layout(layout, |ui| {
             // The detail card adds its margins (2 × 18) and border to `detail_w`.
-            let table_w = ui.available_width() - if selected.is_some() { detail_w + 12.0 + 40.0 } else { 0.0 };
+            let table_w =
+                ui.available_width() - if selected.is_some() && !below { detail_w + 12.0 + 40.0 } else { 0.0 };
             ui.allocate_ui_with_layout(egui::vec2(table_w, height), Layout::top_down(Align::Min), |ui| {
                 theme::card(ui, p, |ui| {
                     ui.set_width(ui.available_width());
@@ -332,10 +337,11 @@ impl Devices {
                         .sense(egui::Sense::click())
                         .max_scroll_height(height - 80.0)
                         .column(Column::exact(34.0))
-                        .column(Column::remainder().at_least(160.0).clip(true))
+                        // Name and maker give way (cut short) on narrow windows.
+                        .column(Column::remainder().at_least(80.0).clip(true))
                         .column(Column::exact(120.0))
                         .column(Column::exact(150.0))
-                        .column(Column::remainder().at_least(120.0).clip(true))
+                        .column(Column::remainder().at_least(60.0).clip(true))
                         .header(26.0, |mut h| {
                             for t in ["", tr("Name"), tr("IP address"), tr("MAC address"), tr("Maker")] {
                                 h.col(|ui| {
@@ -403,10 +409,18 @@ impl Devices {
             });
             if let Some(d) = selected {
                 ui.add_space(12.0);
-                ui.vertical(|ui| {
-                    ui.set_width(detail_w);
-                    self.detail(ui, p, sh, &d);
-                });
+                if below {
+                    // What is left of the page, scrolling.
+                    egui::ScrollArea::vertical().id_salt("device-detail").show(ui, |ui| {
+                        ui.set_width(ui.available_width() - 40.0);
+                        self.detail(ui, p, sh, &d);
+                    });
+                } else {
+                    ui.vertical(|ui| {
+                        ui.set_width(detail_w);
+                        self.detail(ui, p, sh, &d);
+                    });
+                }
             }
         });
     }

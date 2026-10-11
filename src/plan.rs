@@ -186,7 +186,10 @@ fn assign_ipv6(nets: &mut [Network], base: Ipv6Addr, prefix: u8) -> Result<(), P
     let ids: Vec<u64> = if by_vlan {
         nets.iter().map(|n| u64::from_str_radix(&n.vlan.to_string(), 16).unwrap_or(0)).collect()
     } else {
-        (1..=nets.len() as u64).collect()
+        // From 1, keeping the prefix's own first /64 free, unless that one
+        // is needed too (a /64 for one network).
+        let first = u64::from((nets.len() as u64) < room);
+        (first..first + nets.len() as u64).collect()
     };
     if ids.iter().any(|&id| id >= room) {
         return Err(PlanError::Ipv6TooSmall { room: room.saturating_sub(1) });
@@ -206,7 +209,9 @@ pub fn plan(space: &Subnet, groups: &[Group], opt: &Options) -> Result<Plan, Pla
     }
     let (total, prefix) = size(groups, opt);
     let room = 1u64 << (32 - space.prefix);
-    if total > room || nets.len() as u64 > MAX_NETWORKS {
+    // A network larger than any IPv4 network fits nowhere.
+    let fits = nets.iter().all(|n| n.3 <= (1u64 << (32 - n.4)) - 2);
+    if total > room || nets.len() as u64 > MAX_NETWORKS || !fits {
         return Err(PlanError::TooSmall { needed: total, prefix });
     }
     // Stable: equal sizes keep their order (Room 1, Room 2, …).
@@ -663,6 +668,18 @@ mod tests {
         assert_eq!(tight, Err(PlanError::Ipv6TooSmall { room: 3 }));
         assert!(plan_dual(&space, "2001:db8::/80", &groups(), &Options::default()).is_err());
         assert!(random_ula().starts_with("fd") && parse_ipv6(&random_ula()).is_ok());
+    }
+
+    #[test]
+    fn impossible_sizes_are_errors_not_crashes() {
+        let all = Subnet::parse("0.0.0.0/0").unwrap();
+        let huge = [Group { name: "A".into(), count: 1, devices: u32::MAX - 1 }];
+        let opt = Options { growth: 0, ..Options::default() };
+        assert!(matches!(plan(&all, &huge, &opt), Err(PlanError::TooSmall { .. })));
+        // One network in a single /64.
+        let one = [Group { name: "Office".into(), count: 1, devices: 10 }];
+        let p = plan_dual(&Subnet::parse("10.0.0.0/24").unwrap(), "2001:db8:1:2::/64", &one, &opt).unwrap().unwrap();
+        assert_eq!(p.networks[0].ipv6.unwrap().to_string(), "2001:db8:1:2::");
     }
 
     #[test]

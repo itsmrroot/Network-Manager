@@ -254,15 +254,23 @@ fn read_uint(b: &[u8]) -> u64 {
 
 fn read_oid(b: &[u8]) -> Result<Oid> {
     ensure!(!b.is_empty(), "empty OID");
-    let mut out = vec![(b[0] / 40) as u32, (b[0] % 40) as u32];
+    let mut out = Vec::new();
     let mut n: u32 = 0;
-    for &x in &b[1..] {
-        n = n.checked_shl(7).context("OID too long")? | (x & 0x7f) as u32;
+    for &x in b {
+        ensure!(n <= u32::MAX >> 7, "OID number too large");
+        n = (n << 7) | (x & 0x7f) as u32;
         if x & 0x80 == 0 {
-            out.push(n);
+            if out.is_empty() {
+                // The first number holds the first two: 40 × X + Y (X ≤ 2).
+                let first = (n / 40).min(2);
+                out.extend([first, n - first * 40]);
+            } else {
+                out.push(n);
+            }
             n = 0;
         }
     }
+    ensure!(n == 0 && !out.is_empty(), "damaged OID");
     Ok(Oid(out))
 }
 
@@ -564,6 +572,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn oids_decode_exactly() {
+        assert_eq!(read_oid(&[0x2b, 0x06, 0x01]).unwrap().0, vec![1, 3, 6, 1]);
+        // 2.999.3: the first number takes two bytes.
+        assert_eq!(read_oid(&[0x88, 0x37, 0x03]).unwrap().0, vec![2, 999, 3]);
+        // Numbers past 32 bits are refused, never cut short.
+        assert!(read_oid(&[0x2b, 0x90, 0x80, 0x80, 0x80, 0x07]).is_err());
+        assert_eq!(read_oid(&[0x2b, 0x8f, 0xff, 0xff, 0xff, 0x7f]).unwrap().0, vec![1, 3, u32::MAX]);
+    }
+
+    #[test]
     fn encodes_like_net_snmp() {
         // snmpget -v2c -c public HOST 1.3.6.1.2.1.1.5.0 with request ID 0x1234.
         let m = encode(Version::V2c, "public", GET, 0x1234, 0, 0, &[Oid::parse("1.3.6.1.2.1.1.5.0").unwrap()]);
@@ -659,6 +677,9 @@ fn suffix<'a>(o: &'a Oid, root: &Oid) -> &'a [u32] {
 /// The LLDP and CDP neighbors a switch knows.
 pub fn neighbors(c: &Client) -> Result<Vec<Neighbor>> {
     use std::collections::BTreeMap;
+    // The tables below may be missing; the device must answer at all
+    // (sysUpTime), or "no neighbours" would hide a wrong address or community.
+    c.get(&[Oid::parse("1.3.6.1.2.1.1.3.0")?])?;
     let mut out = Vec::new();
     // LLDP-MIB: local port names by port number.
     let loc = Oid::parse("1.0.8802.1.1.2.1.3.7.1")?;

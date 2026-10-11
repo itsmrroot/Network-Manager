@@ -474,19 +474,46 @@ impl Summary {
 
 // ---------------------------------------------------------------- capture
 
+/// Opens a new `out` for the capture, which runs as root: never follows a
+/// link and never writes over an existing file, and only into a folder
+/// that others cannot write to (the app's private temporary folder).
+fn create_output(out: &Path) -> Result<std::fs::File> {
+    let mut o = std::fs::OpenOptions::new();
+    o.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+        o.custom_flags(libc::O_NOFOLLOW);
+        let parent = match out.parent() {
+            Some(p) if !p.as_os_str().is_empty() => p,
+            _ => Path::new("."),
+        };
+        let m = std::fs::symlink_metadata(parent).with_context(|| format!("could not open {}", parent.display()))?;
+        // Others may write there only with the sticky bit (as in /tmp),
+        // which keeps them from replacing what root creates.
+        ensure!(
+            m.is_dir() && (m.mode() & 0o022 == 0 || m.mode() & 0o1000 != 0),
+            "{} is a link or others can write to it",
+            parent.display()
+        );
+    }
+    let file = o.open(out).with_context(|| format!("could not create {} (does it already exist?)", out.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        // Written as root, read by the app.
+        let _ = file.set_permissions(std::fs::Permissions::from_mode(0o644));
+    }
+    Ok(file)
+}
+
 /// Captures on `interface` into `out` until `stop` exists, `parent` (a
 /// process ID) is gone, `seconds` have passed or the file reaches
 /// `max_bytes`. Needs administrator rights.
 pub fn run(interface: &str, out: &Path, stop: &Path, parent: Option<u32>, seconds: u64, max_bytes: u64) -> Result<()> {
     ensure!(crate::cmd::is_admin(), "capturing packets needs administrator rights");
     let mut sniffer = imp::Sniffer::open(interface)?;
-    let mut file = std::fs::File::create(out).with_context(|| format!("could not create {}", out.display()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        // Written as root, read by the app.
-        let _ = std::fs::set_permissions(out, std::fs::Permissions::from_mode(0o644));
-    }
+    let mut file = create_output(out)?;
     file.write_all(&pcap_header(imp::LINK))?;
     file.flush()?;
     let started = Instant::now();
@@ -812,7 +839,9 @@ pub fn start(interface: &str, out: &Path, stop: &Path, seconds: u64) -> Result<(
     let exe = crate::cmd::helper_exe()?;
     let pid = std::process::id();
     if cfg!(windows) {
-        std::process::Command::new(&exe)
+        // No console window; errors go to the log, for start_error.
+        let log = std::fs::File::create(out.with_extension("log"))?;
+        crate::cmd::command(&exe.to_string_lossy())
             .args(["capture", "--interface", interface, "--out"])
             .arg(out)
             .arg("--stop")
@@ -820,7 +849,7 @@ pub fn start(interface: &str, out: &Path, stop: &Path, seconds: u64) -> Result<(
             .args(["--parent", &pid.to_string(), "--seconds", &seconds.to_string()])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
+            .stderr(log)
             .spawn()
             .context("could not start the capture")?;
         return Ok(());
@@ -828,7 +857,8 @@ pub fn start(interface: &str, out: &Path, stop: &Path, seconds: u64) -> Result<(
     let q = |s: &str| crate::cmd::sh_quote(s);
     let log = out.with_extension("log");
     let script = format!(
-        "{} capture --interface {} --out {} --stop {} --parent {pid} --seconds {seconds} > {} 2>&1 &",
+        // `set -C`: the log never replaces an existing file or follows a link.
+        "set -C; {} capture --interface {} --out {} --stop {} --parent {pid} --seconds {seconds} > {} 2>&1 &",
         q(&exe.display().to_string()),
         q(interface),
         q(&out.display().to_string()),
@@ -849,6 +879,24 @@ pub fn start_error(out: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn output_never_follows_links_or_replaces_files() {
+        let dir = crate::cmd::private_dir("netmgr-test-capture").unwrap();
+        let target = dir.join("target");
+        std::fs::write(&target, "keep").unwrap();
+        std::os::unix::fs::symlink(&target, dir.join("link.pcap")).unwrap();
+        assert!(create_output(&dir.join("link.pcap")).is_err());
+        assert!(create_output(&target).is_err());
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "keep");
+        assert!(create_output(&dir.join("new.pcap")).is_ok());
+        // A folder others can write to (without the sticky bit) is refused.
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o777)).unwrap();
+        assert!(create_output(&dir.join("other.pcap")).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     fn eth(kind: u16, body: &[u8]) -> Vec<u8> {
         let mut f = vec![0xff; 6];

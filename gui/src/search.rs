@@ -5,7 +5,7 @@ use eframe::egui::{self, Key, RichText};
 use egui_phosphor::regular as icon;
 
 use crate::app::Page;
-use crate::i18n::tr;
+use crate::i18n::{tr, with_icon};
 use crate::menu::Command;
 use crate::theme::Palette;
 use crate::tools;
@@ -319,7 +319,7 @@ impl Search {
             ui.set_width(520.0);
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.query)
-                    .hint_text(format!("{}  {}", icon::MAGNIFYING_GLASS, tr("Search pages, tools and actions")))
+                    .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Search pages, tools and actions")))
                     .desired_width(f32::INFINITY)
                     .font(egui::TextStyle::Heading),
             );
@@ -337,14 +337,13 @@ impl Search {
             for (i, e) in found.iter().enumerate() {
                 let selected = i == self.selected;
                 let text = if e.place.is_empty() { e.label.clone() } else { format!("{}   ·  {}", e.label, e.place) };
-                let b =
-                    egui::Button::new(RichText::new(format!("{}   {text}", e.glyph)).size(14.0).color(if selected {
-                        p.text
-                    } else {
-                        p.weak
-                    }))
-                    .fill(if selected { p.tint(p.accent) } else { egui::Color32::TRANSPARENT })
-                    .min_size(egui::vec2(ui.available_width(), 30.0));
+                let b = egui::Button::new(RichText::new(with_icon(e.glyph, &text)).size(14.0).color(if selected {
+                    p.text
+                } else {
+                    p.weak
+                }))
+                .fill(if selected { p.tint(p.accent) } else { egui::Color32::TRANSPARENT })
+                .min_size(egui::vec2(ui.available_width(), 30.0));
                 let r = ui.add(b);
                 if r.hovered() {
                     self.selected = i;

@@ -338,7 +338,8 @@ pub fn write_hosts(lines: &[HostsLine]) -> Result<()> {
         let _ = cmd::run("ipconfig", &["/flushdns"]);
         return Ok(());
     }
-    let tmp = std::env::temp_dir().join(format!("netmgr-hosts-{}", std::process::id()));
+    let dir = cmd::private_dir("netmgr-hosts")?;
+    let tmp = dir.join("hosts");
     std::fs::write(&tmp, text)?;
     let (p, b, t) = (
         cmd::sh_quote(&path.display().to_string()),
@@ -348,7 +349,7 @@ pub fn write_hosts(lines: &[HostsLine]) -> Result<()> {
     // `cat >` keeps the file's owner and permissions.
     let flush = if cfg!(target_os = "macos") { "; dscacheutil -flushcache; killall -HUP mDNSResponder" } else { "" };
     let r = cmd::admin_sh(&format!("[ -e {b} ] || cp -p {p} {b}; cat {t} > {p}{flush}"));
-    let _ = std::fs::remove_file(&tmp);
+    let _ = std::fs::remove_dir_all(&dir);
     r.map(drop)
 }
 

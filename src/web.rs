@@ -185,7 +185,9 @@ pub fn tls(target: &str) -> Result<TlsReport> {
     let target = target.trim().trim_start_matches("https://").split('/').next().unwrap_or("").to_string();
     let (host, port) = match target.rsplit_once(':') {
         Some((h, p)) if !h.contains(':') || h.ends_with(']') => {
-            (h.trim_matches(['[', ']']).to_string(), p.parse().unwrap_or(443))
+            let port = p.parse::<u16>().ok().filter(|&p| p > 0);
+            let Some(port) = port else { anyhow::bail!("{p} is not a port (1 to 65535)") };
+            (h.trim_matches(['[', ']']).to_string(), port)
         }
         _ => (target.trim_matches(['[', ']']).to_string(), 443),
     };

@@ -524,15 +524,14 @@ mod imp {
 
     pub fn capture(_interface: &str, timeout: Duration) -> Result<Vec<Vec<u8>>> {
         ensure!(cmd::exists("pktmon"), "pktmon (Windows 10 version 2004 or newer) is needed");
-        let dir = std::env::temp_dir().join(format!("netmgr-lldp-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir)?;
+        let dir = cmd::private_dir("netmgr-lldp")?;
         let etl = dir.join("capture.etl");
         let pcap = dir.join("capture.pcapng");
         let _ = cmd::run("pktmon", &["stop"]);
         let _ = cmd::run("pktmon", &["filter", "remove"]);
         cmd::run("pktmon", &["filter", "add", "NetMgrCDP", "-m", "01-00-0C-CC-CC-CC"])?;
-        cmd::run("pktmon", &["filter", "add", "NetMgrLLDP", "-d", "LLDP"])?;
+        // LLDP's multicast address (`-d` takes only IPv4, IPv6, ARP or a number).
+        cmd::run("pktmon", &["filter", "add", "NetMgrLLDP", "-m", "01-80-C2-00-00-0E"])?;
         let started = cmd::run("pktmon", &["start", "-c", "--pkt-size", "0", "-f", &etl.display().to_string()]);
         if let Err(e) = started {
             let _ = cmd::run("pktmon", &["filter", "remove"]);

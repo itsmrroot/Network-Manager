@@ -35,7 +35,12 @@ pub fn system_ping(ip: IpAddr, timeout: Duration) -> Result<Option<Duration>> {
     let (prog, args): (&str, Vec<String>) = if cfg!(windows) {
         ("ping", vec!["-n".into(), "1".into(), "-w".into(), ms.to_string(), host])
     } else if cfg!(target_os = "macos") {
-        (if ip.is_ipv6() { "ping6" } else { "ping" }, vec!["-c".into(), "1".into(), "-W".into(), ms.to_string(), host])
+        // ping6 has no -W (wait): it gives up by itself.
+        if ip.is_ipv6() {
+            ("ping6", vec!["-c".into(), "1".into(), host])
+        } else {
+            ("ping", vec!["-c".into(), "1".into(), "-W".into(), ms.to_string(), host])
+        }
     } else {
         ("ping", vec!["-c".into(), "1".into(), "-W".into(), (ms / 1000).max(1).to_string(), host])
     };

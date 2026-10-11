@@ -339,11 +339,47 @@ pub fn section_title(ui: &mut Ui, p: &Palette, icon: &str, title: &str) {
     ui.add_space(4.0);
 }
 
+/// What is left of a `ui.horizontal_wrapped` row (`available_width` gives
+/// the whole row there, since most widgets can go to the next one).
+fn row_left(ui: &Ui) -> f32 {
+    ui.max_rect().right() - ui.cursor().left()
+}
+
+/// In a `ui.horizontal_wrapped` row: starts a new row unless `width` fits.
+/// Needed before combo boxes and other widgets made of several parts,
+/// which egui does not wrap by itself.
+pub fn fit(ui: &mut Ui, width: f32) {
+    if row_left(ui) < width {
+        ui.end_row();
+    }
+}
+
+/// The buttons at the end of a toolbar row (`ui.horizontal_wrapped`):
+/// right-aligned, and on a row of their own when the window is too narrow
+/// for them (instead of drawing over what comes before).
+pub fn trailing<R>(ui: &mut Ui, id: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let id = egui::Id::new(("trailing", id));
+    let needed: f32 = ui.data(|d| d.get_temp(id)).unwrap_or(0.0);
+    if needed > row_left(ui) {
+        ui.end_row();
+    }
+    let size = Vec2::new(row_left(ui).max(0.0), ui.spacing().interact_size.y);
+    let r = ui.allocate_ui_with_layout(size, egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        let r = add(ui);
+        (r, ui.min_rect().width())
+    });
+    let (r, width) = r.inner;
+    ui.data_mut(|d| d.insert_temp(id, width + 8.0));
+    r
+}
+
 pub fn primary_button(ui: &mut Ui, p: &Palette, text: &str, enabled: bool) -> Response {
     let fill = if enabled { p.accent } else { p.accent.gamma_multiply(0.4) };
+    // Disabled: muted text, readable on the pale fill of the light theme.
+    let color = if enabled { Color32::WHITE } else { p.weak };
     ui.add_enabled(
         enabled,
-        egui::Button::new(semibold(text, 15.0).color(Color32::WHITE))
+        egui::Button::new(semibold(text, 15.0).color(color))
             .fill(fill)
             .stroke(Stroke::NONE)
             .corner_radius(CornerRadius::same(10))
@@ -507,8 +543,11 @@ pub fn tabs<T: Copy + PartialEq>(ui: &mut Ui, p: &Palette, current: &mut T, item
         ui.spacing_mut().item_spacing.x = 6.0;
         for (value, glyph, label) in items {
             let selected = *current == *value;
-            let text =
-                RichText::new(format!("{glyph}  {label}")).size(14.0).color(if selected { p.text } else { p.weak });
+            let text = RichText::new(crate::i18n::with_icon(glyph, label)).size(14.0).color(if selected {
+                p.text
+            } else {
+                p.weak
+            });
             let b = egui::Button::new(text)
                 .fill(if selected { p.tint(p.accent) } else { Color32::TRANSPARENT })
                 .stroke(if selected { Stroke::new(1.0, p.accent.gamma_multiply(0.6)) } else { Stroke::NONE })
@@ -528,8 +567,11 @@ pub fn subtabs<T: Copy + PartialEq>(ui: &mut Ui, p: &Palette, current: &mut T, i
         ui.spacing_mut().item_spacing.x = 18.0;
         for (value, glyph, label) in items {
             let selected = *current == *value;
-            let text =
-                RichText::new(format!("{glyph}  {label}")).size(13.5).color(if selected { p.accent } else { p.weak });
+            let text = RichText::new(crate::i18n::with_icon(glyph, label)).size(13.5).color(if selected {
+                p.accent
+            } else {
+                p.weak
+            });
             let r =
                 ui.add(egui::Label::new(text).sense(Sense::click())).on_hover_cursor(egui::CursorIcon::PointingHand);
             if selected {

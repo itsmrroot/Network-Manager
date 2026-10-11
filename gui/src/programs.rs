@@ -42,6 +42,32 @@ impl Drop for Programs {
 }
 
 impl Programs {
+    /// Development aid: sample programs instead of this computer's own.
+    #[cfg(debug_assertions)]
+    pub fn demo(&mut self) {
+        let sample = [
+            ("Safari", 412, 2_400_000, 180_000, 2_850_000_000, 96_000_000),
+            ("Mail", 388, 0, 2_000, 41_000_000, 3_200_000),
+            ("Music", 501, 620_000, 9_000, 512_000_000, 4_100_000),
+            ("Zoom", 733, 310_000, 290_000, 380_000_000, 352_000_000),
+            ("Dropbox", 640, 12_000, 1_450_000, 64_000_000, 1_210_000_000),
+            ("softwareupdated", 220, 0, 0, 920_000_000, 1_800_000),
+        ];
+        self.started_once = true;
+        self.since = Instant::now().checked_sub(std::time::Duration::from_secs(25 * 60));
+        self.rates = sample
+            .iter()
+            .map(|&(program, pid, received, sent, ..)| Usage {
+                program: program.into(),
+                pids: vec![pid],
+                received,
+                sent,
+                connections: 0,
+            })
+            .collect();
+        self.totals = sample.iter().map(|&(program, _, _, _, r, s)| (program.to_string(), (r, s))).collect();
+    }
+
     pub fn running(&self) -> bool {
         self.stop.is_some()
     }
@@ -147,7 +173,8 @@ impl Programs {
                 }
                 ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text(tr("Filter")).desired_width(180.0));
                 if let Some(since) = self.since {
-                    let m = since.elapsed().as_secs() / 60;
+                    // Rounded up: "the last 1 min" during the first minute, never 0.
+                    let m = since.elapsed().as_secs().div_ceil(60).max(1);
                     ui.label(RichText::new(trf("Totals for the last {n} min", &[("n", &m)])).color(p.weak).size(12.5));
                 }
             });

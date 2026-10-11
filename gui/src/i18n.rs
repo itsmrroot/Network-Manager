@@ -357,7 +357,16 @@ pub fn trlf(en: &'static str, args: &[(&str, &dyn Display)]) -> String {
 
 /// A label with `{name}` placeholders, translated and ready to display.
 pub fn trf(en: &'static str, args: &[(&str, &dyn Display)]) -> String {
-    let s = trlf(en, args);
+    let template = lookup(en);
+    if !needs_reordering(template) {
+        return trlf(en, args);
+    }
+    // In right-to-left text each value stays whole ("5 GHz", not "GHz 5"):
+    // isolated (FSI … PDI) for the reordering, which then drops the marks.
+    let mut s = template.to_string();
+    for (name, value) in args {
+        s = s.replace(&format!("{{{name}}}"), &format!("\u{2068}{value}\u{2069}"));
+    }
     match visual(&s) {
         Cow::Borrowed(_) => s,
         Cow::Owned(v) => v,
@@ -369,6 +378,14 @@ pub fn trf(en: &'static str, args: &[(&str, &dyn Display)]) -> String {
 pub fn trn(n: impl Into<u64>, one: &'static str, many: &'static str) -> String {
     let n = n.into();
     trf(if n == 1 { one } else { many }, &[("n", &n)])
+}
+
+/// An icon, a gap and `label` (already in display order, as [`tr`] gives
+/// it). egui turns each stretch of Arabic around as a whole, spaces
+/// included: before Arabic text the gap goes after it, so that it ends up
+/// between the icon and the word.
+pub fn with_icon(glyph: &str, label: &str) -> String {
+    if label.chars().next().is_some_and(is_arabic) { format!("{glyph}{label}  ") } else { format!("{glyph}  {label}") }
 }
 
 /// An icon followed by a translated label.
@@ -429,6 +446,8 @@ fn visual_line(line: &str, out: &mut String) {
         let chars = line[run.clone()].chars().map(|c| (c, rtl));
         if rtl { screen.extend(chars.rev()) } else { screen.extend(chars) }
     }
+    // Isolation marks have done their work and would show as boxes.
+    screen.retain(|&(c, _)| !matches!(c, '\u{2066}'..='\u{2069}'));
     // egui shapes each stretch of characters that share a font separately and
     // the shaper reverses (and mirrors) those containing Arabic: reverse them
     // beforehand. Brackets in right-to-left text that the shaper does not see
@@ -531,6 +550,13 @@ mod tests {
         assert!(shown.contains("(TRIM)"), "{shown}");
         let shown = egui_draws(&visual("مثال (تجربة)"));
         assert!(shown.starts_with('(') && shown.contains(") "), "{shown}");
+    }
+
+    #[test]
+    fn isolated_values_stay_whole() {
+        // "Channel 36 (5 GHz)": on screen "(5 GHz) 36 القناة", never "(GHz 5)".
+        let shown = egui_draws(&visual("القناة \u{2068}36\u{2069} (\u{2068}5 GHz\u{2069})"));
+        assert!(shown.contains("5 GHz") && !shown.contains('\u{2068}') && !shown.contains('\u{2069}'), "{shown}");
     }
 
     #[test]

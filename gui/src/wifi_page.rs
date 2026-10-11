@@ -9,7 +9,7 @@ use egui_phosphor::regular as icon;
 use netmgr::wifi::{self, Connection, Nearby, SavedNetwork};
 
 use crate::app::Shared;
-use crate::i18n::{tr, tr_dyn, trf, trl};
+use crate::i18n::{tr, tr_dyn, trf, trl, with_icon};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -304,7 +304,9 @@ impl WifiPage {
     }
 
     fn show_password(&mut self, ctx: &egui::Context, n: &SavedNetwork) {
-        if n.password_read {
+        // An open network has no password to ask the system (and its
+        // password dialog) for.
+        if n.password_read || n.security.as_deref().is_some_and(|s| s.contains("Open")) {
             self.revealed.insert(n.ssid.clone());
         } else if self.password_job.is_none() {
             let n = n.clone();
@@ -335,7 +337,7 @@ impl WifiPage {
             ui.horizontal(|ui| {
                 ui.add(
                     egui::TextEdit::singleline(&mut self.search)
-                        .hint_text(format!("{}  {}", icon::MAGNIFYING_GLASS, tr("Search networks")))
+                        .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Search networks")))
                         .desired_width(240.0),
                 );
                 let list = self.saved.clone().unwrap_or_default();
@@ -705,17 +707,20 @@ fn export(list: &[SavedNetwork], sh: &mut Shared) {
         return;
     };
     let esc = |s: &str| format!("\"{}\"", s.replace('"', "\"\""));
+    // A network's name is chosen by whoever runs it: never a spreadsheet
+    // formula.
+    let name = |s: &str| if s.starts_with(['=', '+', '-', '@']) { esc(&format!("'{s}")) } else { esc(s) };
     let mut out = String::from("Network,Security,Password,Hidden\n");
     for n in list {
         out += &format!(
             "{},{},{},{}\n",
-            esc(&n.ssid),
+            name(&n.ssid),
             esc(n.security.as_deref().unwrap_or("")),
             esc(n.password.as_deref().unwrap_or("")),
             if n.hidden { "yes" } else { "no" }
         );
     }
-    match std::fs::write(&path, out) {
+    match netmgr::cmd::write_private(&path, out) {
         Ok(()) => sh.toast(trf("Saved to {file}. Keep this file private.", &[("file", &path.display())])),
         Err(e) => sh.fail(trl("The file could not be saved."), &e.into()),
     }

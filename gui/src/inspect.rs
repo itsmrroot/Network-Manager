@@ -10,7 +10,7 @@ use netmgr::system::{self, Connection, HostsLine, Route};
 use netmgr::web::{self, HttpHop, TlsReport, Whois};
 
 use crate::app::Shared;
-use crate::i18n::{tr, tr_dyn, trf, trl, trlf};
+use crate::i18n::{tr, tr_dyn, trf, trl, trlf, with_icon};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -370,7 +370,7 @@ impl Inspect {
             ui.selectable_value(&mut self.listening_only, false, tr("All connections"));
             ui.add(
                 egui::TextEdit::singleline(&mut self.conn_filter)
-                    .hint_text(format!("{}  {}", icon::MAGNIFYING_GLASS, tr("Filter by program, port or address")))
+                    .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Filter by program, port or address")))
                     .desired_width(260.0),
             );
             if self.conns.is_some() {

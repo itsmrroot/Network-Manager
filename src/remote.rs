@@ -147,6 +147,8 @@ impl Remote {
         // Keeps idle sessions through firewalls that drop quiet connections.
         cmd.args(["-o", "ServerAliveInterval=30"]);
         let target = if s.user.is_empty() { s.host.clone() } else { format!("{}@{}", s.user, s.host) };
+        // `--`: a name starting with `-` is never read as an option.
+        cmd.arg("--");
         cmd.arg(target);
         let child = pty.slave.spawn_command(cmd).context("could not start ssh")?;
         drop(pty.slave);

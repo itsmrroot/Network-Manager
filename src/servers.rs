@@ -76,7 +76,40 @@ pub fn safe_path(root: &Path, requested: &str) -> Result<PathBuf> {
         }
     }
     ensure!(out != root, "no file name");
+    // A link inside the folder must not lead out of it.
+    if let Ok(real_root) = root.canonicalize() {
+        let existing = out.ancestors().find(|p| p.exists()).unwrap_or(root);
+        let real = existing.canonicalize()?;
+        ensure!(real.starts_with(&real_root), "access outside the TFTP folder is not allowed");
+    }
     Ok(out)
+}
+
+/// At most this many clients at once on each server: more are turned away
+/// instead of starting a thread each.
+pub const MAX_CLIENTS: usize = 64;
+
+/// Counts the clients being served; a [`Slot`] is given back when dropped.
+#[derive(Clone, Default)]
+pub struct Slots(Arc<std::sync::atomic::AtomicUsize>);
+
+pub struct Slot(Arc<std::sync::atomic::AtomicUsize>);
+
+impl Slots {
+    pub fn take(&self) -> Option<Slot> {
+        let n = self.0.fetch_add(1, Ordering::SeqCst);
+        if n >= MAX_CLIENTS {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+            return None;
+        }
+        Some(Slot(self.0.clone()))
+    }
+}
+
+impl Drop for Slot {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 /// A TFTP request: opcode, file name, mode, options.
@@ -120,11 +153,14 @@ pub fn tftp_serve(
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     log(format!("TFTP server listening on {}:{}, folder {}", opts.listen, opts.port, opts.root.display()));
     let mut buf = [0u8; 1500];
+    let slots = Slots::default();
     while !stop.load(Ordering::Relaxed) {
         let Ok((n, peer)) = sock.recv_from(&mut buf) else { continue };
         let Some((op, file, mode, options)) = parse_request(&buf[..n]) else { continue };
+        let Some(slot) = slots.take() else { continue };
         let (opts, transfers, log, stop) = (opts.clone(), transfers.clone(), log.clone(), stop.clone());
         std::thread::spawn(move || {
+            let _slot = slot;
             let id = TRANSFER_ID.fetch_add(1, Ordering::Relaxed);
             let upload = op == WRQ;
             log(format!("{peer} {} {file} ({mode})", if upload { "uploads" } else { "downloads" }));
@@ -197,14 +233,20 @@ fn transfer(
     for (k, v) in options {
         match k.as_str() {
             "blksize" => {
-                if let Ok(b) = v.parse::<usize>() {
-                    blksize = b.clamp(8, 65464);
+                // RFC 2348: 8 and up; at most 8192 here, since some systems
+                // (macOS) send no larger UDP packets.
+                if let Ok(b) = v.parse::<usize>()
+                    && b >= 8
+                {
+                    blksize = b.min(8192);
                     oack.push((k.clone(), blksize.to_string()));
                 }
             }
             "timeout" => {
+                // Up to 30 s: a silent device must not hold a transfer for
+                // half an hour (6 tries × 255 s).
                 if let Ok(t) = v.parse::<u64>()
-                    && (1..=255).contains(&t)
+                    && (1..=30).contains(&t)
                 {
                     timeout = Duration::from_secs(t);
                     oack.push((k.clone(), t.to_string()));
@@ -264,8 +306,8 @@ fn transfer(
 
     if !upload {
         let mut f = match File::open(&path) {
-            Ok(f) => f,
-            Err(_) => return fail(1, format!("{file} was not found")),
+            Ok(f) if !path.is_dir() => f,
+            _ => return fail(1, format!("{file} was not found")),
         };
         let total = f.metadata().map(|m| m.len()).ok();
         update(&|x| x.total = total);
@@ -278,7 +320,10 @@ fn transfer(
         loop {
             let mut n = 0;
             while n < blksize {
-                let r = f.read(&mut data[n..])?;
+                let r = match f.read(&mut data[n..]) {
+                    Ok(r) => r,
+                    Err(e) => return fail(0, format!("{file} could not be read: {e}")),
+                };
                 if r == 0 {
                     break;
                 }
@@ -303,11 +348,23 @@ fn transfer(
     if path.exists() && !opts.overwrite {
         return fail(6, format!("{file} already exists"));
     }
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
+    if path.is_dir() {
+        return fail(6, format!("{file} is a folder"));
     }
-    let tmp = path.with_extension("part");
-    let mut f = File::create(&tmp)?;
+    if let Some(dir) = path.parent()
+        && let Err(e) = std::fs::create_dir_all(dir)
+    {
+        return fail(2, format!("{file} could not be saved: {e}"));
+    }
+    // A hidden name of its own: never another file's, nor another upload's.
+    static PART: AtomicU64 = AtomicU64::new(0);
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let tmp =
+        path.with_file_name(format!(".{name}.{}-{}.part", std::process::id(), PART.fetch_add(1, Ordering::Relaxed)));
+    let mut f = match File::create(&tmp) {
+        Ok(f) => f,
+        Err(e) => return fail(2, format!("{file} could not be saved: {e}")),
+    };
     let first = oack_packet.unwrap_or_else(|| [ACK.to_be_bytes(), 0u16.to_be_bytes()].concat());
     sock.send(&first)?;
     let mut expect: u16 = 1;
@@ -344,7 +401,10 @@ fn transfer(
             continue;
         }
         if block == expect {
-            f.write_all(&buf[4..n])?;
+            if let Err(e) = f.write_all(&buf[4..n]) {
+                let _ = std::fs::remove_file(&tmp);
+                return fail(3, format!("{file} could not be saved: {e}"));
+            }
             got += (n - 4) as u64;
             update(&|x| x.bytes = got);
             expect = expect.wrapping_add(1);
@@ -353,9 +413,14 @@ fn transfer(
         last_ack = [ACK.to_be_bytes(), block.to_be_bytes()].concat();
         sock.send(&last_ack)?;
         if block == expect.wrapping_sub(1) && n - 4 < blksize {
-            f.sync_all()?;
-            drop(f);
-            std::fs::rename(&tmp, &path)?;
+            let saved = f.sync_all().and_then(|()| {
+                drop(f);
+                std::fs::rename(&tmp, &path)
+            });
+            if let Err(e) = saved {
+                let _ = std::fs::remove_file(&tmp);
+                bail!("{file} could not be saved: {e}");
+            }
             return Ok(got);
         }
     }
@@ -391,7 +456,10 @@ pub const SEVERITIES: [&str; 8] = ["Emergency", "Alert", "Critical", "Error", "W
 pub fn parse_syslog(data: &[u8], from: IpAddr) -> SyslogMessage {
     let s = String::from_utf8_lossy(data).trim_end_matches(['\0', '\n', '\r']).to_string();
     let (pri, rest) = match s.strip_prefix('<').and_then(|r| r.split_once('>')) {
-        Some((p, r)) if p.len() <= 3 => (p.parse::<u16>().unwrap_or(13), r.to_string()),
+        // 191 is the highest (facility local7, severity debug).
+        Some((p, r)) if p.len() <= 3 && p.parse::<u16>().is_ok_and(|p| p <= 191) => {
+            (p.parse::<u16>().unwrap_or(13), r.to_string())
+        }
         _ => (13, s.clone()),
     };
     let mut host = None;
@@ -428,7 +496,12 @@ pub fn split_tcp_syslog(buf: &[u8]) -> (Vec<Vec<u8>>, usize) {
         if digits > 0 && rest.get(digits) == Some(&b' ') {
             let len: usize = std::str::from_utf8(&rest[..digits]).ok().and_then(|d| d.parse().ok()).unwrap_or(0);
             let start = digits + 1;
-            if rest.len() < start + len {
+            let Some(end) = start.checked_add(len) else {
+                // A length no message has: drop the rest.
+                at = buf.len();
+                break;
+            };
+            if rest.len() < end {
                 break;
             }
             out.push(rest[start..start + len].to_vec());
@@ -460,11 +533,14 @@ pub fn syslog_serve(
         let (stop, message) = (stop.clone(), message.clone());
         let _ = listener.set_nonblocking(true);
         std::thread::spawn(move || {
+            let slots = Slots::default();
             while !stop.load(Ordering::Relaxed) {
                 match listener.accept() {
                     Ok((mut conn, from)) => {
+                        let Some(slot) = slots.take() else { continue };
                         let (stop, message) = (stop.clone(), message.clone());
                         std::thread::spawn(move || {
+                            let _slot = slot;
                             use std::io::Read;
                             let _ = conn.set_nonblocking(false);
                             let _ = conn.set_read_timeout(Some(Duration::from_millis(500)));
@@ -477,6 +553,10 @@ pub fn syslog_serve(
                                         pending.extend_from_slice(&buf[..n]);
                                         let (msgs, used) = split_tcp_syslog(&pending);
                                         pending.drain(..used);
+                                        // No message is this long: not syslog.
+                                        if pending.len() > 256 * 1024 {
+                                            break;
+                                        }
                                         for m in msgs {
                                             message(parse_syslog(&m, from.ip()));
                                         }
@@ -533,11 +613,14 @@ pub fn throughput_serve(
     let listener = TcpListener::bind((listen, port)).with_context(|| port_hint(port))?;
     listener.set_nonblocking(true)?;
     log(format!("Throughput server listening on port {port}"));
+    let slots = Slots::default();
     while !stop.load(Ordering::Relaxed) {
         match listener.accept() {
             Ok((stream, peer)) => {
+                let Some(slot) = slots.take() else { continue };
                 let (log, stop) = (log.clone(), stop.clone());
                 std::thread::spawn(move || {
+                    let _slot = slot;
                     let r = serve_one(stream, &stop);
                     match r {
                         Ok((dir, bytes, secs)) => log(format!(
@@ -560,12 +643,15 @@ pub fn throughput_serve(
 fn serve_one(mut s: TcpStream, stop: &AtomicBool) -> Result<(Direction, u64, f64)> {
     s.set_nonblocking(false)?;
     s.set_read_timeout(Some(Duration::from_secs(5)))?;
+    // A client that stops reading must not hold the test forever.
+    s.set_write_timeout(Some(Duration::from_secs(5)))?;
     let mut line = Vec::new();
     let mut b = [0u8; 1];
-    while s.read(&mut b)? == 1 && b[0] != b'\n' && line.len() < 64 {
+    while s.read(&mut b).unwrap_or(0) == 1 && b[0] != b'\n' && line.len() < 64 {
         line.push(b[0]);
     }
     let hello = String::from_utf8_lossy(&line).to_string();
+    ensure!(!hello.is_empty(), "connected but sent nothing");
     let parts: Vec<&str> = hello.split_whitespace().collect();
     ensure!(parts.first() == Some(&HELLO) && parts.len() == 3, "not a throughput test");
     let secs: u64 = parts[2].parse::<u64>()?.clamp(1, 60);
@@ -581,7 +667,8 @@ fn serve_one(mut s: TcpStream, stop: &AtomicBool) -> Result<(Direction, u64, f64
                 Ok(n) => total += n as u64,
                 Err(_) => break,
             }
-            if stop.load(Ordering::Relaxed) {
+            // The client stops after `secs`; a few more for the network.
+            if stop.load(Ordering::Relaxed) || started.elapsed() > limit + Duration::from_secs(5) {
                 break;
             }
         }
@@ -794,6 +881,11 @@ mod tcp_syslog_tests {
         let (m, used) = split_tcp_syslog(&data);
         assert_eq!(m, [msg.to_vec()]);
         assert_eq!(used, 3 + msg.len());
+        // Priorities stop at 191.
+        assert_eq!(parse_syslog(b"<999>x", IpAddr::from([127, 0, 0, 1])).facility, 1);
+        // A length that does not fit in memory does not crash.
+        let (m, used) = split_tcp_syslog(b"18446744073709551615 <13>x");
+        assert!(m.is_empty() && used == 26);
         let (m, used) = split_tcp_syslog(b"<13>line one\n<14>line two\n<15>part");
         assert_eq!((m.len(), used), (2, 26));
     }

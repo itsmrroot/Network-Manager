@@ -11,7 +11,10 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 
-use crate::servers::safe_path;
+use crate::servers::{Slots, safe_path};
+
+/// The longest request line or header accepted.
+const MAX_LINE: u64 = 16 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -51,18 +54,22 @@ pub fn serve(opts: Options, stop: Arc<AtomicBool>, log: Log) -> Result<()> {
     })?;
     listener.set_nonblocking(true)?;
     let opts = Arc::new(opts);
+    let slots = Slots::default();
     while !stop.load(Ordering::Relaxed) {
         match listener.accept() {
             Ok((s, from)) => {
+                let Some(slot) = slots.take() else { continue };
                 let (opts, log, stop) = (opts.clone(), log.clone(), stop.clone());
                 std::thread::spawn(move || {
+                    let _slot = slot;
                     let _ = s.set_nonblocking(false);
                     let _ = s.set_read_timeout(Some(Duration::from_secs(30)));
                     let _ = connection(s, from.ip(), &opts, &log, &stop);
                 });
             }
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(100)),
-            Err(e) => bail!("the server stopped: {e}"),
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(20)),
+            // Out of file handles and the like: wait, and keep serving.
+            Err(_) => std::thread::sleep(Duration::from_millis(200)),
         }
     }
     Ok(())
@@ -78,7 +85,9 @@ fn status_text(code: u16) -> &'static str {
         404 => "Not Found",
         405 => "Method Not Allowed",
         409 => "Conflict",
+        411 => "Length Required",
         416 => "Range Not Satisfiable",
+        500 => "Internal Server Error",
         _ => "Error",
     }
 }
@@ -116,6 +125,57 @@ fn decode(p: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// Percent-encodes `s` for a link, keeping `/` when `slash`.
+fn url_encode(s: &str, slash: bool) -> String {
+    s.bytes()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || b"-_.~".contains(&c) || (slash && c == b'/') {
+                (c as char).to_string()
+            } else {
+                format!("%{c:02X}")
+            }
+        })
+        .collect()
+}
+
+/// One line of the request, refusing endless ones.
+fn read_line(reader: &mut BufReader<TcpStream>, line: &mut String) -> Result<usize> {
+    let n = reader.take(MAX_LINE).read_line(line)?;
+    if n as u64 == MAX_LINE && !line.ends_with('\n') {
+        bail!("request line too long");
+    }
+    Ok(n)
+}
+
+/// A body sent in chunks (`Transfer-Encoding: chunked`, as `curl -T -`).
+fn read_chunked(reader: &mut BufReader<TcpStream>, out: &mut impl Write) -> std::io::Result<u64> {
+    let bad = |m: &str| std::io::Error::new(std::io::ErrorKind::InvalidData, m.to_string());
+    let mut total = 0u64;
+    loop {
+        let mut line = String::new();
+        read_line(reader, &mut line).map_err(|e| bad(&e.to_string()))?;
+        let size = line.trim().split(';').next().unwrap_or("");
+        let size = u64::from_str_radix(size, 16).map_err(|_| bad("damaged chunk"))?;
+        if size == 0 {
+            // Trailers, up to the empty line.
+            for _ in 0..100 {
+                let mut t = String::new();
+                if read_line(reader, &mut t).map_err(|e| bad(&e.to_string()))? == 0 || t.trim().is_empty() {
+                    break;
+                }
+            }
+            return Ok(total);
+        }
+        let n = std::io::copy(&mut reader.take(size), out)?;
+        if n != size {
+            return Err(bad("the upload was interrupted"));
+        }
+        total += n;
+        let mut crlf = String::new();
+        read_line(reader, &mut crlf).map_err(|e| bad(&e.to_string()))?;
+    }
+}
+
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
@@ -135,25 +195,17 @@ pub fn listing(dir: &Path, url_path: &str) -> Result<String> {
         .collect();
     entries.sort_by_key(|e| (!e.1, e.0.to_lowercase()));
     let base = if url_path.ends_with('/') { url_path.to_string() } else { format!("{url_path}/") };
+    let link_base = url_encode(&base, true);
     let mut rows = String::new();
     if base != "/" {
         rows += "<tr><td><a href=\"../\">../</a></td><td></td></tr>\n";
     }
     for (name, is_dir, len) in entries {
         let shown = if is_dir { format!("{name}/") } else { name.clone() };
-        let href: String = name
-            .bytes()
-            .map(|c| {
-                if c.is_ascii_alphanumeric() || b"-_.~".contains(&c) {
-                    (c as char).to_string()
-                } else {
-                    format!("%{c:02X}")
-                }
-            })
-            .collect();
+        let href = url_encode(&name, false);
         let size = if is_dir { String::new() } else { crate::adapters::format_bytes(len) };
         rows += &format!(
-            "<tr><td><a href=\"{base}{href}{}\">{}</a></td><td>{size}</td></tr>\n",
+            "<tr><td><a href=\"{link_base}{href}{}\">{}</a></td><td>{size}</td></tr>\n",
             if is_dir { "/" } else { "" },
             html_escape(&shown)
         );
@@ -168,20 +220,25 @@ fn connection(mut s: TcpStream, from: IpAddr, opts: &Options, log: &Log, stop: &
     let started = Instant::now();
     let mut reader = BufReader::new(s.try_clone()?);
     let mut line = String::new();
-    reader.read_line(&mut line)?;
+    read_line(&mut reader, &mut line)?;
     let mut parts = line.split_whitespace();
     let (method, target) = (parts.next().unwrap_or("").to_string(), parts.next().unwrap_or("/").to_string());
     let mut length: Option<u64> = None;
+    let mut chunked = false;
+    let mut bad_length = false;
     let mut range: Option<(u64, Option<u64>)> = None;
-    loop {
+    for _ in 0..100 {
         let mut h = String::new();
-        if reader.read_line(&mut h)? == 0 || h == "\r\n" || h == "\n" {
+        if read_line(&mut reader, &mut h)? == 0 || h == "\r\n" || h == "\n" {
             break;
         }
         if let Some((k, v)) = h.split_once(':') {
             let (k, v) = (k.trim().to_ascii_lowercase(), v.trim());
             if k == "content-length" {
                 length = v.parse().ok();
+                bad_length = length.is_none();
+            } else if k == "transfer-encoding" {
+                chunked = v.to_ascii_lowercase().contains("chunked");
             } else if k == "range"
                 && let Some(r) = v.strip_prefix("bytes=")
                 && let Some((a, b)) = r.split_once('-')
@@ -230,7 +287,9 @@ fn connection(mut s: TcpStream, from: IpAddr, opts: &Options, log: &Log, stop: &
             let total = f.metadata()?.len();
             // Resuming a download: send only the part asked for.
             let (start, end, code) = match range {
-                Some((a, b)) if a < total => (a, b.unwrap_or(total - 1).min(total - 1), 206),
+                Some((a, b)) if a < total && b.is_none_or(|b| b >= a) => {
+                    (a, b.unwrap_or(total - 1).min(total - 1), 206)
+                }
                 Some(_) => {
                     respond(&mut s, 416, &[("Content-Range", format!("bytes */{total}"))], b"")?;
                     done(416, 0);
@@ -283,16 +342,48 @@ fn connection(mut s: TcpStream, from: IpAddr, opts: &Options, log: &Log, stop: &
                 done(409, 0);
                 return Ok(());
             }
-            if let Some(dir) = file.parent() {
-                std::fs::create_dir_all(dir)?;
+            if bad_length || (length.is_none() && !chunked) {
+                respond(&mut s, 411, &[], b"Send the length of the file\n")?;
+                done(411, 0);
+                return Ok(());
             }
-            let mut out = std::fs::File::create(&file)?;
-            let n = match length {
-                Some(len) => std::io::copy(&mut (&mut reader).take(len), &mut out)?,
-                None => std::io::copy(&mut reader, &mut out)?,
-            };
-            respond(&mut s, 201, &[], b"Saved\n")?;
-            done(201, n);
+            // Into a hidden file first: an interrupted upload leaves nothing
+            // behind, and never half a file under the real name.
+            let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            static PART: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let tmp = file.with_file_name(format!(
+                ".{name}.{}-{}.part",
+                std::process::id(),
+                PART.fetch_add(1, Ordering::Relaxed)
+            ));
+            let saved = (|| -> std::io::Result<u64> {
+                if let Some(dir) = file.parent() {
+                    std::fs::create_dir_all(dir)?;
+                }
+                let mut out = std::fs::File::create(&tmp)?;
+                let n = match length {
+                    _ if chunked => read_chunked(&mut reader, &mut out)?,
+                    Some(len) => std::io::copy(&mut (&mut reader).take(len), &mut out)?,
+                    None => 0,
+                };
+                if length.is_some_and(|len| n != len) {
+                    return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "the upload was interrupted"));
+                }
+                out.sync_all()?;
+                std::fs::rename(&tmp, &file)?;
+                Ok(n)
+            })();
+            match saved {
+                Ok(n) => {
+                    respond(&mut s, 201, &[], b"Saved\n")?;
+                    done(201, n);
+                }
+                Err(e) => {
+                    let _ = std::fs::remove_file(&tmp);
+                    respond(&mut s, 500, &[], format!("Not saved: {e}\n").as_bytes())?;
+                    done(500, 0);
+                }
+            }
         }
         _ => {
             respond(&mut s, 405, &[("Allow", "GET, HEAD, PUT".into())], b"")?;
@@ -309,9 +400,10 @@ mod tests {
 
     fn get(port: u16, req: &str) -> String {
         let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
-        s.write_all(req.as_bytes()).unwrap();
+        // The server may hang up first (a request it refuses).
+        let _ = s.write_all(req.as_bytes());
         let mut out = Vec::new();
-        s.read_to_end(&mut out).unwrap();
+        let _ = s.read_to_end(&mut out);
         String::from_utf8_lossy(&out).into_owned()
     }
 
@@ -341,6 +433,40 @@ mod tests {
         assert!(r.contains("201"), "{r}");
         assert_eq!(std::fs::read_to_string(dir.join("configs/sw1.cfg")).unwrap(), "hostname sw1\n");
         assert!(get(port, "PUT /configs/sw1.cfg HTTP/1.1\r\nContent-Length: 1\r\n\r\nx").contains("409"));
+        // Sent in chunks, as `curl -T -` does.
+        let r = get(
+            port,
+            "PUT /chunked.cfg HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\nd\r\nhostname sw1\n\r\n0\r\n\r\n",
+        );
+        assert!(r.contains("201"), "{r}");
+        assert_eq!(std::fs::read_to_string(dir.join("chunked.cfg")).unwrap(), "hostname sw1\n");
+        // An upload cut short leaves nothing behind.
+        {
+            let mut c = TcpStream::connect(("127.0.0.1", port)).unwrap();
+            c.write_all(b"PUT /short.txt HTTP/1.1\r\nContent-Length: 100\r\n\r\nhello").unwrap();
+        }
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!dir.join("short.txt").exists());
+        assert!(
+            std::fs::read_dir(&dir).unwrap().flatten().all(|e| !e.file_name().to_string_lossy().ends_with(".part"))
+        );
+        // A range that ends before it starts.
+        let r = get(port, "GET /images/c9300%20firmware.bin HTTP/1.1\r\nRange: bytes=8-2\r\n\r\n");
+        assert!(r.contains("416"), "{r}");
+        // An endless header is cut off instead of filling the memory.
+        let r = get(port, &format!("GET / HTTP/1.1\r\nX: {}", "a".repeat(100_000)));
+        assert!(!r.contains("200"), "{r}");
+        // A folder name cannot break out of the link in the listing.
+        std::fs::create_dir_all(dir.join("a\" onmouseover=\"x")).unwrap();
+        let r = get(port, "GET /a%22%20onmouseover=%22x/ HTTP/1.1\r\n\r\n");
+        assert!(r.contains("200 OK") && !r.contains("href=\"/a\""), "{r}");
+        // A link inside the folder that leads out of it.
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("/etc", dir.join("etc")).unwrap();
+            assert!(get(port, "GET /etc/hosts HTTP/1.1\r\n\r\n").contains("403"));
+        }
+        assert!(get(port, "GET /images/ HTTP/1.1\r\n\r\n").contains("200 OK"));
         stop.store(true, Ordering::Relaxed);
         t.join().unwrap().unwrap();
         assert!(events.lock().unwrap().iter().any(|e| e.status == 206 && e.bytes == 6));

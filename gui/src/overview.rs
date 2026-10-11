@@ -12,7 +12,7 @@ use netmgr::internet::{self, Check, SpeedPhase, SpeedResult};
 use netmgr::wifi;
 
 use crate::app::{Nav, Page, Shared};
-use crate::i18n::{tr, tr_dyn, trf, trf_dyn, trl, trl_dyn};
+use crate::i18n::{tr, tr_dyn, trf, trf_dyn, trl, trl_dyn, with_icon};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -162,7 +162,7 @@ impl Overview {
         let wifi = sh.wifi.first().cloned();
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 let (glyph, color, title, sub) = match &adapter {
                     None if !sh.adapters_loaded => {
                         (icon::CIRCLE_NOTCH, p.weak, tr("Looking at your network…").to_string(), String::new())
@@ -228,7 +228,7 @@ impl Overview {
                         });
                     }
                 });
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                theme::trailing(ui, "overview", |ui| {
                     let busy = self.diagnose.is_some();
                     if theme::primary_button(ui, p, &icon_label(icon::STETHOSCOPE, "Check connection"), !busy).clicked()
                     {
@@ -408,7 +408,7 @@ impl Overview {
 
 fn speed_stat(ui: &mut Ui, p: &Palette, glyph: &str, label: &str, value: &str, active: bool) {
     ui.vertical(|ui| {
-        ui.label(RichText::new(format!("{glyph}  {label}")).size(12.5).color(if active { p.accent } else { p.weak }));
+        ui.label(RichText::new(with_icon(glyph, label)).size(12.5).color(if active { p.accent } else { p.weak }));
         ui.label(theme::semibold(value, 20.0).color(p.text));
     });
 }

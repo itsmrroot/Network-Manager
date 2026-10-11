@@ -44,7 +44,9 @@ pub fn folder() -> PathBuf {
 /// A folder name from a session name.
 fn folder_name(name: &str) -> String {
     let s: String = name.chars().map(|c| if c.is_alphanumeric() || "-_.".contains(c) { c } else { '_' }).collect();
-    if s.is_empty() { "device".into() } else { s }
+    // Never `.` or `..`, which are not folders of their own.
+    let s = s.trim_start_matches('.');
+    if s.is_empty() { "device".into() } else { s.to_string() }
 }
 
 /// Days since 1970 to (year, month, day) — Howard Hinnant's algorithm.
@@ -149,10 +151,18 @@ fn strip_escapes(text: &str) -> String {
         }
         match chars.next() {
             Some('[') => {
+                let mut param = String::new();
                 for d in chars.by_ref() {
                     if d.is_ascii_alphabetic() || d == '~' {
+                        // Windows' terminal writes runs of spaces as "move
+                        // right n" (ESC [ n C): put the spaces back.
+                        if d == 'C' {
+                            let n = param.parse::<usize>().unwrap_or(1).min(512);
+                            out.extend(std::iter::repeat_n(' ', n));
+                        }
                         break;
                     }
+                    param.push(d);
                 }
             }
             Some(']') => {
@@ -198,6 +208,9 @@ pub fn fetch(s: &Saved, password: Option<&str>) -> Result<String> {
     if s.backup_command.trim().is_empty() {
         bail!("no backup command is set for {}", s.name);
     }
+    if s.protocol == crate::remote::Protocol::Telnet {
+        bail!("{} uses Telnet: backups work over SSH only", s.name);
+    }
     if !crate::remote::ssh_available() {
         bail!("the ssh client is missing");
     }
@@ -210,6 +223,7 @@ pub fn fetch(s: &Saved, password: Option<&str>) -> Result<String> {
     if s.port() != 22 {
         cmd.args(["-p", &s.port().to_string()]);
     }
+    cmd.arg("--");
     cmd.arg(if s.user.is_empty() { s.host.clone() } else { format!("{}@{}", s.user, s.host) });
     cmd.arg(s.backup_command.trim());
     let text = clean(&run_in_terminal(cmd, password, Duration::from_secs(90))?);
@@ -282,7 +296,7 @@ fn store_in(root: &Path, name: &str, text: &str, now: SystemTime) -> Result<Outc
             Outcome::Changed { added, removed }
         }
     };
-    std::fs::write(dir.join(format!("{}.txt", stamp(now))), text)?;
+    crate::cmd::write_private(&dir.join(format!("{}.txt", stamp(now))), text)?;
     Ok(outcome)
 }
 
@@ -342,6 +356,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn folder_names_stay_inside() {
+        assert_eq!(folder_name(".."), "device");
+        assert_eq!(folder_name("../../etc"), "_.._etc");
+        assert_eq!(folder_name("sw1.lab"), "sw1.lab");
+    }
+
+    #[test]
     fn stamps() {
         assert_eq!(stamp(UNIX_EPOCH), "1970-01-01 00-00-00");
         assert_eq!(stamp(UNIX_EPOCH + Duration::from_secs(1_760_018_607)), "2025-10-09 14-03-27");
@@ -371,6 +392,11 @@ mod tests {
     fn cleans_output() {
         let raw = "\x1b[6n\x1b]0;ssh\x07admin@10.0.0.2's password: \n\nhostname \x1b[1msw1\x1b[0m\n!\nend\nConnection to 10.0.0.2 closed.\n";
         assert_eq!(clean(raw), "hostname sw1\n!\nend\n");
+        // Windows' terminal: spaces sent as cursor moves.
+        assert_eq!(
+            clean("interfaces {\n\x1b[4Cge-0/0/0 {\n\x1b[8Xunit 0;\n"),
+            "interfaces {\n    ge-0/0/0 {\nunit 0;\n"
+        );
     }
 
     #[test]

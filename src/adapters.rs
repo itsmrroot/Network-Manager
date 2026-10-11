@@ -289,7 +289,9 @@ fn from_netdev(i: netdev::Interface, extra: &Extra) -> Adapter {
             if !conn.is_empty() && conn != "--" {
                 connection = Some(conn.clone());
             }
-            disabled = state == "unavailable" || state == "unmanaged" && !i.is_up();
+            // "unavailable" is also a port without a cable, or Wi-Fi with the
+            // radio off: turned off only when the interface is down too.
+            disabled = (state == "unavailable" || state == "unmanaged") && !i.is_up();
         }
     }
 

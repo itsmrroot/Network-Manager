@@ -35,10 +35,11 @@ pub fn ping_command(host: &str, count: u32) -> (String, Vec<String>) {
         if count > 0 {
             args.extend(["-c".to_string(), count.to_string()]);
         }
-        // macOS ping waits in ms with -W; Linux in seconds.
+        // macOS ping waits in ms with -W; Linux in seconds; macOS's ping6
+        // has no such option (it would take "2000" for the host).
         if cfg!(target_os = "linux") {
             args.extend(["-W".into(), "2".into()]);
-        } else {
+        } else if !v6 {
             args.extend(["-W".into(), "2000".into()]);
         }
         args.push(host);
@@ -74,6 +75,18 @@ pub fn parse_ping_line(line: &str) -> PingLine {
             if let Ok(v) = num.replace(',', ".").parse::<f64>() {
                 // "time<1ms" counts as 0.5 ms.
                 return PingLine::Reply(if key.ends_with('<') { v / 2.0 } else { v });
+            }
+        }
+    }
+    // Windows in any language: "… 时间=15ms TTL=117", "… süre=15ms TTL=…":
+    // the time is the value just before TTL.
+    if let Some(t) = l.find("ttl=") {
+        let before = &l[..t];
+        if let Some(p) = before.rfind(['=', '<']) {
+            let num: String =
+                before[p + 1..].chars().take_while(|c| c.is_ascii_digit() || *c == '.' || *c == ',').collect();
+            if let Ok(v) = num.replace(',', ".").parse::<f64>() {
+                return PingLine::Reply(if before[p..].starts_with('<') { v / 2.0 } else { v });
             }
         }
     }
@@ -125,13 +138,13 @@ impl PingStats {
 }
 
 /// Pings `host` with the system's ping; each line goes to `line` with its
-/// meaning.
-pub fn ping(host: &str, count: u32, cancel: &AtomicBool, mut line: impl FnMut(&str, PingLine)) -> Result<()> {
+/// meaning. Returns whether ping succeeded (false: no reply, or the name
+/// was not found).
+pub fn ping(host: &str, count: u32, cancel: &AtomicBool, mut line: impl FnMut(&str, PingLine)) -> Result<bool> {
     ensure!(!host.trim().is_empty(), "enter an address or a name");
     let (prog, args) = ping_command(host, count);
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    cmd::stream(&prog, &refs, cancel, |l| line(l, parse_ping_line(l)))?;
-    Ok(())
+    cmd::stream(&prog, &refs, cancel, |l| line(l, parse_ping_line(l)))
 }
 
 /// Runs the system's traceroute to `host`, line by line.
@@ -149,7 +162,9 @@ pub fn traceroute(host: &str, cancel: &AtomicBool, line: impl FnMut(&str)) -> Re
         // Part of iputils, which most distributions install.
         ("tracepath", vec!["-n", host])
     };
-    cmd::stream(prog, &args, cancel, line)?;
+    let ok = cmd::stream(prog, &args, cancel, line)?;
+    // Stopped by hand is fine; otherwise the reason was printed above.
+    ensure!(ok || cancel.load(std::sync::atomic::Ordering::Relaxed), "the trace did not work");
     Ok(())
 }
 
@@ -287,6 +302,9 @@ mod tests {
             ("64 bytes from 1.1.1.1: icmp_seq=0 ttl=57 time=12.345 ms", PingLine::Reply(12.345)),
             ("Reply from 192.168.1.1: bytes=32 time<1ms TTL=64", PingLine::Reply(0.5)),
             ("Antwort von 8.8.8.8: Bytes=32 Zeit=14ms TTL=117", PingLine::Reply(14.0)),
+            ("来自 8.8.8.8 的回复: 字节=32 时间=15ms TTL=117", PingLine::Reply(15.0)),
+            ("Ответ от 8.8.8.8: число байт=32 время<1мс TTL=117", PingLine::Reply(0.5)),
+            ("8.8.8.8 cevabı: bayt=32 süre=9ms TTL=117", PingLine::Reply(9.0)),
             ("Request timeout for icmp_seq 3", PingLine::Lost),
             ("Request timed out.", PingLine::Lost),
             ("Reply from 192.168.1.5: Destination host unreachable.", PingLine::Lost),
@@ -414,7 +432,10 @@ pub fn path_mtu(host: &str, cancel: &AtomicBool, mut step: impl FnMut(u16, Fits)
         Ok(r == Fits::Yes)
     };
     // The usual answer first: 1500 (Ethernet) means 1472 bytes of data.
-    let (mut lo, mut hi) = (32u16, 8972u16);
+    // macOS's ping sends at most 8184 bytes without administrator rights
+    // ("Message too long" above): measuring stops there.
+    let top = if cfg!(target_os = "macos") && !cmd::is_admin() { 8184u16 } else { 8972 };
+    let (mut lo, mut hi) = (32u16, top);
     if fits(1472, &mut step)? {
         if !fits(1473, &mut step)? {
             return Ok(Mtu { host: ip, mtu: 1500, at_most: false });
@@ -432,7 +453,7 @@ pub fn path_mtu(host: &str, cancel: &AtomicBool, mut step: impl FnMut(u16, Fits)
             hi = mid - 1;
         }
     }
-    Ok(Mtu { host: ip, mtu: lo + 28, at_most: lo == 8972 })
+    Ok(Mtu { host: ip, mtu: lo + 28, at_most: lo == top })
 }
 
 #[cfg(test)]

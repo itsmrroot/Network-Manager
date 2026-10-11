@@ -858,6 +858,8 @@ impl App {
             return;
         }
         t.frames += 1;
+        // Pages that wait for nothing ask for no repaint: keep the tour going.
+        ctx.request_repaint();
         let pages: [(Page, &str, u32); 26] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
@@ -889,6 +891,13 @@ impl App {
         // NETMGR_TOUR_LIGHT: the light theme instead.
         if t.frames == 1 && t.step == 0 && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {
             self.shared.settings.theme = settings::ThemeChoice::Light;
+        }
+        // NETMGR_TOUR_SCALE=1.5: the interface size (narrow layouts).
+        if t.frames == 1
+            && t.step == 0
+            && let Some(scale) = std::env::var("NETMGR_TOUR_SCALE").ok().and_then(|s| s.parse::<f32>().ok())
+        {
+            self.shared.settings.ui_scale = scale;
         }
         // NETMGR_TOUR_LANG=de|ar|es|fr|ru|zh|tr: that language instead.
         if t.frames == 1 && t.step == 0 {

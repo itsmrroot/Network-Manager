@@ -282,7 +282,8 @@ impl Tools {
             let (host, count) = (self.host.trim().to_string(), sh.settings.ping_count);
             self.ping_lines.clear();
             self.ping = Some(Job::spawn(ui.ctx(), move |progress, cancel| {
-                nt::ping(&host, count, cancel, |l, _| progress.line(l))
+                // No reply is shown in the statistics, not as an error.
+                nt::ping(&host, count, cancel, |l, _| progress.line(l)).map(drop)
             }));
         }
         ui.add_space(10.0);

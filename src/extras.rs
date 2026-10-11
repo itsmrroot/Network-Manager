@@ -248,7 +248,15 @@ fn set_proxy(a: &Adapter, e: &Extras) -> Result<()> {
                 set(&schema, "host", &h)?;
                 set(&schema, "port", &p.to_string())?;
             }
-            let list = format!("[{}]", bypass.iter().map(|b| format!("'{b}'")).collect::<Vec<_>>().join(", "));
+            // This computer itself never goes through the proxy (GNOME's
+            // own default list).
+            let mut hosts: Vec<String> = ["localhost", "127.0.0.0/8", "::1"].map(String::from).to_vec();
+            for b in &bypass {
+                if !hosts.contains(b) {
+                    hosts.push(b.clone());
+                }
+            }
+            let list = format!("[{}]", hosts.iter().map(|b| format!("'{b}'")).collect::<Vec<_>>().join(", "));
             set("org.gnome.system.proxy", "ignore-hosts", &list)?;
             set("org.gnome.system.proxy", "mode", "manual")?;
         }

@@ -57,11 +57,31 @@ pub fn output(program: &str, args: &[&str]) -> Result<Output> {
         .stdin(Stdio::null())
         .output()
         .with_context(|| format!("could not run {program}"))?;
-    Ok(Output {
-        success: out.status.success(),
-        stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
-        stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
-    })
+    Ok(Output { success: out.status.success(), stdout: text(&out.stdout), stderr: text(&out.stderr) })
+}
+
+/// What a program printed, as text. Windows' own tools (netsh, ping,
+/// ipconfig) print in the console's code page (850, 866, 936…), not UTF-8;
+/// PowerShell is told to print UTF-8.
+pub fn text(bytes: &[u8]) -> String {
+    #[cfg(windows)]
+    if std::str::from_utf8(bytes).is_err() {
+        use windows_sys::Win32::Globalization::{CP_OEMCP, MultiByteToWideChar};
+        let Ok(len) = i32::try_from(bytes.len()) else { return String::from_utf8_lossy(bytes).into_owned() };
+        // SAFETY: the buffers and their lengths match; the first call only
+        // measures.
+        unsafe {
+            let n = MultiByteToWideChar(CP_OEMCP, 0, bytes.as_ptr(), len, std::ptr::null_mut(), 0);
+            if n > 0 {
+                let mut wide = vec![0u16; n as usize];
+                let n = MultiByteToWideChar(CP_OEMCP, 0, bytes.as_ptr(), len, wide.as_mut_ptr(), n);
+                if n > 0 {
+                    return String::from_utf16_lossy(&wide[..n as usize]);
+                }
+            }
+        }
+    }
+    String::from_utf8_lossy(bytes).trim_start_matches('\u{feff}').to_string()
 }
 
 /// Runs `program` and returns what it printed; fails with its error message.
@@ -83,7 +103,9 @@ pub fn exists(program: &str) -> bool {
 }
 
 fn nonempty(msg: String, program: &str) -> String {
-    if msg.is_empty() { format!("{program} failed") } else { msg }
+    // Our own helper's messages already start with "error: ".
+    let msg = msg.trim_start_matches("error: ");
+    if msg.is_empty() { format!("{program} failed") } else { msg.to_string() }
 }
 
 /// Whether this process has administrator (root) rights.
@@ -93,8 +115,32 @@ pub fn is_admin() -> bool {
     return unsafe { libc::geteuid() } == 0;
     #[cfg(windows)]
     {
-        // `net session` only works for administrators.
-        return output("net", &["session"]).is_ok_and(|o| o.success);
+        // Asked once: the process's rights do not change while it runs.
+        static ADMIN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        return *ADMIN.get_or_init(|| {
+            use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+            use windows_sys::Win32::Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation};
+            use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+            // SAFETY: the token handle is closed after use; the buffer is a
+            // TOKEN_ELEVATION of the size given.
+            unsafe {
+                let mut token: HANDLE = std::ptr::null_mut();
+                if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 {
+                    return false;
+                }
+                let mut e = TOKEN_ELEVATION { TokenIsElevated: 0 };
+                let mut len = 0u32;
+                let ok = GetTokenInformation(
+                    token,
+                    TokenElevation,
+                    (&raw mut e).cast(),
+                    std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+                    &mut len,
+                );
+                CloseHandle(token);
+                ok != 0 && e.TokenIsElevated != 0
+            }
+        });
     }
     #[allow(unreachable_code)]
     false
@@ -115,12 +161,39 @@ pub fn helper_exe() -> Result<std::path::PathBuf> {
     #[cfg(unix)]
     if std::env::var_os("APPIMAGE").is_some() {
         use std::os::unix::fs::PermissionsExt;
-        let copy = std::env::temp_dir().join(format!("netmgr-helper-{}", std::process::id()));
+        static COPY: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+        if let Some(copy) = COPY.get() {
+            return Ok(copy.clone());
+        }
+        let copy = private_dir("netmgr-helper")?.join(name);
         std::fs::copy(&sibling, &copy)?;
         std::fs::set_permissions(&copy, std::fs::Permissions::from_mode(0o755))?;
-        return Ok(copy);
+        return Ok(COPY.get_or_init(|| copy).clone());
     }
     Ok(sibling)
+}
+
+/// A new, empty temporary folder that only this user can open, with a name
+/// nobody can guess. Never reuses a folder that already exists (`/tmp` is
+/// shared on Linux: another user could have prepared one with links in it).
+pub fn private_dir(prefix: &str) -> Result<std::path::PathBuf> {
+    use std::hash::{BuildHasher, Hasher};
+    for _ in 0..16 {
+        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+        h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos()));
+        let dir = std::env::temp_dir().join(format!("{prefix}-{}-{:016x}", std::process::id(), h.finish()));
+        #[allow(unused_mut)]
+        let mut b = std::fs::DirBuilder::new();
+        // On Windows the temporary folder is the user's own already.
+        #[cfg(unix)]
+        std::os::unix::fs::DirBuilderExt::mode(&mut b, 0o700);
+        match b.create(&dir) {
+            Ok(()) => return Ok(dir),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e).with_context(|| format!("could not create {}", dir.display())),
+        }
+    }
+    bail!("could not create a temporary folder")
 }
 
 /// Single-quotes `s` for `sh`.
@@ -128,9 +201,30 @@ pub fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
 }
 
-/// Single-quotes `s` for PowerShell.
+/// Single-quotes `s` for PowerShell, which also takes the curly quotes
+/// (‘ ’ ‚ ‛) as single quotes.
 pub fn ps_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "''"))
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for c in s.chars() {
+        if matches!(c, '\'' | '‘' | '’' | '‚' | '‛') {
+            out.push(c);
+        }
+        out.push(c);
+    }
+    out.push('\'');
+    out
+}
+
+/// Writes a file only this user can read (passwords, device configurations).
+pub fn write_private(path: &std::path::Path, data: impl AsRef<[u8]>) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut o = std::fs::OpenOptions::new();
+    o.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut o, 0o600);
+    let mut f = o.open(path)?;
+    f.write_all(data.as_ref())
 }
 
 /// Runs a PowerShell script (Windows) and returns its output.
@@ -223,13 +317,17 @@ pub fn stream(program: &str, args: &[&str], cancel: &AtomicBool, mut line: impl 
     let stdout = child.stdout.take().context("no output")?;
     let stderr = child.stderr.take().context("no output")?;
     // stderr in the background, so that neither pipe can fill up and block.
-    let errors = std::thread::spawn(move || BufReader::new(stderr).lines().map_while(Result::ok).collect::<Vec<_>>());
+    let errors = std::thread::spawn(move || {
+        let mut out = Vec::new();
+        let _ = std::io::Read::read_to_end(&mut { stderr }, &mut out);
+        text(&out).lines().map(str::to_string).collect::<Vec<_>>()
+    });
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
         let mut buf = Vec::new();
         while reader.read_until(b'\n', &mut buf).is_ok_and(|n| n > 0) {
-            let text = String::from_utf8_lossy(&buf).trim_end().to_string();
+            let text = text(&buf).trim_end().to_string();
             if tx.send(text).is_err() {
                 break;
             }
@@ -265,5 +363,24 @@ mod tests {
     fn quoting() {
         assert_eq!(sh_quote("it's"), r"'it'\''s'");
         assert_eq!(ps_quote("it's"), "'it''s'");
+        // PowerShell ends a string at a curly quote too.
+        assert_eq!(ps_quote("a’; calc; ’"), "'a’’; calc; ’’'");
+    }
+
+    #[test]
+    fn private_dirs_are_new_and_closed() {
+        let a = private_dir("netmgr-test").unwrap();
+        let b = private_dir("netmgr-test").unwrap();
+        assert_ne!(a, b);
+        assert!(std::fs::read_dir(&a).unwrap().next().is_none());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&a).unwrap().permissions().mode() & 0o777, 0o700);
+            write_private(&a.join("secret"), "x").unwrap();
+            assert_eq!(std::fs::metadata(a.join("secret")).unwrap().permissions().mode() & 0o777, 0o600);
+        }
+        let _ = std::fs::remove_dir_all(&a);
+        let _ = std::fs::remove_dir_all(&b);
     }
 }

@@ -25,7 +25,7 @@ use netmgr::adapters::format_bytes as format_size;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-use crate::i18n::{tr, trf, trl, trlf};
+use crate::i18n::{tr, trf, trl, trlf, with_icon};
 use crate::jobs::{Job, Progress};
 use crate::theme::{self, Palette, icon_label};
 
@@ -207,9 +207,10 @@ pub fn check() -> Result<Option<Release>> {
 /// checks it.
 pub fn download(release: &Release, progress: &Progress, cancel: &AtomicBool) -> Result<PathBuf> {
     let Some(asset) = &release.asset else { bail!("no installer for this system") };
-    let dir = std::env::temp_dir().join(format!("netmgr-update-{}", release.version));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir)?;
+    // GitHub publishes a checksum for every file; without one there is
+    // nothing to check the download against.
+    ensure!(asset.sha256.is_some(), "the update has no checksum");
+    let dir = netmgr::cmd::private_dir("netmgr-update")?;
     let path = dir.join(&asset.name);
 
     progress.set(0.0, tr("Downloading the update"));
@@ -429,7 +430,7 @@ impl Updater {
     /// The button that announces an update, for the top bar or the sidebar.
     pub fn button(&mut self, ui: &mut Ui, p: &Palette) {
         let Some(version) = self.available() else { return };
-        let label = format!("{}  {}", icon::ARROW_CIRCLE_UP, trf("Update to {version}", &[("version", &version)]));
+        let label = with_icon(icon::ARROW_CIRCLE_UP, &trf("Update to {version}", &[("version", &version)]));
         if theme::primary_button(ui, p, &label, true).clicked() {
             self.dialog = true;
         }

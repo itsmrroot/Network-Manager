@@ -286,6 +286,11 @@ pub fn handle(cfg: &Config, leases: &mut Vec<Lease>, m: &Message, now: SystemTim
         .iter()
         .filter_map(|r| Some((r.mac.parse::<Mac>().ok()?, r.ip.parse::<Ipv4Addr>().ok()?)))
         .collect();
+    // Forget offers nobody took, and old leases whose address has gone to
+    // another device: the table stays at about the size of the pool, even
+    // under a flood of made-up devices.
+    let live: Vec<Ipv4Addr> = leases.iter().filter(|x| x.expires > now).map(|x| x.ip).collect();
+    leases.retain(|x| x.expires > now || (x.state != "Offered" && !live.contains(&x.ip)));
     let lease_for = |l: &Vec<Lease>, mac: Mac| l.iter().position(|x| x.mac == mac);
     let taken = |l: &Vec<Lease>, ip: Ipv4Addr, mac: Mac| {
         l.iter().any(|x| x.ip == ip && x.mac != mac && x.expires > now && x.state != "Released")
@@ -561,6 +566,23 @@ mod tests {
         // Another server's offer chosen: no answer.
         let other = parse(&request(REQUEST, [2, 0, 0, 0, 0, 2], &[(54, vec![10, 9, 0, 254])])).unwrap();
         assert_eq!(handle(&c, &mut leases, &other, now), None);
+    }
+
+    #[test]
+    fn flood_of_devices_does_not_grow_the_table() {
+        let c = cfg();
+        let mut leases = Vec::new();
+        let start = SystemTime::now();
+        for round in 0..20u64 {
+            let now = start + Duration::from_secs(round * 120);
+            for i in 0..300u16 {
+                let mac = [2, 0, round as u8, 0, (i >> 8) as u8, i as u8];
+                let d = parse(&request(DISCOVER, mac, &[])).unwrap();
+                handle(&c, &mut leases, &d, now);
+            }
+        }
+        let pool = (u32::from(c.last) - u32::from(c.first) + 1) as usize;
+        assert!(leases.len() <= pool * 2, "{} entries for a pool of {pool}", leases.len());
     }
 
     #[test]

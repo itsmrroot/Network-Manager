@@ -12,7 +12,7 @@ use egui_phosphor::regular as icon;
 use netmgr::monitor::{State, Stats};
 
 use crate::app::Shared;
-use crate::i18n::{tr, trf, trl, trlf, trn};
+use crate::i18n::{tr, trf, trl, trlf, trn, with_icon};
 use crate::theme::{self, Palette, icon_label};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -211,6 +211,7 @@ impl Monitor {
     #[cfg(debug_assertions)]
     pub fn show_programs(&mut self) {
         self.tab = Tab::Programs;
+        self.programs.demo();
     }
 
     #[cfg(debug_assertions)]
@@ -348,7 +349,7 @@ impl Monitor {
     fn hosts_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         let mut add = None;
         let mut add_all: Vec<String> = Vec::new();
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             let r = ui.add(
                 egui::TextEdit::singleline(&mut self.input)
                     .hint_text(tr("Address or name to watch"))
@@ -359,11 +360,10 @@ impl Monitor {
             {
                 add = Some(std::mem::take(&mut self.input));
             }
+            theme::fit(ui, 130.0);
             egui::ComboBox::from_id_salt("quick-hosts").selected_text(tr("Quick add")).width(120.0).show_ui(ui, |ui| {
                 let mine = sh.settings.saved_hosts.clone();
-                if mine.len() > 1
-                    && ui.selectable_label(false, format!("{}  {}", icon::STAR, tr("All my hosts"))).clicked()
-                {
+                if mine.len() > 1 && ui.selectable_label(false, with_icon(icon::STAR, tr("All my hosts"))).clicked() {
                     add_all = mine.iter().map(|h| h.address.clone()).collect();
                 }
                 for h in &mine {
@@ -394,6 +394,7 @@ impl Monitor {
             });
             ui.add_space(8.0);
             let mut secs = self.interval.load(Ordering::Relaxed);
+            theme::fit(ui, 110.0);
             egui::ComboBox::from_id_salt("interval")
                 .selected_text(trf("Every {n} s", &[("n", &secs)]))
                 .width(100.0)
@@ -410,12 +411,13 @@ impl Monitor {
                     trf("Last {n} min", &[("n", &(w / 60))])
                 }
             };
+            theme::fit(ui, 120.0);
             egui::ComboBox::from_id_salt("window").selected_text(label(self.window)).width(110.0).show_ui(ui, |ui| {
                 for w in [300, 1800, 7200] {
                     ui.selectable_value(&mut self.window, w, label(w));
                 }
             });
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            theme::trailing(ui, "monitor", |ui| {
                 let has = self.hosts.lock().map(|h| !h.is_empty()).unwrap_or(false);
                 if self.running.is_some() {
                     if theme::danger_button(ui, p, &icon_label(icon::STOP, "Stop")).clicked() {
@@ -469,7 +471,8 @@ impl Monitor {
         }
         let mut remove = None;
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-            let cols = if ui.available_width() > 1000.0 { 3 } else { 2 };
+            // About 440 points a card (its four numbers side by side).
+            let cols = ((ui.available_width() / 440.0) as usize).clamp(1, 3);
             for row in hosts.chunks(cols) {
                 ui.columns(cols, |c| {
                     for (i, h) in row.iter().enumerate() {
@@ -495,7 +498,7 @@ impl Monitor {
                                 ui.label(RichText::new(h.ip.to_string()).color(p.weak).size(12.5));
                             }
                             ui.add_space(4.0);
-                            ui.horizontal(|ui| {
+                            ui.horizontal_wrapped(|ui| {
                                 ui.spacing_mut().item_spacing.x = 18.0;
                                 theme::stat(ui, p, tr("Last"), &ms(h.stats.last));
                                 theme::stat(ui, p, tr("Average"), &ms(h.stats.avg()));
@@ -740,81 +743,87 @@ impl Monitor {
             } else {
                 ui.label(RichText::new(trn(rounds, "1 round", "{n} rounds")).color(p.weak).size(12.5));
             }
-            TableBuilder::new(ui)
-                .striped(true)
-                .cell_layout(Layout::left_to_right(Align::Center))
-                .column(Column::exact(34.0))
-                .column(Column::remainder().at_least(220.0).clip(true))
-                .column(Column::exact(70.0))
-                .column(Column::exact(60.0))
-                .column(Column::exact(80.0))
-                .column(Column::exact(80.0))
-                .column(Column::exact(80.0))
-                .column(Column::exact(80.0))
-                .column(Column::exact(150.0))
-                .header(26.0, |mut h| {
-                    for t in [
-                        "#",
-                        tr("Router"),
-                        tr("Loss"),
-                        tr("Sent"),
-                        tr("Last"),
-                        tr("Average"),
-                        tr("Worst"),
-                        tr("Jitter"),
-                        tr("History"),
-                    ] {
-                        h.col(|ui| {
-                            ui.label(RichText::new(t).color(p.weak).size(13.0));
-                        });
-                    }
-                })
-                .body(|body| {
-                    body.rows(30.0, hops.len(), |mut row| {
-                        let h = &hops[row.index()];
-                        let s = &h.stats;
-                        row.col(|ui| {
-                            ui.label(RichText::new(h.n.to_string()).color(p.weak));
-                        });
-                        row.col(|ui| match h.ip {
-                            Some(ip) => {
-                                ui.label(RichText::new(ip.to_string()).monospace().color(p.text));
-                                if let Some(n) = &h.name {
-                                    ui.label(RichText::new(n).color(p.weak).size(12.5));
-                                }
-                            }
-                            None => {
-                                ui.label(RichText::new(tr("No answer (router hides itself)")).color(p.weak).italics());
-                            }
-                        });
-                        let loss = s.loss_percent();
-                        row.col(|ui| {
-                            let c = if s.sent == 0 {
-                                p.weak
-                            } else if loss >= 20.0 {
-                                p.danger
-                            } else if loss > 0.0 {
-                                p.warning
-                            } else {
-                                p.success
-                            };
-                            ui.label(
-                                RichText::new(if s.sent == 0 { "—".into() } else { format!("{loss:.0} %") }).color(c),
-                            );
-                        });
-                        row.col(|ui| {
-                            ui.label(s.sent.to_string());
-                        });
-                        for v in [s.last, s.avg(), s.max, s.jitter()] {
-                            row.col(|ui| {
-                                ui.label(ms(v));
+            // Narrow windows scroll sideways instead of cutting columns off.
+            egui::ScrollArea::horizontal().id_salt("mtr").show(ui, |ui| {
+                TableBuilder::new(ui)
+                    .striped(true)
+                    .cell_layout(Layout::left_to_right(Align::Center))
+                    .column(Column::exact(34.0))
+                    .column(Column::remainder().at_least(160.0).clip(true))
+                    .column(Column::exact(70.0))
+                    .column(Column::exact(60.0))
+                    .column(Column::exact(80.0))
+                    .column(Column::exact(80.0))
+                    .column(Column::exact(80.0))
+                    .column(Column::exact(80.0))
+                    .column(Column::exact(150.0))
+                    .header(26.0, |mut h| {
+                        for t in [
+                            "#",
+                            tr("Router"),
+                            tr("Loss"),
+                            tr("Sent"),
+                            tr("Last"),
+                            tr("Average"),
+                            tr("Worst"),
+                            tr("Jitter"),
+                            tr("History"),
+                        ] {
+                            h.col(|ui| {
+                                ui.label(RichText::new(t).color(p.weak).size(13.0));
                             });
                         }
-                        row.col(|ui| {
-                            history(ui, p, &s.history, Vec2::new(140.0, 20.0), 0);
+                    })
+                    .body(|body| {
+                        body.rows(30.0, hops.len(), |mut row| {
+                            let h = &hops[row.index()];
+                            let s = &h.stats;
+                            row.col(|ui| {
+                                ui.label(RichText::new(h.n.to_string()).color(p.weak));
+                            });
+                            row.col(|ui| match h.ip {
+                                Some(ip) => {
+                                    ui.label(RichText::new(ip.to_string()).monospace().color(p.text));
+                                    if let Some(n) = &h.name {
+                                        ui.label(RichText::new(n).color(p.weak).size(12.5));
+                                    }
+                                }
+                                None => {
+                                    ui.label(
+                                        RichText::new(tr("No answer (router hides itself)")).color(p.weak).italics(),
+                                    );
+                                }
+                            });
+                            let loss = s.loss_percent();
+                            row.col(|ui| {
+                                let c = if s.sent == 0 {
+                                    p.weak
+                                } else if loss >= 20.0 {
+                                    p.danger
+                                } else if loss > 0.0 {
+                                    p.warning
+                                } else {
+                                    p.success
+                                };
+                                ui.label(
+                                    RichText::new(if s.sent == 0 { "—".into() } else { format!("{loss:.0} %") })
+                                        .color(c),
+                                );
+                            });
+                            row.col(|ui| {
+                                ui.label(s.sent.to_string());
+                            });
+                            for v in [s.last, s.avg(), s.max, s.jitter()] {
+                                row.col(|ui| {
+                                    ui.label(ms(v));
+                                });
+                            }
+                            row.col(|ui| {
+                                history(ui, p, &s.history, Vec2::new(140.0, 20.0), 0);
+                            });
                         });
                     });
-                });
+            });
         });
     }
 }

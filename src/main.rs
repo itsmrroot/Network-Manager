@@ -4,7 +4,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use clap::{Parser, Subcommand};
 use netmgr::adapters::{self, Adapter, format_bytes, format_speed};
 use netmgr::config::{self, IpSettings, Ipv4Mode};
@@ -113,6 +113,8 @@ enum Cmd {
     },
     /// Subnet calculator: 192.168.1.10/24 or "192.168.1.10 255.255.255.0".
     Subnet {
+        /// 192.168.1.10/24, or an address and a mask: 192.168.1.10 255.255.255.0
+        #[arg(required = true, num_args = 1..=2)]
         cidr: Vec<String>,
         /// List the subnets of this length, e.g. 26.
         #[arg(long)]
@@ -130,7 +132,7 @@ enum Cmd {
         #[arg(long, default_value_t = 20)]
         growth: u32,
         /// VLAN of the first network (0: no VLANs).
-        #[arg(long, default_value_t = 10)]
+        #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u16).range(0..=4094))]
         vlan: u16,
         /// Between consecutive VLANs.
         #[arg(long, default_value_t = 10)]
@@ -221,6 +223,8 @@ enum Cmd {
     /// Find out why the internet does not work, step by step.
     Diagnose,
     /// Which switch, port and VLAN this computer is plugged into (LLDP/CDP).
+    /// Listening needs administrator rights: macOS and Linux ask for the
+    /// password.
     SwitchPort {
         /// The adapter's device name (default: the wired default adapter).
         #[arg(long)]
@@ -336,6 +340,12 @@ enum Cmd {
         /// Measure from the server to this computer.
         #[arg(long)]
         download: bool,
+        #[arg(long, default_value_t = netmgr::servers::THROUGHPUT_PORT)]
+        port: u16,
+        /// As a server: listen only on this address (one adapter's);
+        /// default: every network.
+        #[arg(long, default_value = "0.0.0.0")]
+        listen: Ipv4Addr,
     },
     /// Inspect a server's TLS certificate (host or host:port).
     Tls { target: String },
@@ -368,7 +378,7 @@ enum Cmd {
 
 #[derive(Subcommand)]
 enum RouteCmd {
-    /// Add a static route, e.g. 10.20.0.0/16 via 192.168.1.254.
+    /// Add a static route: NETWORK GATEWAY, e.g. 10.20.0.0/16 192.168.1.254.
     Add {
         network: String,
         gateway: IpAddr,
@@ -579,16 +589,23 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Ping { host, count } => {
             let cancel = AtomicBool::new(false);
             let mut stats = tools::PingStats::default();
-            tools::ping(&host, count, &cancel, |line, kind| {
-                println!("{line}");
+            let ok = tools::ping(&host, count, &cancel, |line, kind| {
+                if !json {
+                    println!("{line}");
+                }
                 stats.add(kind);
             })?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&stats)?);
+            }
+            ensure!(ok && stats.received > 0, "no reply from {host}");
         }
         Cmd::Trace { host } => {
             let cancel = AtomicBool::new(false);
             tools::traceroute(&host, &cancel, |l| println!("{l}"))?;
         }
         Cmd::Lookup { name, kind, server, compare } => {
+            ensure!(!name.trim().is_empty(), "enter a name to look up, e.g. example.com");
             let kind: RecordType = kind.parse()?;
             let mut servers: Vec<(String, IpAddr)> = match server {
                 Some(s) => vec![(s.to_string(), s)],
@@ -621,8 +638,9 @@ fn run(cli: Cli) -> Result<()> {
                 answers.extend(a.ok());
             }
             if json {
-                return print_json(&answers);
+                print_json(&answers)?;
             }
+            ensure!(!answers.is_empty(), "no DNS server answered");
         }
         Cmd::Ports { host, ports } => {
             let list = tools::parse_ports(ports.as_deref().unwrap_or(tools::PORT_PRESETS[0].1))?;
@@ -637,9 +655,15 @@ fn run(cli: Cli) -> Result<()> {
             }
         }
         Cmd::Subnet { cidr, split } => {
-            let s = Subnet::parse(&cidr.join(" "))?;
+            let s = Subnet::parse(&cidr.join(" ").replace(" /", "/"))?;
+            // Checked before anything is printed.
+            let parts = match split {
+                Some(p) => Some(s.split(p, 256)?),
+                None => None,
+            };
+            let more = split.map_or(0, |p| (1u64 << (p.saturating_sub(s.prefix)).min(32)).saturating_sub(256));
             if json {
-                return print_json(&s);
+                return print_json(&serde_json::json!({"subnet": s, "split": parts, "not_listed": more}));
             }
             println!("Address      {}/{}  ({}, class {})", s.address, s.prefix, s.scope(), s.class());
             println!("Network      {}", s.network);
@@ -647,15 +671,24 @@ fn run(cli: Cli) -> Result<()> {
             println!("Wildcard     {}", s.wildcard);
             println!("Broadcast    {}", s.broadcast);
             println!("Hosts        {} – {}  ({} usable)", s.first, s.last, s.hosts);
-            if let Some(p) = split {
+            if let Some(parts) = parts {
                 println!();
-                for (i, sub) in s.split(p, 256)?.iter().enumerate() {
+                for (i, sub) in parts.iter().enumerate() {
                     println!("{:>4}. {}/{:<3} {} – {}", i + 1, sub.network, sub.prefix, sub.first, sub.last);
+                }
+                if more > 0 {
+                    println!("      … and {more} more");
                 }
             }
         }
-        Cmd::Plan { space, groups, growth, vlan, vlan_step, ipv6, config, cisco, csv } => {
+        Cmd::Plan { mut space, mut groups, growth, vlan, vlan_step, ipv6, config, cisco, csv } => {
+            // `plan 10.10.0.0/16 Office=40`: the space may come first.
+            if space.is_none() && groups.first().is_some_and(|g| g.contains('/') && !g.contains('=')) {
+                space = Some(groups.remove(0));
+            }
             let groups = groups.iter().map(|g| plan::Group::parse(g)).collect::<Result<Vec<_>>>()?;
+            let count: u64 = groups.iter().filter(|g| g.devices > 0).map(|g| g.count as u64).sum();
+            ensure!(count <= plan::MAX_NETWORKS, "{count} networks: a plan has at most {}", plan::MAX_NETWORKS);
             let opt = plan::Options { growth, first_vlan: vlan, vlan_step };
             let space = match space {
                 Some(s) => Subnet::parse(&s)?,
@@ -677,6 +710,9 @@ fn run(cli: Cli) -> Result<()> {
                     bail!("{ipv6} has room for only {room} /64 networks: use a shorter prefix such as /48")
                 }
                 Err(plan::PlanError::Empty) => bail!("give at least one network with devices, e.g. Office=40"),
+                Err(plan::PlanError::TooSmall { prefix: 0, .. }) => {
+                    bail!("these networks need more addresses than IPv4 has: use fewer devices or networks")
+                }
                 Err(plan::PlanError::TooSmall { needed, prefix }) => bail!(
                     "these networks need {needed} addresses (a /{prefix}), but {}/{} has {}",
                     space.network,
@@ -764,6 +800,10 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Capture { interface, out, seconds, stop, parent, max_mb } => {
             let stop = stop.unwrap_or_else(|| out.with_extension("stop"));
             let _ = std::fs::remove_file(&stop);
+            if parent.is_none() {
+                // Started by hand: a new capture replaces the old file.
+                let _ = std::fs::remove_file(&out);
+            }
             if stop.parent() == out.parent() && parent.is_none() {
                 eprintln!("Capturing on {interface} for {seconds} s into {} …", out.display());
             }
@@ -819,6 +859,7 @@ fn run(cli: Cli) -> Result<()> {
                     Err(e) => println!("{h:<22} {e:#}"),
                 }
             }
+            ensure!(results.iter().any(|(_, r)| r.is_ok()), "no time server answered");
         }
         Cmd::Mtu { host } => {
             let stop = AtomicBool::new(false);
@@ -864,9 +905,13 @@ fn run(cli: Cli) -> Result<()> {
             } else {
                 None
             };
-            let list: Vec<_> = netmgr::remote::load()?
+            let all = netmgr::remote::load()?;
+            for n in &names {
+                ensure!(all.iter().any(|s| s.name.eq_ignore_ascii_case(n)), "no saved session is called {n}");
+            }
+            let list: Vec<_> = all
                 .into_iter()
-                .filter(|s| !s.backup_command.trim().is_empty())
+                .filter(|s| !s.backup_command.trim().is_empty() && s.protocol == netmgr::remote::Protocol::Ssh)
                 .filter(|s| names.is_empty() || names.iter().any(|n| n.eq_ignore_ascii_case(&s.name)))
                 .collect();
             if list.is_empty() {
@@ -1170,7 +1215,7 @@ fn run(cli: Cli) -> Result<()> {
         }
         Cmd::SyslogServer { port, listen } => {
             let stop = std::sync::Arc::new(AtomicBool::new(false));
-            println!("Listening for syslog on UDP and TCP port {port}…");
+            eprintln!("Listening for syslog on {listen}, UDP and TCP port {port}…");
             netmgr::servers::syslog_serve(
                 listen,
                 port,
@@ -1179,19 +1224,16 @@ fn run(cli: Cli) -> Result<()> {
                     if json {
                         println!("{}", serde_json::to_string(&m).unwrap_or_default());
                     } else {
-                        println!(
-                            "{:<15} {:<9} {}",
-                            m.from,
-                            netmgr::servers::SEVERITIES[m.severity as usize % 8],
-                            m.text
-                        );
+                        // Control characters would steer the terminal.
+                        let text: String = m.text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+                        println!("{:<15} {:<9} {}", m.from, netmgr::servers::SEVERITIES[m.severity as usize % 8], text);
                     }
                 }),
             )?;
         }
         Cmd::HttpServer { folder, listen, port, allow_upload } => {
             let stop = std::sync::Arc::new(AtomicBool::new(false));
-            println!("Serving {} on http port {port}…", folder.display());
+            eprintln!("Serving {} on http://{listen}:{port}…", folder.display());
             let opts = netmgr::httpd::Options { root: folder, port, listen, allow_upload, overwrite: false };
             netmgr::httpd::serve(
                 opts,
@@ -1214,7 +1256,7 @@ fn run(cli: Cli) -> Result<()> {
         }
         Cmd::TrapServer { port, listen } => {
             let stop = std::sync::Arc::new(AtomicBool::new(false));
-            println!("Listening for SNMP traps on UDP port {port}…");
+            eprintln!("Listening for SNMP traps on {listen}, UDP port {port}…");
             snmp::trap_serve(
                 listen,
                 port,
@@ -1250,16 +1292,10 @@ fn run(cli: Cli) -> Result<()> {
             let iface = if cfg!(windows) { a.name.clone() } else { a.device.clone() };
             netmgr::dhcpd::serve(cfg, &iface, Default::default(), stop, std::sync::Arc::new(|l| println!("{l}")))?;
         }
-        Cmd::Throughput { target, seconds, download } => {
-            let port = netmgr::servers::THROUGHPUT_PORT;
+        Cmd::Throughput { target, seconds, download, port, listen } => {
             if target == "server" {
                 let stop = std::sync::Arc::new(AtomicBool::new(false));
-                netmgr::servers::throughput_serve(
-                    Ipv4Addr::UNSPECIFIED,
-                    port,
-                    stop,
-                    std::sync::Arc::new(|l| println!("{l}")),
-                )?;
+                netmgr::servers::throughput_serve(listen, port, stop, std::sync::Arc::new(|l| println!("{l}")))?;
             } else {
                 let dir =
                     if download { netmgr::servers::Direction::Download } else { netmgr::servers::Direction::Upload };

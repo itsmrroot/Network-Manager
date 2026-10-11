@@ -8936,7 +8936,7 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("Wake up", "Разбудить"),
     ("Wake-on-LAN", "Wake-on-LAN"),
     ("Wake-on-LAN sent to {mac}.", "Wake-on-LAN отправлен на {mac}."),
-    ("Warning", "Предупреждение"),
+    ("Warning", "Внимание"),
     ("Watch", "Наблюдать"),
     (
         "Watch hosts and the routers on the way to them, live.",
@@ -11840,7 +11840,7 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Connected. Click here and type.", "已连接。点击此处并输入。"),
     ("Connection check", "连接检查"),
     ("Connections", "连接"),
-    ("Console", "Console"),
+    ("Console", "控制台"),
     ("Console cables, SSH and Telnet", "Console 线、SSH 和 Telnet"),
     ("Copied.", "已复制。"),
     ("Copy", "复制"),
