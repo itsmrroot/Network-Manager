@@ -143,15 +143,18 @@ impl HttpTab {
                             stop,
                             Arc::new(move |e| {
                                 if let Ok(mut v) = log.lock() {
-                                    v.push(format!(
-                                        "{}  {}  {} {}  {}  {}",
-                                        clock(),
-                                        e.from,
-                                        e.method,
-                                        e.path,
-                                        e.status,
-                                        netmgr::adapters::format_bytes(e.bytes)
-                                    ));
+                                    crate::servers::push_log(
+                                        &mut v,
+                                        format!(
+                                            "{}  {}  {} {}  {}  {}",
+                                            clock(),
+                                            e.from,
+                                            e.method,
+                                            e.path,
+                                            e.status,
+                                            netmgr::adapters::format_bytes(e.bytes)
+                                        ),
+                                    );
                                 }
                             }),
                         )
@@ -191,7 +194,7 @@ impl HttpTab {
 }
 
 fn log_card(ui: &mut Ui, p: &Palette, log: &Arc<Mutex<Vec<String>>>, title: &str) {
-    let lines = log.lock().map(|l| l.clone()).unwrap_or_default();
+    let lines = crate::servers::tail(log, 500);
     if lines.is_empty() {
         return;
     }
@@ -492,7 +495,7 @@ impl NtpTab {
                             stop,
                             Arc::new(move |ip| {
                                 if let Ok(mut v) = log.lock() {
-                                    v.push(format!("{}  {ip}", clock()));
+                                    crate::servers::push_log(&mut v, format!("{}  {ip}", clock()));
                                 }
                             }),
                         )
@@ -835,7 +838,7 @@ impl DhcpTab {
                                     stop,
                                     Arc::new(move |l| {
                                         if let Ok(mut v) = log.lock() {
-                                            v.push(format!("{}  {l}", clock()));
+                                            crate::servers::push_log(&mut v, format!("{}  {l}", clock()));
                                         }
                                     }),
                                 )

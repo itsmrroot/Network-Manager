@@ -1,7 +1,7 @@
 //! `netmgr`: the command line of Network Manager — Powered by Bashar Salmo.
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail, ensure};
@@ -433,6 +433,56 @@ enum ProfileCmd {
     },
     /// Delete a profile.
     Delete { name: String },
+}
+
+/// A device's or client's text for the terminal: control characters (which
+/// would clear the screen, set the title or start a made-up line) as spaces.
+fn clean(s: &str) -> String {
+    s.chars().map(|c| if c.is_control() { ' ' } else { c }).collect()
+}
+
+/// A server's stop switch, set by Ctrl+C: the server then removes unfinished
+/// uploads before the program ends. A second Ctrl+C ends it at once.
+fn stop_on_ctrl_c() -> std::sync::Arc<AtomicBool> {
+    static PRESSED: AtomicBool = AtomicBool::new(false);
+    #[cfg(unix)]
+    {
+        extern "C" fn on_signal(_: libc::c_int) {
+            PRESSED.store(true, Ordering::Relaxed);
+            // SAFETY: restoring the default action is async-signal-safe.
+            unsafe { libc::signal(libc::SIGINT, libc::SIG_DFL) };
+        }
+        // SAFETY: the handler only stores to an atomic and resets itself.
+        unsafe {
+            libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
+        }
+    }
+    #[cfg(windows)]
+    {
+        unsafe extern "system" fn on_ctrl(_: u32) -> windows_sys::core::BOOL {
+            // The second time: Windows' own handler ends the program.
+            i32::from(!PRESSED.swap(true, Ordering::Relaxed))
+        }
+        // SAFETY: a plain function that only touches an atomic.
+        unsafe {
+            windows_sys::Win32::System::Console::SetConsoleCtrlHandler(Some(on_ctrl), 1);
+        }
+    }
+    let stop = std::sync::Arc::new(AtomicBool::new(false));
+    let s = stop.clone();
+    std::thread::spawn(move || {
+        while !PRESSED.load(Ordering::Relaxed) {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        eprintln!("Stopping…");
+        s.store(true, Ordering::Relaxed);
+    });
+    stop
+}
+
+/// After a server stopped: a moment for its transfers to clean up.
+fn settle() {
+    std::thread::sleep(Duration::from_millis(800));
 }
 
 fn main() {
@@ -1229,12 +1279,18 @@ fn run(cli: Cli) -> Result<()> {
             }
         }
         Cmd::TftpServer { folder, listen, port, allow_upload } => {
-            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            let stop = stop_on_ctrl_c();
             let opts = netmgr::servers::TftpOptions { root: folder, port, listen, allow_upload, overwrite: false };
-            netmgr::servers::tftp_serve(opts, Default::default(), stop, std::sync::Arc::new(|l| println!("{l}")))?;
+            netmgr::servers::tftp_serve(
+                opts,
+                Default::default(),
+                stop,
+                std::sync::Arc::new(|l| println!("{}", clean(&l))),
+            )?;
+            settle();
         }
         Cmd::SyslogServer { port, listen } => {
-            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            let stop = stop_on_ctrl_c();
             eprintln!("Listening for syslog on {listen}, UDP and TCP port {port}…");
             netmgr::servers::syslog_serve(
                 listen,
@@ -1244,27 +1300,35 @@ fn run(cli: Cli) -> Result<()> {
                     if json {
                         println!("{}", serde_json::to_string(&m).unwrap_or_default());
                     } else {
-                        // Control characters would steer the terminal.
-                        let text: String = m.text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+                        let text = clean(&m.text);
                         println!("{:<15} {:<9} {}", m.from, netmgr::servers::SEVERITIES[m.severity as usize % 8], text);
                     }
                 }),
             )?;
         }
         Cmd::HttpServer { folder, listen, port, allow_upload } => {
-            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            let stop = stop_on_ctrl_c();
             eprintln!("Serving {} on http://{listen}:{port}…", folder.display());
             let opts = netmgr::httpd::Options { root: folder, port, listen, allow_upload, overwrite: false };
             netmgr::httpd::serve(
                 opts,
                 stop,
                 std::sync::Arc::new(|e| {
-                    println!("{:<15} {} {} {} {} bytes {:.1} s", e.from, e.method, e.path, e.status, e.bytes, e.seconds)
+                    println!(
+                        "{:<15} {} {} {} {} bytes {:.1} s",
+                        e.from,
+                        clean(&e.method),
+                        clean(&e.path),
+                        e.status,
+                        e.bytes,
+                        e.seconds
+                    )
                 }),
             )?;
+            settle();
         }
         Cmd::NtpServer { port, listen, stratum } => {
-            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            let stop = stop_on_ctrl_c();
             println!("Answering time requests on UDP port {port}…");
             netmgr::ntp::serve(
                 listen,
@@ -1275,7 +1339,7 @@ fn run(cli: Cli) -> Result<()> {
             )?;
         }
         Cmd::TrapServer { port, listen } => {
-            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            let stop = stop_on_ctrl_c();
             eprintln!("Listening for SNMP traps on {listen}, UDP port {port}…");
             snmp::trap_serve(
                 listen,
@@ -1283,9 +1347,9 @@ fn run(cli: Cli) -> Result<()> {
                 stop,
                 std::sync::Arc::new(move |t| {
                     let name = if t.name.is_empty() { t.oid.to_string() } else { t.name.to_string() };
-                    println!("{:<15} {:<7} {name}", t.from, t.kind);
+                    println!("{:<15} {:<7} {}", t.from, t.kind, clean(&name));
                     for (o, v) in &t.varbinds {
-                        println!("    {o} = {v}");
+                        println!("    {o} = {}", clean(&v.to_string()));
                     }
                 }),
             )?;
@@ -1330,7 +1394,7 @@ fn run(cli: Cli) -> Result<()> {
         }
         Cmd::Throughput { target, seconds, download, port, listen } => {
             if target == "server" {
-                let stop = std::sync::Arc::new(AtomicBool::new(false));
+                let stop = stop_on_ctrl_c();
                 netmgr::servers::throughput_serve(listen, port, stop, std::sync::Arc::new(|l| println!("{l}")))?;
             } else {
                 let dir =

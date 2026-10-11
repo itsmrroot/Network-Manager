@@ -469,7 +469,7 @@ impl Servers {
                             stop,
                             Arc::new(move |l| {
                                 if let Ok(mut v) = log.lock() {
-                                    v.push(format!("{}  {l}", chrono::Local::now().format("%H:%M:%S")));
+                                    push_log(&mut v, format!("{}  {l}", chrono::Local::now().format("%H:%M:%S")));
                                 }
                             }),
                         )
@@ -529,7 +529,8 @@ impl Servers {
             }
         });
         ui.add_space(10.0);
-        let transfers = self.transfers.lock().map(|t| t.clone()).unwrap_or_default();
+        // The newest ones: the list itself is kept short by the server.
+        let transfers = self.transfers.lock().map(|t| t[t.len().saturating_sub(200)..].to_vec()).unwrap_or_default();
         if !transfers.is_empty() {
             theme::card(ui, p, |ui| {
                 ui.set_width(ui.available_width());
@@ -860,7 +861,7 @@ impl Servers {
                             stop,
                             Arc::new(move |l| {
                                 if let Ok(mut v) = log.lock() {
-                                    v.push(format!("{}  {l}", chrono::Local::now().format("%H:%M:%S")));
+                                    push_log(&mut v, format!("{}  {l}", chrono::Local::now().format("%H:%M:%S")));
                                 }
                             }),
                         )
@@ -927,8 +928,25 @@ impl Servers {
     }
 }
 
+/// The most lines a server's log keeps: a flood of requests must not fill
+/// the memory (or slow down every frame).
+pub(crate) const LOG_LINES: usize = 2000;
+
+/// Adds `line` to a server's log, forgetting the oldest beyond [`LOG_LINES`].
+pub(crate) fn push_log(log: &mut Vec<String>, line: String) {
+    log.push(line);
+    if log.len() > LOG_LINES {
+        log.drain(..log.len() - LOG_LINES);
+    }
+}
+
+/// The last `n` lines of a log, copied while it is locked.
+pub(crate) fn tail(log: &Arc<Mutex<Vec<String>>>, n: usize) -> Vec<String> {
+    log.lock().map(|l| l[l.len().saturating_sub(n)..].to_vec()).unwrap_or_default()
+}
+
 fn log_card(ui: &mut Ui, p: &Palette, title: &str, log: &Arc<Mutex<Vec<String>>>) {
-    let lines = log.lock().map(|l| l.clone()).unwrap_or_default();
+    let lines = tail(log, 500);
     if lines.is_empty() {
         return;
     }

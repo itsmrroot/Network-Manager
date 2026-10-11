@@ -99,30 +99,81 @@ pub fn safe_path(root: &Path, requested: &str) -> Result<PathBuf> {
     Ok(out)
 }
 
+/// Removes uploads that never finished (the program was ended in the
+/// middle): hidden ".name.pid-n.part" files untouched for 10 minutes.
+pub fn sweep_parts(root: &Path) {
+    fn walk(dir: &Path, depth: u8) {
+        let Ok(list) = std::fs::read_dir(dir) else { return };
+        for e in list.flatten() {
+            let Ok(meta) = e.metadata() else { continue };
+            let name = e.file_name().to_string_lossy().into_owned();
+            if meta.is_dir() && depth < 4 && !name.starts_with('.') {
+                walk(&e.path(), depth + 1);
+            } else if meta.is_file()
+                && name.starts_with('.')
+                && name.ends_with(".part")
+                && meta.modified().ok().and_then(|m| m.elapsed().ok()).is_some_and(|age| age > Duration::from_secs(600))
+            {
+                let _ = std::fs::remove_file(e.path());
+            }
+        }
+    }
+    walk(root, 0);
+}
+
+/// How long a transfer may go without progress (whatever the device asked
+/// for as its timeout).
+const NO_PROGRESS: Duration = Duration::from_secs(20);
+
+/// The most transfers the list keeps.
+pub const MAX_TRANSFERS: usize = 500;
+
 /// At most this many clients at once on each server: more are turned away
 /// instead of starting a thread each.
 pub const MAX_CLIENTS: usize = 64;
 
+/// At most this many at once from one address, so that one client cannot
+/// take every place.
+pub const MAX_PER_CLIENT: usize = 8;
+
+#[derive(Default)]
+struct SlotCount {
+    total: usize,
+    by_client: std::collections::HashMap<IpAddr, usize>,
+}
+
 /// Counts the clients being served; a [`Slot`] is given back when dropped.
 #[derive(Clone, Default)]
-pub struct Slots(Arc<std::sync::atomic::AtomicUsize>);
+pub struct Slots(Arc<Mutex<SlotCount>>);
 
-pub struct Slot(Arc<std::sync::atomic::AtomicUsize>);
+pub struct Slot(Arc<Mutex<SlotCount>>, IpAddr);
 
 impl Slots {
-    pub fn take(&self) -> Option<Slot> {
-        let n = self.0.fetch_add(1, Ordering::SeqCst);
-        if n >= MAX_CLIENTS {
-            self.0.fetch_sub(1, Ordering::SeqCst);
+    /// A place for a client at `from`, unless the server or that client has
+    /// too many already.
+    pub fn take(&self, from: IpAddr) -> Option<Slot> {
+        let mut c = self.0.lock().ok()?;
+        let mine = c.by_client.get(&from).copied().unwrap_or(0);
+        if c.total >= MAX_CLIENTS || mine >= MAX_PER_CLIENT {
             return None;
         }
-        Some(Slot(self.0.clone()))
+        c.total += 1;
+        c.by_client.insert(from, mine + 1);
+        Some(Slot(self.0.clone(), from))
     }
 }
 
 impl Drop for Slot {
     fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::SeqCst);
+        if let Ok(mut c) = self.0.lock() {
+            c.total = c.total.saturating_sub(1);
+            if let Some(n) = c.by_client.get_mut(&self.1) {
+                *n -= 1;
+                if *n == 0 {
+                    c.by_client.remove(&self.1);
+                }
+            }
+        }
     }
 }
 
@@ -163,6 +214,7 @@ pub fn tftp_serve(
     log: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<()> {
     ensure!(opts.root.is_dir(), "the folder {} does not exist", opts.root.display());
+    sweep_parts(&opts.root);
     let sock = bind_udp(opts.listen, opts.port).with_context(|| port_hint(opts.port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     let _hole = crate::cmd::FirewallHole::open("UDP", opts.port);
@@ -172,7 +224,11 @@ pub fn tftp_serve(
     while !stop.load(Ordering::Relaxed) {
         let Ok((n, peer)) = sock.recv_from(&mut buf) else { continue };
         let Some((op, file, mode, options)) = parse_request(&buf[..n]) else { continue };
-        let Some(slot) = slots.take() else { continue };
+        let Some(slot) = slots.take(peer.ip()) else {
+            // Told at once, instead of left waiting.
+            let _ = sock.send_to(&error_packet(0, "the server is busy: try again in a moment"), peer);
+            continue;
+        };
         let (opts, transfers, log, stop) = (opts.clone(), transfers.clone(), log.clone(), stop.clone());
         std::thread::spawn(move || {
             let _slot = slot;
@@ -180,6 +236,12 @@ pub fn tftp_serve(
             let upload = op == WRQ;
             log(format!("{peer} {} {file} ({mode})", if upload { "uploads" } else { "downloads" }));
             if let Ok(mut t) = transfers.lock() {
+                // A flood of requests must not grow the list without end:
+                // the oldest finished ones go first.
+                while t.len() >= MAX_TRANSFERS {
+                    let i = t.iter().position(|x| x.done).unwrap_or(0);
+                    t.remove(i);
+                }
                 t.push(Transfer {
                     id,
                     peer,
@@ -281,7 +343,9 @@ fn transfer(
             _ => {}
         }
     }
-    sock.set_read_timeout(Some(timeout))?;
+    // Short waits, to notice the server stopping; the device's timeout is
+    // counted separately.
+    sock.set_read_timeout(Some(timeout.min(Duration::from_millis(300))))?;
     let oack_packet = (!oack.is_empty()).then(|| {
         let mut p = OACK.to_be_bytes().to_vec();
         for (k, v) in &oack {
@@ -296,14 +360,19 @@ fn transfer(
 
     // Sends `packet` until the peer acknowledges `block`.
     let send_wait_ack = |packet: &[u8], block: u16, buf: &mut [u8]| -> Result<()> {
+        let waiting = Instant::now();
         for _ in 0..6 {
-            if stop.load(Ordering::Relaxed) {
-                bail!("the server was stopped");
+            // Silent devices (or made-up requests) do not hold a place long.
+            if waiting.elapsed() > NO_PROGRESS {
+                break;
             }
             sock.send(packet)?;
             let start = Instant::now();
             while start.elapsed() < timeout {
-                let Ok(n) = sock.recv(buf) else { break };
+                if stop.load(Ordering::Relaxed) {
+                    bail!("the server was stopped");
+                }
+                let Ok(n) = sock.recv(buf) else { continue };
                 if n >= 4 {
                     let op = u16::from_be_bytes([buf[0], buf[1]]);
                     let b = u16::from_be_bytes([buf[2], buf[3]]);
@@ -320,8 +389,9 @@ fn transfer(
     };
 
     if !upload {
+        // Only plain files: opening a pipe would wait forever.
         let mut f = match File::open(&path) {
-            Ok(f) if !path.is_dir() => f,
+            Ok(f) if path.is_file() => f,
             _ => return fail(1, format!("{file} was not found")),
         };
         let total = f.metadata().map(|m| m.len()).ok();
@@ -386,6 +456,7 @@ fn transfer(
     let mut got = 0u64;
     let mut last_ack = first;
     let mut retries = 0;
+    let (mut sent_at, mut progress_at) = (Instant::now(), Instant::now());
     loop {
         if stop.load(Ordering::Relaxed) {
             let _ = std::fs::remove_file(&tmp);
@@ -394,12 +465,16 @@ fn transfer(
         let n = match sock.recv(&mut buf) {
             Ok(n) => n,
             Err(_) => {
+                if sent_at.elapsed() < timeout {
+                    continue;
+                }
                 retries += 1;
-                if retries > 6 {
+                if retries > 6 || progress_at.elapsed() > NO_PROGRESS {
                     let _ = std::fs::remove_file(&tmp);
                     bail!("the device stopped sending");
                 }
                 sock.send(&last_ack)?;
+                sent_at = Instant::now();
                 continue;
             }
         };
@@ -424,20 +499,38 @@ fn transfer(
             update(&|x| x.bytes = got);
             expect = expect.wrapping_add(1);
             retries = 0;
+            progress_at = Instant::now();
+            // The last block: saved before the device is told it worked.
+            if n - 4 < blksize {
+                let saved = f.sync_all().and_then(|()| {
+                    drop(f);
+                    crate::httpd::publish(&tmp, &path, opts.overwrite)
+                });
+                if let Err(e) = saved {
+                    let _ = std::fs::remove_file(&tmp);
+                    if e.kind() == std::io::ErrorKind::AlreadyExists {
+                        return fail(6, format!("{file} already exists"));
+                    }
+                    return fail(3, format!("{file} could not be saved: {e}"));
+                }
+                let ack = [ACK.to_be_bytes(), block.to_be_bytes()].concat();
+                sock.send(&ack)?;
+                // The device sends the last block again if that ACK is lost.
+                let until = Instant::now() + timeout.min(Duration::from_secs(2));
+                while Instant::now() < until {
+                    if let Ok(n) = sock.recv(&mut buf)
+                        && n >= 4
+                        && buf[..4] == [DATA.to_be_bytes(), block.to_be_bytes()].concat()[..]
+                    {
+                        sock.send(&ack)?;
+                    }
+                }
+                return Ok(got);
+            }
         }
         last_ack = [ACK.to_be_bytes(), block.to_be_bytes()].concat();
         sock.send(&last_ack)?;
-        if block == expect.wrapping_sub(1) && n - 4 < blksize {
-            let saved = f.sync_all().and_then(|()| {
-                drop(f);
-                std::fs::rename(&tmp, &path)
-            });
-            if let Err(e) = saved {
-                let _ = std::fs::remove_file(&tmp);
-                bail!("{file} could not be saved: {e}");
-            }
-            return Ok(got);
-        }
+        sent_at = Instant::now();
     }
 }
 
@@ -449,6 +542,10 @@ pub struct UdpIn {
     /// not arriving UDP, so that is checked here).
     #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     only: Option<u32>,
+    /// macOS: the address datagrams must be sent to (this Mac's own traffic
+    /// to its other addresses arrives through loopback too).
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    to: Option<Ipv4Addr>,
 }
 
 impl std::ops::Deref for UdpIn {
@@ -465,7 +562,16 @@ impl UdpIn {
         if only.is_some() {
             mac::report_interface(&sock)?;
         }
-        Ok(Self { sock, only })
+        Ok(Self { sock, only, to: None })
+    }
+
+    /// Also only datagrams sent to `to` (macOS).
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    fn sent_to(mut self, to: Ipv4Addr) -> std::io::Result<Self> {
+        #[cfg(target_os = "macos")]
+        mac::report_destination(&self.sock)?;
+        self.to = Some(to);
+        Ok(self)
     }
 
     /// The next datagram from the chosen adapter; others are dropped.
@@ -473,8 +579,9 @@ impl UdpIn {
         #[cfg(target_os = "macos")]
         if let Some(index) = self.only {
             loop {
-                let (n, from, arrived) = mac::recv_with_interface(&self.sock, buf)?;
-                if arrived.is_none_or(|i| i == index) {
+                let (n, from, arrived, dest) = mac::recv_with_interface(&self.sock, buf)?;
+                let to_us = self.to.is_none_or(|to| dest.is_none_or(|d| d == to));
+                if arrived.is_none_or(|i| i == index) && to_us {
                     return Ok((n, from));
                 }
             }
@@ -490,7 +597,7 @@ pub fn bind_udp(listen: Ipv4Addr, port: u16) -> std::io::Result<UdpIn> {
     if let Some(index) = mac::low_port_interface(listen, port) {
         let s = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port))?;
         mac::bind_to_interface(&s, index)?;
-        return UdpIn::new(s, Some(index));
+        return UdpIn::new(s, Some(index))?.sent_to(listen);
     }
     UdpIn::new(UdpSocket::bind((listen, port))?, None)
 }
@@ -562,11 +669,28 @@ mod mac {
         if r == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
     }
 
-    /// One datagram, its sender and the interface it arrived on.
+    /// IP_RECVDSTADDR: each datagram comes with the address it was sent to.
+    pub fn report_destination(s: &impl AsRawFd) -> std::io::Result<()> {
+        let on: libc::c_int = 1;
+        // SAFETY: a plain integer option on a socket this process owns.
+        let r = unsafe {
+            libc::setsockopt(
+                s.as_raw_fd(),
+                libc::IPPROTO_IP,
+                libc::IP_RECVDSTADDR,
+                (&raw const on).cast(),
+                std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+            )
+        };
+        if r == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+    }
+
+    /// One datagram, its sender, the interface it arrived on and the address
+    /// it was sent to (when asked for with the options above).
     pub fn recv_with_interface(
         s: &impl AsRawFd,
         buf: &mut [u8],
-    ) -> std::io::Result<(usize, std::net::SocketAddr, Option<u32>)> {
+    ) -> std::io::Result<(usize, std::net::SocketAddr, Option<u32>, Option<Ipv4Addr>)> {
         // SAFETY: every buffer handed to recvmsg lives on this stack frame
         // with its true length; control messages are walked with the CMSG
         // macros and read only within what the kernel filled in.
@@ -585,12 +709,16 @@ mod mac {
             if n < 0 {
                 return Err(std::io::Error::last_os_error());
             }
-            let mut arrived = None;
+            let (mut arrived, mut dest) = (None, None);
             let mut c = libc::CMSG_FIRSTHDR(&raw const msg);
             while !c.is_null() {
                 if (*c).cmsg_level == libc::IPPROTO_IP && (*c).cmsg_type == libc::IP_RECVIF {
                     let dl = libc::CMSG_DATA(c) as *const libc::sockaddr_dl;
                     arrived = Some(u32::from(std::ptr::read_unaligned(dl).sdl_index));
+                }
+                if (*c).cmsg_level == libc::IPPROTO_IP && (*c).cmsg_type == libc::IP_RECVDSTADDR {
+                    let a = std::ptr::read_unaligned(libc::CMSG_DATA(c) as *const libc::in_addr);
+                    dest = Some(Ipv4Addr::from(u32::from_be(a.s_addr)));
                 }
                 c = libc::CMSG_NXTHDR(&raw const msg, c);
             }
@@ -603,7 +731,7 @@ mod mac {
             } else {
                 return Err(std::io::Error::other("not an IPv4 sender"));
             };
-            Ok((n as usize, from, arrived))
+            Ok((n as usize, from, arrived, dest))
         }
     }
 
@@ -736,7 +864,7 @@ pub fn syslog_serve(
             while !stop.load(Ordering::Relaxed) {
                 match listener.accept() {
                     Ok((mut conn, from)) => {
-                        let Some(slot) = slots.take() else { continue };
+                        let Some(slot) = slots.take(from.ip()) else { continue };
                         let (stop, message) = (stop.clone(), message.clone());
                         std::thread::spawn(move || {
                             let _slot = slot;
@@ -745,10 +873,21 @@ pub fn syslog_serve(
                             let _ = conn.set_read_timeout(Some(Duration::from_millis(500)));
                             let mut pending: Vec<u8> = Vec::new();
                             let mut buf = [0u8; 8192];
-                            while !stop.load(Ordering::Relaxed) {
+                            // Devices may stay connected and quiet for a long time,
+                            // but not for ever (the places are limited).
+                            let mut heard = Instant::now();
+                            while !stop.load(Ordering::Relaxed) && heard.elapsed() < Duration::from_secs(600) {
                                 match conn.read(&mut buf) {
-                                    Ok(0) => break,
+                                    Ok(0) => {
+                                        // The last message may have no line end.
+                                        let rest = String::from_utf8_lossy(&pending).trim().to_string();
+                                        if !rest.is_empty() {
+                                            message(parse_syslog(rest.as_bytes(), from.ip()));
+                                        }
+                                        break;
+                                    }
                                     Ok(n) => {
+                                        heard = Instant::now();
                                         pending.extend_from_slice(&buf[..n]);
                                         let (msgs, used) = split_tcp_syslog(&pending);
                                         pending.drain(..used);
@@ -817,7 +956,7 @@ pub fn throughput_serve(
     while !stop.load(Ordering::Relaxed) {
         match listener.accept() {
             Ok((stream, peer)) => {
-                let Some(slot) = slots.take() else { continue };
+                let Some(slot) = slots.take(peer.ip()) else { continue };
                 let (log, stop) = (log.clone(), stop.clone());
                 std::thread::spawn(move || {
                     let _slot = slot;
@@ -847,8 +986,11 @@ fn serve_one(mut s: TcpStream, stop: &AtomicBool) -> Result<(Direction, u64, f64
     s.set_write_timeout(Some(Duration::from_secs(5)))?;
     let mut line = Vec::new();
     let mut b = [0u8; 1];
-    while s.read(&mut b).unwrap_or(0) == 1 && b[0] != b'\n' && line.len() < 64 {
+    // The whole hello within 5 s, not 5 s per byte.
+    let hello_by = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < hello_by && s.read(&mut b).unwrap_or(0) == 1 && b[0] != b'\n' && line.len() < 64 {
         line.push(b[0]);
+        s.set_read_timeout(Some(hello_by.saturating_duration_since(Instant::now()).max(Duration::from_millis(1))))?;
     }
     let hello = String::from_utf8_lossy(&line).to_string();
     ensure!(!hello.is_empty(), "connected but sent nothing");
