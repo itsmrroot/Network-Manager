@@ -477,34 +477,57 @@ impl Summary {
 /// Opens a new `out` for the capture, which runs as root: never follows a
 /// link and never writes over an existing file, and only into a folder
 /// that others cannot write to (the app's private temporary folder).
-fn create_output(out: &Path) -> Result<std::fs::File> {
-    let mut o = std::fs::OpenOptions::new();
-    o.write(true).create_new(true);
+pub fn create_output(out: &Path) -> Result<std::fs::File> {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-        o.custom_flags(libc::O_NOFOLLOW);
+        use std::os::fd::{AsRawFd, FromRawFd};
+        use std::os::unix::ffi::OsStrExt;
+        use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
         let parent = match out.parent() {
             Some(p) if !p.as_os_str().is_empty() => p,
             _ => Path::new("."),
         };
-        let m = std::fs::symlink_metadata(parent).with_context(|| format!("could not open {}", parent.display()))?;
+        let name = out.file_name().with_context(|| format!("{} has no file name", out.display()))?;
+        // The folder itself, never through a link; the file is then created
+        // inside that very folder, even if its path is swapped meanwhile.
+        let dir = std::fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW)
+            .open(parent)
+            .with_context(|| format!("could not open {} (a link?)", parent.display()))?;
+        let m = dir.metadata()?;
         // Others may write there only with the sticky bit (as in /tmp),
         // which keeps them from replacing what root creates.
-        ensure!(
-            m.is_dir() && (m.mode() & 0o022 == 0 || m.mode() & 0o1000 != 0),
-            "{} is a link or others can write to it",
-            parent.display()
-        );
-    }
-    let file = o.open(out).with_context(|| format!("could not create {} (does it already exist?)", out.display()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
+        ensure!(m.mode() & 0o022 == 0 || m.mode() & 0o1000 != 0, "others can write to {}", parent.display());
+        let c = std::ffi::CString::new(name.as_bytes())?;
+        // SAFETY: a valid folder handle and C string; the new descriptor is
+        // owned by the File made from it.
+        let fd = unsafe {
+            libc::openat(
+                dir.as_raw_fd(),
+                c.as_ptr(),
+                libc::O_WRONLY | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                0o644 as libc::c_uint,
+            )
+        };
+        if fd < 0 {
+            return Err(std::io::Error::last_os_error())
+                .with_context(|| format!("could not create {} (does it already exist?)", out.display()));
+        }
+        // SAFETY: `fd` was just opened and belongs to nobody else.
+        let file = unsafe { std::fs::File::from_raw_fd(fd) };
         // Written as root, read by the app.
         let _ = file.set_permissions(std::fs::Permissions::from_mode(0o644));
+        Ok(file)
     }
-    Ok(file)
+    #[cfg(not(unix))]
+    {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(out)
+            .with_context(|| format!("could not create {} (does it already exist?)", out.display()))
+    }
 }
 
 /// Captures on `interface` into `out` until `stop` exists, `parent` (a
@@ -513,7 +536,7 @@ fn create_output(out: &Path) -> Result<std::fs::File> {
 pub fn run(interface: &str, out: &Path, stop: &Path, parent: Option<u32>, seconds: u64, max_bytes: u64) -> Result<()> {
     ensure!(crate::cmd::is_admin(), "capturing packets needs administrator rights");
     // Windows' raw socket sees incoming packets only when they are allowed in.
-    crate::cmd::allow_through_firewall();
+    let _hole = crate::cmd::FirewallHole::open("any", 0);
     let mut sniffer = imp::Sniffer::open(interface)?;
     let mut file = create_output(out)?;
     file.write_all(&pcap_header(imp::LINK))?;
@@ -859,8 +882,8 @@ pub fn start(interface: &str, out: &Path, stop: &Path, seconds: u64) -> Result<(
     let q = |s: &str| crate::cmd::sh_quote(s);
     let log = out.with_extension("log");
     let script = format!(
-        // `set -C`: the log never replaces an existing file or follows a link.
-        "set -C; {} capture --interface {} --out {} --stop {} --parent {pid} --seconds {seconds} > {} 2>&1 &",
+        // The capture writes its own log, the safe way (see create_output).
+        "{} capture --interface {} --out {} --stop {} --parent {pid} --seconds {seconds} --log {} >/dev/null 2>&1 &",
         q(&exe.display().to_string()),
         q(interface),
         q(&out.display().to_string()),

@@ -182,6 +182,9 @@ enum Cmd {
         /// Stop when the file reaches this many megabytes.
         #[arg(long, default_value_t = 500)]
         max_mb: u64,
+        /// Write errors to this new file (the app reads it).
+        #[arg(long, hide = true)]
+        log: Option<std::path::PathBuf>,
     },
     /// Compare this computer's clock with time servers (NTP).
     Time {
@@ -803,7 +806,12 @@ fn run(cli: Cli) -> Result<()> {
                 );
             }
         }
-        Cmd::Capture { interface, out, seconds, stop, parent, max_mb } => {
+        Cmd::Capture { interface, out, seconds, stop, parent, max_mb, log } => {
+            // Started by the app as root: errors go to a file made safely.
+            let mut log = match log {
+                Some(path) => Some(netmgr::capture::create_output(&path)?),
+                None => None,
+            };
             let stop = stop.unwrap_or_else(|| out.with_extension("stop"));
             let _ = std::fs::remove_file(&stop);
             if parent.is_none() {
@@ -813,7 +821,13 @@ fn run(cli: Cli) -> Result<()> {
             if stop.parent() == out.parent() && parent.is_none() {
                 eprintln!("Capturing on {interface} for {seconds} s into {} …", out.display());
             }
-            netmgr::capture::run(&interface, &out, &stop, parent, seconds, max_mb * 1_000_000)?;
+            if let Err(e) = netmgr::capture::run(&interface, &out, &stop, parent, seconds, max_mb * 1_000_000) {
+                if let Some(f) = log.as_mut() {
+                    use std::io::Write;
+                    let _ = writeln!(f, "error: {e:#}");
+                }
+                return Err(e);
+            }
             if parent.is_none() {
                 let (link, frames) = netmgr::capture::read_file(&out)?;
                 println!("{} packets saved to {}", frames.len(), out.display());

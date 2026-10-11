@@ -281,7 +281,11 @@ mod imp {
         all.extend_from_slice(args);
         let out = cmd::output("netsh", &all)?;
         if out.stdout.contains("privacy-location") || out.stderr.contains("privacy-location") {
-            let _ = cmd::command("explorer").arg("ms-settings:privacy-location").spawn();
+            // Once per run: the app asks every few seconds.
+            static OPENED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+            if !OPENED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                let _ = cmd::command("explorer").arg("ms-settings:privacy-location").spawn();
+            }
             bail!(
                 "Windows shows Wi-Fi details only when Location is on: turn on Location and \"Let desktop apps access your location\" in Settings → Privacy & security → Location"
             );

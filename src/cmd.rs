@@ -196,38 +196,77 @@ pub fn private_dir(prefix: &str) -> Result<std::path::PathBuf> {
     bail!("could not create a temporary folder")
 }
 
-/// Windows: lets this program receive connections on every kind of
-/// network. A lab cable counts as a "Public" network, where Windows'
-/// firewall otherwise drops what the servers and the capture wait for.
-/// Once per run; needs administrator rights (the app has them).
-pub fn allow_through_firewall() {
+/// Windows: an inbound firewall rule for this program on one port, for as
+/// long as a server runs (removed when dropped). A lab cable counts as a
+/// "Public" network, where Windows' firewall otherwise drops what the
+/// server waits for. `protocol` is "UDP" or "TCP"; "any" with port 0 is the
+/// whole program (packet capture). Nothing on other systems.
+pub struct FirewallHole {
     #[cfg(windows)]
-    {
-        static DONE: std::sync::OnceLock<()> = std::sync::OnceLock::new();
-        DONE.get_or_init(|| {
-            let Ok(exe) = std::env::current_exe() else { return };
-            let file = exe.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-            let name = format!("name=Network Manager ({file})");
-            // Replaced each time: an update may have moved the program.
+    name: Option<String>,
+}
+
+impl FirewallHole {
+    pub fn open(protocol: &str, port: u16) -> Self {
+        #[cfg(windows)]
+        {
+            let Ok(exe) = std::env::current_exe() else { return Self { name: None } };
+            clear_blocks(&exe);
+            let name = if port == 0 {
+                "name=Network Manager capture".to_string()
+            } else {
+                format!("name=Network Manager {protocol} {port}")
+            };
             let _ = output("netsh", &["advfirewall", "firewall", "delete", "rule", &name]);
             let program = format!("program={}", exe.display());
-            let _ = output(
-                "netsh",
-                &[
-                    "advfirewall",
-                    "firewall",
-                    "add",
-                    "rule",
-                    &name,
-                    "dir=in",
-                    "action=allow",
-                    &program,
-                    "profile=any",
-                    "enable=yes",
-                ],
-            );
-        });
+            let (proto, local) = (format!("protocol={protocol}"), format!("localport={port}"));
+            let mut args = vec![
+                "advfirewall",
+                "firewall",
+                "add",
+                "rule",
+                &name,
+                "dir=in",
+                "action=allow",
+                &program,
+                "profile=any",
+            ];
+            if port != 0 {
+                args.extend([proto.as_str(), local.as_str()]);
+            }
+            let added = output("netsh", &args).is_ok_and(|o| o.success);
+            Self { name: added.then_some(name) }
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (protocol, port);
+            Self {}
+        }
     }
+}
+
+impl Drop for FirewallHole {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        if let Some(name) = self.name.take() {
+            let _ = output("netsh", &["advfirewall", "firewall", "delete", "rule", &name]);
+        }
+    }
+}
+
+/// Windows' first-run prompt ("Allow access") ticks private networks only and
+/// adds a rule that blocks this program on public ones, which outranks any
+/// rule that allows it: removed once per run, when a server starts.
+#[cfg(windows)]
+fn clear_blocks(exe: &std::path::Path) {
+    static DONE: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    DONE.get_or_init(|| {
+        let _ = powershell(&format!(
+            "Get-NetFirewallApplicationFilter -Program {} -ErrorAction SilentlyContinue | Get-NetFirewallRule | \
+             Where-Object {{ $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' }} | Remove-NetFirewallRule",
+            ps_quote(&exe.display().to_string())
+        ));
+    });
 }
 
 /// Single-quotes `s` for `sh`.
@@ -401,17 +440,18 @@ mod tests {
         assert_eq!(ps_quote("a’; calc; ’"), "'a’’; calc; ’’'");
     }
 
-    /// Runs on Windows in CI (as administrator): the rule is there afterwards.
+    /// Runs on Windows in CI (as administrator): the rule is there while the
+    /// hole is open, for this port only, and gone afterwards.
     #[cfg(windows)]
     #[test]
-    fn firewall_rule_is_added() {
-        allow_through_firewall();
-        let exe = std::env::current_exe().unwrap();
-        let file = exe.file_name().unwrap().to_string_lossy().into_owned();
-        let name = format!("name=Network Manager ({file})");
-        let out = output("netsh", &["advfirewall", "firewall", "show", "rule", &name, "verbose"]).unwrap();
-        let _ = output("netsh", &["advfirewall", "firewall", "delete", "rule", &name]);
-        assert!(out.success && out.stdout.to_lowercase().contains(&file.to_lowercase()), "{}", out.stdout);
+    fn firewall_hole_opens_and_closes() {
+        let name = "name=Network Manager UDP 47123";
+        let show = || output("netsh", &["advfirewall", "firewall", "show", "rule", name, "verbose"]).unwrap();
+        let hole = FirewallHole::open("UDP", 47123);
+        let out = show();
+        assert!(out.success && out.stdout.contains("47123"), "{}", out.stdout);
+        drop(hole);
+        assert!(!show().success);
     }
 
     #[test]

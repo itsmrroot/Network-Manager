@@ -116,14 +116,22 @@ if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) { Add-WindowsCapabili
 Set-Service sshd -StartupType Automatic
 Start-Service sshd
 $rule = Get-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue
-if ($rule) { Enable-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' } else { New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -DisplayName 'OpenSSH Server (sshd)' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 | Out-Null }"
+if ($rule) { Set-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -Enabled True -Profile Any } else { New-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -DisplayName 'OpenSSH Server (sshd)' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 -Profile Any | Out-Null }"
         } else {
             "$ErrorActionPreference = 'Stop'
 Stop-Service sshd
 Set-Service sshd -StartupType Manual
 Disable-NetFirewallRule -Name 'OpenSSH-Server-In-TCP' -ErrorAction SilentlyContinue"
         };
-        cmd::powershell(script)?;
+        cmd::powershell(script).map_err(|e| {
+            if e.to_string().contains("0x800f0954") {
+                anyhow::anyhow!(
+                    "Windows could not download OpenSSH Server: optional features on this PC are managed by your organisation (0x800f0954)"
+                )
+            } else {
+                e
+            }
+        })?;
         Ok(())
     }
 }
@@ -146,25 +154,36 @@ mod imp {
             let install = if installed() {
                 String::new()
             } else if cmd::exists("apt-get") {
-                "DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server && ".into()
+                // Fresh package lists; waits for an update running in the background.
+                "export DEBIAN_FRONTEND=noninteractive; apt-get -o DPkg::Lock::Timeout=120 update && \
+                 apt-get -o DPkg::Lock::Timeout=120 install -y openssh-server && "
+                    .into()
             } else if cmd::exists("dnf") {
                 "dnf install -y openssh-server && ".into()
             } else if cmd::exists("zypper") {
                 "zypper -n install openssh-server && ".into()
             } else if cmd::exists("pacman") {
-                "pacman -S --noconfirm openssh && ".into()
+                "pacman -Sy --noconfirm openssh && ".into()
             } else {
                 bail!("install the openssh-server package first");
             };
-            // Let it through the firewall when one is on.
+            // Let it through the firewall: ufw keeps the rule even when off
+            // (harmless); firewalld now and after restarts, without a reload
+            // that would drop the user's own temporary rules.
             format!(
                 "{install}systemctl enable --now {svc} && \
-                 {{ ! command -v ufw >/dev/null || ! ufw status | grep -q 'Status: active' || ufw allow 22/tcp >/dev/null; }} && \
+                 {{ ! command -v ufw >/dev/null || ufw allow 22/tcp >/dev/null; }} && \
                  {{ ! command -v firewall-cmd >/dev/null || ! firewall-cmd --state >/dev/null 2>&1 || \
-                 {{ firewall-cmd --permanent --add-service=ssh >/dev/null && firewall-cmd --reload >/dev/null; }}; }}"
+                 {{ firewall-cmd --add-service=ssh >/dev/null && firewall-cmd --permanent --add-service=ssh >/dev/null; }}; }}"
             )
         } else {
-            format!("systemctl disable --now {svc}.socket 2>/dev/null; systemctl disable --now {svc}")
+            // Closes the firewall again too.
+            format!(
+                "systemctl disable --now {svc}.socket 2>/dev/null; systemctl disable --now {svc}; \
+                 {{ ! command -v ufw >/dev/null || ufw delete allow 22/tcp >/dev/null 2>&1; }}; \
+                 {{ ! command -v firewall-cmd >/dev/null || ! firewall-cmd --state >/dev/null 2>&1 || \
+                 {{ firewall-cmd --remove-service=ssh >/dev/null 2>&1; firewall-cmd --permanent --remove-service=ssh >/dev/null 2>&1; }}; }}; true"
+            )
         };
         cmd::admin_sh(&script)?;
         Ok(())

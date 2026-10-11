@@ -147,16 +147,33 @@ impl Term {
         let app = self.parser.screen().application_cursor();
         let bracketed = self.parser.screen().bracketed_paste();
         let mut out = Vec::new();
+        let mods = ui.input(|i| i.modifiers);
         for e in ui.input(|i| i.events.clone()) {
             match e {
                 egui::Event::Text(t) => out.extend_from_slice(t.as_bytes()),
                 // Windows and Linux: egui turns Ctrl+C and Ctrl+X into Copy and
                 // Cut (and sends no key): in a terminal they stop a program
                 // (top, ping) and cut, as everywhere. macOS copies with Cmd.
-                egui::Event::Copy if !cfg!(target_os = "macos") => out.push(0x03),
-                egui::Event::Cut if !cfg!(target_os = "macos") => out.push(0x18),
+                // Not Ctrl+Shift+C (copy in Linux terminals) or Ctrl+Insert.
+                egui::Event::Copy if !cfg!(target_os = "macos") && mods.ctrl && !mods.shift => out.push(0x03),
+                egui::Event::Cut if !cfg!(target_os = "macos") => {
+                    if mods.ctrl && !mods.shift {
+                        out.push(0x18);
+                    } else if mods.shift && !mods.ctrl {
+                        // Windows: Shift+Delete.
+                        out.extend_from_slice(b"\x1b[3~");
+                    }
+                }
                 egui::Event::Paste(t) => {
-                    let t = t.replace("\r\n", "\r").replace('\n', "\r");
+                    // Pasted text is only text: no escape sequences (which
+                    // could end the paste early and run what follows) and no
+                    // other control characters but tab and line ends.
+                    let t: String = t
+                        .replace("\r\n", "\r")
+                        .replace('\n', "\r")
+                        .chars()
+                        .filter(|c| !c.is_control() || *c == '\t' || *c == '\r')
+                        .collect();
                     if bracketed {
                         out.extend_from_slice(b"\x1b[200~");
                     }
@@ -166,7 +183,8 @@ impl Term {
                     }
                 }
                 egui::Event::Key { key, pressed: true, modifiers, .. } => {
-                    if modifiers.ctrl {
+                    // Ctrl with Alt is AltGr on Windows: a character, sent as text.
+                    if modifiers.ctrl && !modifiers.alt {
                         let name = key.name();
                         if name.len() == 1
                             && let Some(c) = name.chars().next().filter(|c| c.is_ascii_alphabetic())

@@ -8,7 +8,7 @@
 //! out conflicting addresses.
 
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
@@ -404,7 +404,7 @@ pub fn handle(cfg: &Config, leases: &mut Vec<Lease>, m: &Message, now: SystemTim
 /// (its device name) that faces the devices; answers go out through it.
 pub fn serve(cfg: Config, iface: &str, leases: Leases, stop: Arc<AtomicBool>, log: Log) -> Result<()> {
     cfg.check()?;
-    crate::cmd::allow_through_firewall();
+    let _hole = crate::cmd::FirewallHole::open("UDP", 67);
     let sock = socket(cfg.server, iface)?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     log(format!("DHCP server on {} for {} – {}", cfg.server, cfg.first, cfg.last));
@@ -453,7 +453,9 @@ pub fn serve(cfg: Config, iface: &str, leases: Leases, stop: Arc<AtomicBool>, lo
 }
 
 /// A socket on port 67 that sends broadcasts out of `iface`.
-fn socket(server: Ipv4Addr, iface: &str) -> Result<UdpSocket> {
+fn socket(server: Ipv4Addr, iface: &str) -> Result<crate::servers::UdpIn> {
+    #[allow(unused_mut)]
+    let mut only = None;
     use socket2::{Domain, Protocol, Socket, Type};
     let s = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
     s.set_reuse_address(true)?;
@@ -467,8 +469,11 @@ fn socket(server: Ipv4Addr, iface: &str) -> Result<UdpSocket> {
         if let Ok(name) = std::ffi::CString::new(iface) {
             // SAFETY: a valid C string; the index is checked.
             let index = unsafe { libc::if_nametoindex(name.as_ptr()) };
-            if let Some(i) = std::num::NonZeroU32::new(index) {
-                let _ = s.bind_device_by_index_v4(Some(i));
+            if let Some(i) = std::num::NonZeroU32::new(index)
+                && s.bind_device_by_index_v4(Some(i)).is_ok()
+            {
+                // Arriving broadcasts are not filtered by that: see UdpIn.
+                only = Some(index);
             }
         }
     }
@@ -489,7 +494,7 @@ fn socket(server: Ipv4Addr, iface: &str) -> Result<UdpSocket> {
     if bind_ip == Ipv4Addr::UNSPECIFIED && server == Ipv4Addr::UNSPECIFIED {
         bail!("choose the adapter that faces the devices");
     }
-    Ok(s.into())
+    Ok(crate::servers::UdpIn::new(s.into(), only)?)
 }
 
 #[cfg(test)]

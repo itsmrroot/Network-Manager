@@ -232,12 +232,12 @@ mod imp {
     use super::*;
     use anyhow::bail;
     use std::net::{Ipv4Addr, Ipv6Addr};
-    use windows_sys::Win32::Foundation::{CloseHandle, NO_ERROR};
+    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_INSUFFICIENT_BUFFER, NO_ERROR};
     use windows_sys::Win32::NetworkManagement::IpHelper::{
         GetExtendedTcpTable, GetPerTcp6ConnectionEStats, GetPerTcpConnectionEStats, MIB_TCP_STATE, MIB_TCP_STATE_ESTAB,
-        MIB_TCP6ROW, MIB_TCP6TABLE_OWNER_PID, MIB_TCPROW_LH, MIB_TCPROW_OWNER_PID, MIB_TCPTABLE_OWNER_PID,
-        SetPerTcp6ConnectionEStats, SetPerTcpConnectionEStats, TCP_ESTATS_DATA_ROD_v0, TCP_ESTATS_DATA_RW_v0,
-        TCP_TABLE_OWNER_PID_ALL, TcpConnectionEstatsData,
+        MIB_TCP6ROW, MIB_TCP6ROW_OWNER_PID, MIB_TCP6TABLE_OWNER_PID, MIB_TCPROW_LH, MIB_TCPROW_OWNER_PID,
+        MIB_TCPTABLE_OWNER_PID, SetPerTcp6ConnectionEStats, SetPerTcpConnectionEStats, TCP_ESTATS_DATA_ROD_v0,
+        TCP_ESTATS_DATA_RW_v0, TCP_TABLE_OWNER_PID_ALL, TcpConnectionEstatsData,
     };
     use windows_sys::Win32::Networking::WinSock::{AF_INET, AF_INET6, IN6_ADDR, IN6_ADDR_0};
     use windows_sys::Win32::System::Threading::{
@@ -278,17 +278,12 @@ mod imp {
         // SAFETY: the table is read with the size Windows asks for; each row
         // is passed to the statistics calls with correctly sized buffers.
         unsafe {
-            let mut size = 0u32;
-            GetExtendedTcpTable(std::ptr::null_mut(), &mut size, 0, AF_INET as u32, TCP_TABLE_OWNER_PID_ALL, 0);
-            let mut buf = vec![0u8; size as usize + 4096];
-            size = buf.len() as u32;
-            let r =
-                GetExtendedTcpTable(buf.as_mut_ptr().cast(), &mut size, 0, AF_INET as u32, TCP_TABLE_OWNER_PID_ALL, 0);
-            if r != NO_ERROR {
-                bail!("could not read the connection table (error {r})");
-            }
-            let table = &*(buf.as_ptr() as *const MIB_TCPTABLE_OWNER_PID);
-            let rows = std::slice::from_raw_parts(table.table.as_ptr(), table.dwNumEntries as usize);
+            let buf = tcp_table(AF_INET as u32)?;
+            let table = buf.as_ptr() as *const MIB_TCPTABLE_OWNER_PID;
+            let rows = std::slice::from_raw_parts(
+                std::ptr::addr_of!((*table).table).cast::<MIB_TCPROW_OWNER_PID>(),
+                (*table).dwNumEntries as usize,
+            );
             let mut names = HashMap::new();
             let mut out = Vec::new();
             for r in rows.iter().filter(|r| r.dwState == MIB_TCP_STATE_ESTAB as u32) {
@@ -336,21 +331,36 @@ mod imp {
         }
     }
 
+    /// The TCP table of `family` with each connection's process, in a buffer
+    /// aligned for its rows. Asks again when it grew between the calls.
+    fn tcp_table(family: u32) -> Result<Vec<u64>> {
+        let mut size = 0u32;
+        for _ in 0..4 {
+            let mut buf = vec![0u64; (size as usize).div_ceil(8) + 512];
+            size = (buf.len() * 8) as u32;
+            // SAFETY: the buffer holds `size` bytes, as Windows is told.
+            let r = unsafe {
+                GetExtendedTcpTable(buf.as_mut_ptr().cast(), &mut size, 0, family, TCP_TABLE_OWNER_PID_ALL, 0)
+            };
+            match r {
+                NO_ERROR => return Ok(buf),
+                ERROR_INSUFFICIENT_BUFFER => continue,
+                r => bail!("could not read the connection table (error {r})"),
+            }
+        }
+        bail!("the connection table keeps changing")
+    }
+
     /// The IPv6 connections, as [`read`] does the IPv4 ones.
     unsafe fn read_v6(names: &mut HashMap<u32, String>) -> Result<Vec<Counter>> {
         // SAFETY: as in `read`, with the IPv6 table and rows.
         unsafe {
-            let mut size = 0u32;
-            GetExtendedTcpTable(std::ptr::null_mut(), &mut size, 0, AF_INET6 as u32, TCP_TABLE_OWNER_PID_ALL, 0);
-            let mut buf = vec![0u8; size as usize + 4096];
-            size = buf.len() as u32;
-            let r =
-                GetExtendedTcpTable(buf.as_mut_ptr().cast(), &mut size, 0, AF_INET6 as u32, TCP_TABLE_OWNER_PID_ALL, 0);
-            if r != NO_ERROR {
-                bail!("could not read the IPv6 connection table (error {r})");
-            }
-            let table = &*(buf.as_ptr() as *const MIB_TCP6TABLE_OWNER_PID);
-            let rows = std::slice::from_raw_parts(table.table.as_ptr(), table.dwNumEntries as usize);
+            let buf = tcp_table(AF_INET6 as u32)?;
+            let table = buf.as_ptr() as *const MIB_TCP6TABLE_OWNER_PID;
+            let rows = std::slice::from_raw_parts(
+                std::ptr::addr_of!((*table).table).cast::<MIB_TCP6ROW_OWNER_PID>(),
+                (*table).dwNumEntries as usize,
+            );
             let mut out = Vec::new();
             for r in rows.iter().filter(|r| r.dwState == MIB_TCP_STATE_ESTAB as u32) {
                 let row = MIB_TCP6ROW {

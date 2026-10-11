@@ -139,33 +139,49 @@ fn set_default_printer(name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Windows: runs `net use` through a one-off scheduled task as the user
-/// signed in at the screen, without administrator rights, so that the
-/// drive appears in Explorer. `letter` and `unc` are checked by the caller.
+/// Characters a Windows share path may have here: letters and digits of any
+/// language, and `\\ ._-$#()+,@~[]`. Nothing that quotes or chains commands
+/// in cmd or PowerShell (the paths come from profile files).
+fn plain_share(unc: &str) -> bool {
+    unc.chars().all(|c| c.is_alphanumeric() || " \\._-$#()+,@~[]".contains(c))
+}
+
+/// Windows: runs `net use` through a one-off scheduled task as the user whose
+/// desktop this app is on, without administrator rights, so that the drive
+/// appears in Explorer. `letter` is "X:" and `unc` passed [`plain_share`].
 fn map_as_user(letter: &str, unc: &str) -> Result<()> {
     let ps = format!(
         r#"$ErrorActionPreference = 'Stop'
-$user = (Get-CimInstance Win32_ComputerSystem).UserName
-if (-not $user) {{ throw 'no signed-in user' }}
-$out = Join-Path $env:TEMP ('netmgr-drive-' + [guid]::NewGuid().ToString() + '.txt')
-$cmd = '/c net use {letter} /delete /y >nul 2>&1 & net use {letter} "{unc}" /persistent:no > "' + $out + '" 2>&1'
+# The user who sees this session's desktop: the owner of its explorer.exe.
+$session = (Get-Process -Id $PID).SessionId
+$explorer = Get-CimInstance Win32_Process -Filter "Name='explorer.exe' AND SessionId=$session" | Select-Object -First 1
+if (-not $explorer) {{ throw 'no signed-in user' }}
+$sid = (Invoke-CimMethod -InputObject $explorer -MethodName GetOwnerSid).Sid
+if (-not $sid) {{ throw 'no signed-in user' }}
+# A file that user may write, whoever this administrator is.
+$out = Join-Path $env:PUBLIC ('netmgr-drive-' + [guid]::NewGuid().ToString() + '.txt')
+New-Item -ItemType File -Path $out | Out-Null
+icacls $out /grant ('*' + $sid + ':M') | Out-Null
+$cmd = '/c net use {letter} /delete /y >nul 2>&1 & net use {letter} "{unc}" /persistent:no <nul >"' + $out + '" 2>&1'
 $name = 'Network Manager drive ' + [guid]::NewGuid().ToString()
 $action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument $cmd
-$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
-Register-ScheduledTask -TaskName $name -Action $action -Principal $principal | Out-Null
+$principal = New-ScheduledTaskPrincipal -UserId $sid -LogonType Interactive -RunLevel Limited
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 2)
+Register-ScheduledTask -TaskName $name -Action $action -Principal $principal -Settings $settings | Out-Null
 try {{
     Start-ScheduledTask -TaskName $name
-    for ($i = 0; $i -lt 120; $i++) {{
+    for ($i = 0; $i -lt 240; $i++) {{
         Start-Sleep -Milliseconds 250
         $info = Get-ScheduledTaskInfo -TaskName $name
         if ((Get-ScheduledTask -TaskName $name).State -ne 'Running' -and $info.LastTaskResult -ne 267011) {{ break }}
     }}
 }} finally {{
+    Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $name -Confirm:$false
 }}
-$text = if (Test-Path $out) {{ (Get-Content $out -Raw) }} else {{ '' }}
+$text = if (Test-Path $out) {{ "$(Get-Content $out -Raw -Encoding Oem)".Trim() }} else {{ '' }}
 Remove-Item $out -ErrorAction SilentlyContinue
-if ($info.LastTaskResult -ne 0) {{ throw ("$text".Trim()) }}"#
+if ($info.LastTaskResult -ne 0) {{ throw ('{{0}} (0x{{1:X}})' -f $text, $info.LastTaskResult) }}"#
     );
     cmd::powershell(&ps)?;
     Ok(())
@@ -176,9 +192,11 @@ fn connect_drive(d: &Drive) -> Result<()> {
     if cfg!(windows) {
         let unc = format!("\\\\{server}\\{}", share.replace('/', "\\"));
         let letter = d.letter.trim().trim_end_matches('\\');
+        ensure!(plain_share(&unc), "the share's name has characters that are not allowed here");
         ensure!(
-            !format!("{unc}{letter}").contains(['"', '&', '|', '<', '>', '^', '%', '\'', '\n', '\r']),
-            "the share's name has characters Windows does not allow"
+            letter.is_empty()
+                || (letter.len() == 2 && letter.ends_with(':') && letter.as_bytes()[0].is_ascii_alphabetic()),
+            "the drive letter must look like Z:"
         );
         // The app runs as administrator, and Windows keeps an administrator's
         // drives apart from Explorer's: map it as the signed-in user instead.
@@ -220,9 +238,10 @@ enum WinProxy {
 /// asks Windows for it, Edge and Chrome too), and tells running programs.
 /// Writing only the registry would leave them on the old setting.
 fn windows_proxy(mode: WinProxy, server: &str, bypass: &str, script: &str) -> Result<()> {
-    // INTERNET_PER_CONN_FLAGS: 1 direct, 2 proxy, 4 configuration script.
+    // INTERNET_PER_CONN_FLAGS: 1 direct, 2 proxy, 4 configuration script,
+    // 8 detect automatically (Windows' default, kept with "no proxy").
     let flags = match mode {
-        WinProxy::Direct => 1,
+        WinProxy::Direct => 9,
         WinProxy::Manual => 3,
         WinProxy::Script => 5,
     };
@@ -367,6 +386,20 @@ fn set_proxy(a: &Adapter, e: &Extras) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn share_paths_cannot_carry_commands() {
+        assert!(plain_share("\\\\nas\\Team files (2024)\\Ünterlagen"));
+        for bad in [
+            "\\\\srv\\a’;Start-Process calc;’",
+            "\\\\srv\\a' x",
+            "\\\\srv\\a\"&calc",
+            "\\\\srv\\a%PATH%",
+            "\\\\srv\\a;b",
+        ] {
+            assert!(!plain_share(bad), "{bad}");
+        }
+    }
 
     /// Runs on Windows in CI: the proxy as Windows reports it afterwards.
     #[cfg(windows)]

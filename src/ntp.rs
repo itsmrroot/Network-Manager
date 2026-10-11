@@ -204,7 +204,7 @@ pub fn serve(
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     asked: std::sync::Arc<dyn Fn(std::net::IpAddr) + Send + Sync>,
 ) -> Result<()> {
-    crate::cmd::allow_through_firewall();
+    let _hole = crate::cmd::FirewallHole::open("UDP", port);
     let sock = crate::servers::bind_udp(listen, port).map_err(|e| match e.kind() {
         std::io::ErrorKind::AddrInUse => {
             anyhow::anyhow!("UDP port {port} is in use: the system's own time service may hold it")

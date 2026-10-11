@@ -204,8 +204,9 @@ pub fn check() -> Result<Option<Release>> {
 }
 
 /// Downloads the installer of `release` into a new temporary folder and
-/// checks it.
-pub fn download(release: &Release, progress: &Progress, cancel: &AtomicBool) -> Result<PathBuf> {
+/// checks it. Returns the file and its SHA-256, which [`install`] checks
+/// again right before running it.
+pub fn download(release: &Release, progress: &Progress, cancel: &AtomicBool) -> Result<(PathBuf, String)> {
     let Some(asset) = &release.asset else { bail!("no installer for this system") };
     // GitHub publishes a checksum for every file; without one there is
     // nothing to check the download against.
@@ -236,11 +237,25 @@ pub fn download(release: &Release, progress: &Progress, cancel: &AtomicBool) -> 
     file.sync_all()?;
     drop(file);
     ensure!(total == asset.size, "the download is incomplete");
-    if let Some(want) = &asset.sha256 {
-        let got: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
-        ensure!(&got == want, "the download is damaged (checksum mismatch)");
+    let want = asset.sha256.clone().unwrap_or_default();
+    let got: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    ensure!(got == want, "the download is damaged (checksum mismatch)");
+    Ok((path, want))
+}
+
+/// The SHA-256 of what `file` reads, in hex.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn sha256_hex(file: &mut impl Read) -> Result<String> {
+    let mut hash = Sha256::new();
+    let mut buf = vec![0; 256 * 1024];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hash.update(&buf[..n]);
     }
-    Ok(path)
+    Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
 }
 
 /// Shell-quotes `s` for `sh`.
@@ -269,18 +284,31 @@ fn after_exit(script: &str) -> Result<()> {
 /// Starts installing the downloaded `file`. On success the app must close
 /// right away: the installation continues without it and starts the new
 /// version.
-pub fn install(file: &Path) -> Result<()> {
+pub fn install(file: &Path, sha256: &str) -> Result<()> {
+    let _ = sha256;
     match kind() {
         #[cfg(windows)]
         Kind::Setup => {
+            use std::os::windows::fs::OpenOptionsExt;
             use std::os::windows::process::CommandExt;
             // DETACHED_PROCESS: the setup outlives the app it replaces.
             const DETACHED_PROCESS: u32 = 0x0000_0008;
+            const FILE_SHARE_READ: u32 = 1;
+            // The setup runs as administrator from the user's temporary
+            // folder: held open so that nothing can change it (others may
+            // only read), and checked again, until it has started.
+            let mut held = std::fs::OpenOptions::new()
+                .read(true)
+                .share_mode(FILE_SHARE_READ)
+                .open(file)
+                .context("could not open the downloaded setup")?;
+            ensure!(sha256_hex(&mut held)? == sha256, "the setup changed after it was downloaded");
             std::process::Command::new(file)
                 .args(["/S", "/R"])
                 .creation_flags(DETACHED_PROCESS)
                 .spawn()
                 .context("could not start the setup")?;
+            drop(held);
             Ok(())
         }
         #[cfg(target_os = "macos")]
@@ -327,17 +355,25 @@ rm -rf {app} && mv {staged} {app} && open {app}"#
             if let Some(dir) = file.parent() {
                 std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o755))?;
             }
+            // As root: a copy in root's own folder, checked against the
+            // release's checksum, is what gets installed (the download sits
+            // in a folder of the user's, which other programs could change).
             let install = if k == Kind::Deb {
-                "apt-get install -y --allow-downgrades \"$1\""
+                "apt-get install -y --allow-downgrades \"$p\""
             } else {
-                "if command -v dnf >/dev/null; then dnf install -y \"$1\"; elif command -v zypper >/dev/null; then zypper --non-interactive install --allow-unsigned-rpm \"$1\"; else rpm -U \"$1\"; fi"
+                "if command -v dnf >/dev/null; then dnf install -y \"$p\"; elif command -v zypper >/dev/null; then zypper --non-interactive install --allow-unsigned-rpm \"$p\"; else rpm -U \"$p\"; fi"
             };
+            let install = format!(
+                "d=$(mktemp -d) && p=\"$d/$(basename \"$1\")\" && cp \"$1\" \"$p\" && \
+                 echo \"$2  $p\" | sha256sum -c --quiet && {{ {install}; }}; r=$?; rm -rf \"$d\"; exit $r"
+            );
             let sudo = if netmgr::cmd::is_admin() { "" } else { "pkexec " };
             let exe = std::env::current_exe()?;
             after_exit(&format!(
-                "{sudo}/bin/sh -c {} sh {} >/dev/null 2>&1; {} &",
-                quote(Path::new(install)),
+                "{sudo}/bin/sh -c {} sh {} {} >/dev/null 2>&1; {} &",
+                quote(Path::new(&install)),
                 quote(file),
+                quote(Path::new(sha256)),
                 quote(&exe)
             ))
         }
@@ -365,7 +401,7 @@ pub struct Updater {
     release: Option<Release>,
     /// Checked: this is the newest version.
     latest: bool,
-    download: Option<Job<PathBuf>>,
+    download: Option<Job<(PathBuf, String)>>,
     error: Option<String>,
     dialog: bool,
 }
@@ -408,7 +444,7 @@ impl Updater {
                 Some(result) => {
                     let cancelled = job.stopping();
                     self.download = None;
-                    match result.and_then(|file| install(&file)) {
+                    match result.and_then(|(file, sha256)| install(&file, &sha256)) {
                         Ok(()) => return true,
                         Err(_) if cancelled => {}
                         Err(e) => {

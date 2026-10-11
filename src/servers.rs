@@ -65,11 +65,25 @@ const ERROR: u16 = 5;
 const OACK: u16 = 6;
 
 /// The file a request names, inside `root`: no absolute paths, no `..`.
+/// CON, PRN, AUX, NUL, COM1–9, LPT1–9, with or without an extension.
+fn is_device_name(name: &str) -> bool {
+    let stem = name.split('.').next().unwrap_or("").trim_end().to_ascii_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem.as_bytes()[3].is_ascii_digit()
+            && stem.as_bytes()[3] != b'0')
+}
+
 pub fn safe_path(root: &Path, requested: &str) -> Result<PathBuf> {
     let rel = Path::new(requested.trim_start_matches(['/', '\\']));
     let mut out = root.to_path_buf();
     for c in rel.components() {
         match c {
+            // Windows' device names (CON, COM1…) are not files.
+            Component::Normal(p) if is_device_name(&p.to_string_lossy()) => {
+                bail!("{} is not a file name", p.to_string_lossy())
+            }
             Component::Normal(p) => out.push(p),
             Component::CurDir => {}
             _ => bail!("access outside the TFTP folder is not allowed"),
@@ -149,7 +163,7 @@ pub fn tftp_serve(
     log: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<()> {
     ensure!(opts.root.is_dir(), "the folder {} does not exist", opts.root.display());
-    crate::cmd::allow_through_firewall();
+    let _hole = crate::cmd::FirewallHole::open("UDP", opts.port);
     let sock = bind_udp(opts.listen, opts.port).with_context(|| port_hint(opts.port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     log(format!("TFTP server listening on {}:{}, folder {}", opts.listen, opts.port, opts.root.display()));
@@ -427,16 +441,58 @@ fn transfer(
     }
 }
 
+/// A server's UDP socket. Use it like a `UdpSocket`; [`UdpIn::recv_from`]
+/// only returns datagrams that arrived on the chosen adapter.
+pub struct UdpIn {
+    sock: UdpSocket,
+    /// macOS: the interface it is tied to (IP_BOUND_IF keeps TCP to it, but
+    /// not arriving UDP, so that is checked here).
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    only: Option<u32>,
+}
+
+impl std::ops::Deref for UdpIn {
+    type Target = UdpSocket;
+    fn deref(&self) -> &UdpSocket {
+        &self.sock
+    }
+}
+
+impl UdpIn {
+    /// `sock`, tied to interface `only` (macOS) when given.
+    pub fn new(sock: UdpSocket, only: Option<u32>) -> std::io::Result<Self> {
+        #[cfg(target_os = "macos")]
+        if only.is_some() {
+            mac::report_interface(&sock)?;
+        }
+        Ok(Self { sock, only })
+    }
+
+    /// The next datagram from the chosen adapter; others are dropped.
+    pub fn recv_from(&self, buf: &mut [u8]) -> std::io::Result<(usize, SocketAddr)> {
+        #[cfg(target_os = "macos")]
+        if let Some(index) = self.only {
+            loop {
+                let (n, from, arrived) = mac::recv_with_interface(&self.sock, buf)?;
+                if arrived.is_none_or(|i| i == index) {
+                    return Ok((n, from));
+                }
+            }
+        }
+        self.sock.recv_from(buf)
+    }
+}
+
 /// Opens UDP `port` on `listen`: one adapter's address, or 0.0.0.0 for
 /// every network. See [`bind_tcp`].
-pub fn bind_udp(listen: Ipv4Addr, port: u16) -> std::io::Result<UdpSocket> {
+pub fn bind_udp(listen: Ipv4Addr, port: u16) -> std::io::Result<UdpIn> {
     #[cfg(target_os = "macos")]
     if let Some(index) = mac::low_port_interface(listen, port) {
         let s = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, port))?;
         mac::bind_to_interface(&s, index)?;
-        return Ok(s);
+        return UdpIn::new(s, Some(index));
     }
-    UdpSocket::bind((listen, port))
+    UdpIn::new(UdpSocket::bind((listen, port))?, None)
 }
 
 /// Opens TCP `port` on `listen`. macOS lets apps without administrator
@@ -487,6 +543,67 @@ mod mac {
             }
             libc::freeifaddrs(list);
             found
+        }
+    }
+
+    /// IP_RECVIF: each datagram comes with the interface it arrived on.
+    pub fn report_interface(s: &impl AsRawFd) -> std::io::Result<()> {
+        let on: libc::c_int = 1;
+        // SAFETY: a plain integer option on a socket this process owns.
+        let r = unsafe {
+            libc::setsockopt(
+                s.as_raw_fd(),
+                libc::IPPROTO_IP,
+                libc::IP_RECVIF,
+                (&raw const on).cast(),
+                std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+            )
+        };
+        if r == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
+    }
+
+    /// One datagram, its sender and the interface it arrived on.
+    pub fn recv_with_interface(
+        s: &impl AsRawFd,
+        buf: &mut [u8],
+    ) -> std::io::Result<(usize, std::net::SocketAddr, Option<u32>)> {
+        // SAFETY: every buffer handed to recvmsg lives on this stack frame
+        // with its true length; control messages are walked with the CMSG
+        // macros and read only within what the kernel filled in.
+        unsafe {
+            let mut name: libc::sockaddr_storage = std::mem::zeroed();
+            let mut iov = libc::iovec { iov_base: buf.as_mut_ptr().cast(), iov_len: buf.len() };
+            let mut control = [0u64; 32];
+            let mut msg: libc::msghdr = std::mem::zeroed();
+            msg.msg_name = (&raw mut name).cast();
+            msg.msg_namelen = std::mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
+            msg.msg_iov = &raw mut iov;
+            msg.msg_iovlen = 1;
+            msg.msg_control = control.as_mut_ptr().cast();
+            msg.msg_controllen = std::mem::size_of_val(&control) as libc::socklen_t;
+            let n = libc::recvmsg(s.as_raw_fd(), &raw mut msg, 0);
+            if n < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            let mut arrived = None;
+            let mut c = libc::CMSG_FIRSTHDR(&raw const msg);
+            while !c.is_null() {
+                if (*c).cmsg_level == libc::IPPROTO_IP && (*c).cmsg_type == libc::IP_RECVIF {
+                    let dl = libc::CMSG_DATA(c) as *const libc::sockaddr_dl;
+                    arrived = Some(u32::from(std::ptr::read_unaligned(dl).sdl_index));
+                }
+                c = libc::CMSG_NXTHDR(&raw const msg, c);
+            }
+            let from = if i32::from(name.ss_family) == libc::AF_INET {
+                let sin = &*(&raw const name as *const libc::sockaddr_in);
+                std::net::SocketAddr::from((
+                    Ipv4Addr::from(u32::from_be(sin.sin_addr.s_addr)),
+                    u16::from_be(sin.sin_port),
+                ))
+            } else {
+                return Err(std::io::Error::other("not an IPv4 sender"));
+            };
+            Ok((n as usize, from, arrived))
         }
     }
 
@@ -606,7 +723,7 @@ pub fn syslog_serve(
     stop: Arc<AtomicBool>,
     message: Arc<dyn Fn(SyslogMessage) + Send + Sync>,
 ) -> Result<()> {
-    crate::cmd::allow_through_firewall();
+    let _holes = (crate::cmd::FirewallHole::open("UDP", port), crate::cmd::FirewallHole::open("TCP", port));
     let sock = bind_udp(listen, port).with_context(|| port_hint(port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     // TCP too, for devices that must not lose messages; optional, since
@@ -692,7 +809,7 @@ pub fn throughput_serve(
     stop: Arc<AtomicBool>,
     log: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<()> {
-    crate::cmd::allow_through_firewall();
+    let _hole = crate::cmd::FirewallHole::open("TCP", port);
     let listener = bind_tcp(listen, port).with_context(|| port_hint(port))?;
     listener.set_nonblocking(true)?;
     log(format!("Throughput server listening on port {port}"));
@@ -840,6 +957,8 @@ mod tests {
         assert_eq!(safe_path(root, "/fw/c2960.bin").unwrap(), root.join("fw/c2960.bin"));
         assert_eq!(safe_path(root, "\\config.txt").unwrap(), root.join("config.txt"));
         assert!(safe_path(root, "../etc/passwd").is_err());
+        assert!(safe_path(root, "con.txt").is_err() && safe_path(root, "fw/COM1").is_err());
+        assert!(safe_path(root, "console.txt").is_ok() && safe_path(root, "com10.bin").is_ok());
         assert!(safe_path(root, "a/../../b").is_err());
         assert!(safe_path(root, "").is_err());
     }
@@ -964,6 +1083,25 @@ mod tcp_syslog_tests {
         let (m, used) = split_tcp_syslog(&data);
         assert_eq!(m, [msg.to_vec()]);
         assert_eq!(used, 3 + msg.len());
+        // macOS: a server tied to another adapter does not hear loopback.
+        #[cfg(target_os = "macos")]
+        {
+            let other = (2..64u32).find(|&i| {
+                let mut name = [0 as libc::c_char; libc::IF_NAMESIZE];
+                // SAFETY: the buffer has the size if_indextoname needs.
+                !unsafe { libc::if_indextoname(i, name.as_mut_ptr()) }.is_null()
+            });
+            if let Some(index) = other {
+                let s = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).unwrap();
+                mac::bind_to_interface(&s, index).unwrap();
+                let port = s.local_addr().unwrap().port();
+                let s = UdpIn::new(s, Some(index)).unwrap();
+                s.set_read_timeout(Some(Duration::from_millis(300))).unwrap();
+                let c = UdpSocket::bind("127.0.0.1:0").unwrap();
+                c.send_to(b"x", ("127.0.0.1", port)).unwrap();
+                assert!(s.recv_from(&mut [0u8; 16]).is_err(), "a datagram from loopback got through");
+            }
+        }
         // Priorities stop at 191.
         assert_eq!(parse_syslog(b"<999>x", IpAddr::from([127, 0, 0, 1])).facility, 1);
         // A length that does not fit in memory does not crash.
