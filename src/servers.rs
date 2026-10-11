@@ -163,9 +163,9 @@ pub fn tftp_serve(
     log: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<()> {
     ensure!(opts.root.is_dir(), "the folder {} does not exist", opts.root.display());
-    let _hole = crate::cmd::FirewallHole::open("UDP", opts.port);
     let sock = bind_udp(opts.listen, opts.port).with_context(|| port_hint(opts.port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
+    let _hole = crate::cmd::FirewallHole::open("UDP", opts.port);
     log(format!("TFTP server listening on {}:{}, folder {}", opts.listen, opts.port, opts.root.display()));
     let mut buf = [0u8; 1500];
     let slots = Slots::default();
@@ -723,9 +723,9 @@ pub fn syslog_serve(
     stop: Arc<AtomicBool>,
     message: Arc<dyn Fn(SyslogMessage) + Send + Sync>,
 ) -> Result<()> {
-    let _holes = (crate::cmd::FirewallHole::open("UDP", port), crate::cmd::FirewallHole::open("TCP", port));
     let sock = bind_udp(listen, port).with_context(|| port_hint(port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
+    let _holes = (crate::cmd::FirewallHole::open("UDP", port), crate::cmd::FirewallHole::open("TCP", port));
     // TCP too, for devices that must not lose messages; optional, since
     // another program may hold the TCP port.
     if let Ok(listener) = bind_tcp(listen, port) {
@@ -809,9 +809,9 @@ pub fn throughput_serve(
     stop: Arc<AtomicBool>,
     log: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<()> {
-    let _hole = crate::cmd::FirewallHole::open("TCP", port);
     let listener = bind_tcp(listen, port).with_context(|| port_hint(port))?;
     listener.set_nonblocking(true)?;
+    let _hole = crate::cmd::FirewallHole::open("TCP", port);
     log(format!("Throughput server listening on port {port}"));
     let slots = Slots::default();
     while !stop.load(Ordering::Relaxed) {

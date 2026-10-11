@@ -202,40 +202,44 @@ pub fn private_dir(prefix: &str) -> Result<std::path::PathBuf> {
 /// server waits for. `protocol` is "UDP" or "TCP"; "any" with port 0 is the
 /// whole program (packet capture). Nothing on other systems.
 pub struct FirewallHole {
+    /// Adding the rule (netsh is slow): the server does not wait for it.
     #[cfg(windows)]
-    name: Option<String>,
+    adding: Option<std::thread::JoinHandle<Option<String>>>,
 }
 
 impl FirewallHole {
     pub fn open(protocol: &str, port: u16) -> Self {
         #[cfg(windows)]
         {
-            let Ok(exe) = std::env::current_exe() else { return Self { name: None } };
-            clear_blocks(&exe);
-            let name = if port == 0 {
-                "name=Network Manager capture".to_string()
-            } else {
-                format!("name=Network Manager {protocol} {port}")
-            };
-            let _ = output("netsh", &["advfirewall", "firewall", "delete", "rule", &name]);
-            let program = format!("program={}", exe.display());
-            let (proto, local) = (format!("protocol={protocol}"), format!("localport={port}"));
-            let mut args = vec![
-                "advfirewall",
-                "firewall",
-                "add",
-                "rule",
-                &name,
-                "dir=in",
-                "action=allow",
-                &program,
-                "profile=any",
-            ];
-            if port != 0 {
-                args.extend([proto.as_str(), local.as_str()]);
-            }
-            let added = output("netsh", &args).is_ok_and(|o| o.success);
-            Self { name: added.then_some(name) }
+            let protocol = protocol.to_string();
+            let adding = std::thread::spawn(move || {
+                let exe = std::env::current_exe().ok()?;
+                clear_blocks(&exe);
+                let name = if port == 0 {
+                    "name=Network Manager capture".to_string()
+                } else {
+                    format!("name=Network Manager {protocol} {port}")
+                };
+                let _ = output("netsh", &["advfirewall", "firewall", "delete", "rule", &name]);
+                let program = format!("program={}", exe.display());
+                let (proto, local) = (format!("protocol={protocol}"), format!("localport={port}"));
+                let mut args = vec![
+                    "advfirewall",
+                    "firewall",
+                    "add",
+                    "rule",
+                    &name,
+                    "dir=in",
+                    "action=allow",
+                    &program,
+                    "profile=any",
+                ];
+                if port != 0 {
+                    args.extend([proto.as_str(), local.as_str()]);
+                }
+                output("netsh", &args).is_ok_and(|o| o.success).then_some(name)
+            });
+            Self { adding: Some(adding) }
         }
         #[cfg(not(windows))]
         {
@@ -247,8 +251,9 @@ impl FirewallHole {
 
 impl Drop for FirewallHole {
     fn drop(&mut self) {
+        // Waits for the rule to be there, then removes it.
         #[cfg(windows)]
-        if let Some(name) = self.name.take() {
+        if let Some(Ok(Some(name))) = self.adding.take().map(std::thread::JoinHandle::join) {
             let _ = output("netsh", &["advfirewall", "firewall", "delete", "rule", &name]);
         }
     }
@@ -448,7 +453,15 @@ mod tests {
         let name = "name=Network Manager UDP 47123";
         let show = || output("netsh", &["advfirewall", "firewall", "show", "rule", name, "verbose"]).unwrap();
         let hole = FirewallHole::open("UDP", 47123);
-        let out = show();
+        // Added in the background.
+        let mut out = show();
+        for _ in 0..40 {
+            if out.success {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            out = show();
+        }
         assert!(out.success && out.stdout.contains("47123"), "{}", out.stdout);
         drop(hole);
         assert!(!show().success);

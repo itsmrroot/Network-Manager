@@ -1014,7 +1014,6 @@ pub fn trap_serve(
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     trap: std::sync::Arc<dyn Fn(Trap) + Send + Sync>,
 ) -> Result<()> {
-    let _hole = crate::cmd::FirewallHole::open("UDP", port);
     let sock = crate::servers::bind_udp(listen, port).map_err(|e| match e.kind() {
         std::io::ErrorKind::AddrInUse => anyhow::anyhow!("UDP port {port} is in use by another program"),
         std::io::ErrorKind::PermissionDenied => {
@@ -1023,6 +1022,7 @@ pub fn trap_serve(
         _ => anyhow::anyhow!("could not open UDP port {port}: {e}"),
     })?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
+    let _hole = crate::cmd::FirewallHole::open("UDP", port);
     let mut buf = vec![0u8; 65535];
     while !stop.load(std::sync::atomic::Ordering::Relaxed) {
         let Ok((n, from)) = sock.recv_from(&mut buf) else { continue };

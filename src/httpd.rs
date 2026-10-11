@@ -43,7 +43,6 @@ pub type Log = Arc<dyn Fn(Event) + Send + Sync>;
 /// Serves `opts.root` until `stop` is set.
 pub fn serve(opts: Options, stop: Arc<AtomicBool>, log: Log) -> Result<()> {
     std::fs::create_dir_all(&opts.root).with_context(|| format!("could not create {}", opts.root.display()))?;
-    let _hole = crate::cmd::FirewallHole::open("TCP", opts.port);
     let listener = crate::servers::bind_tcp(opts.listen, opts.port).map_err(|e| match e.kind() {
         std::io::ErrorKind::AddrInUse => {
             anyhow::anyhow!("TCP port {} is in use by another program: choose another, such as 8080", opts.port)
@@ -54,6 +53,7 @@ pub fn serve(opts: Options, stop: Arc<AtomicBool>, log: Log) -> Result<()> {
         _ => anyhow::anyhow!("could not open TCP port {}: {e}", opts.port),
     })?;
     listener.set_nonblocking(true)?;
+    let _hole = crate::cmd::FirewallHole::open("TCP", opts.port);
     let opts = Arc::new(opts);
     let slots = Slots::default();
     while !stop.load(Ordering::Relaxed) {

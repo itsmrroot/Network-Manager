@@ -404,9 +404,9 @@ pub fn handle(cfg: &Config, leases: &mut Vec<Lease>, m: &Message, now: SystemTim
 /// (its device name) that faces the devices; answers go out through it.
 pub fn serve(cfg: Config, iface: &str, leases: Leases, stop: Arc<AtomicBool>, log: Log) -> Result<()> {
     cfg.check()?;
-    let _hole = crate::cmd::FirewallHole::open("UDP", 67);
     let sock = socket(cfg.server, iface)?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
+    let _hole = crate::cmd::FirewallHole::open("UDP", 67);
     log(format!("DHCP server on {} for {} – {}", cfg.server, cfg.first, cfg.last));
     let mut buf = [0u8; 1500];
     while !stop.load(Ordering::Relaxed) {

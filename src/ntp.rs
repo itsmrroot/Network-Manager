@@ -204,7 +204,6 @@ pub fn serve(
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     asked: std::sync::Arc<dyn Fn(std::net::IpAddr) + Send + Sync>,
 ) -> Result<()> {
-    let _hole = crate::cmd::FirewallHole::open("UDP", port);
     let sock = crate::servers::bind_udp(listen, port).map_err(|e| match e.kind() {
         std::io::ErrorKind::AddrInUse => {
             anyhow::anyhow!("UDP port {port} is in use: the system's own time service may hold it")
@@ -215,6 +214,7 @@ pub fn serve(
         _ => anyhow::anyhow!("could not open UDP port {port}: {e}"),
     })?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
+    let _hole = crate::cmd::FirewallHole::open("UDP", port);
     let mut buf = [0u8; 512];
     while !stop.load(std::sync::atomic::Ordering::Relaxed) {
         let Ok((n, from)) = sock.recv_from(&mut buf) else { continue };
