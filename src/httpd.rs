@@ -456,10 +456,14 @@ mod tests {
         // An endless header is cut off instead of filling the memory.
         let r = get(port, &format!("GET / HTTP/1.1\r\nX: {}", "a".repeat(100_000)));
         assert!(!r.contains("200"), "{r}");
-        // A folder name cannot break out of the link in the listing.
-        std::fs::create_dir_all(dir.join("a\" onmouseover=\"x")).unwrap();
-        let r = get(port, "GET /a%22%20onmouseover=%22x/ HTTP/1.1\r\n\r\n");
-        assert!(r.contains("200 OK") && !r.contains("href=\"/a\""), "{r}");
+        // A folder name cannot break out of the link in the listing
+        // (Windows allows no quotes in names).
+        #[cfg(unix)]
+        {
+            std::fs::create_dir_all(dir.join("a\" onmouseover=\"x")).unwrap();
+            let r = get(port, "GET /a%22%20onmouseover=%22x/ HTTP/1.1\r\n\r\n");
+            assert!(r.contains("200 OK") && !r.contains("href=\"/a\""), "{r}");
+        }
         // A link inside the folder that leads out of it.
         #[cfg(unix)]
         {
