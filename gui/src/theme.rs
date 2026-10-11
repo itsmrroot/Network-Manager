@@ -324,15 +324,48 @@ pub fn card<R>(ui: &mut Ui, p: &Palette, add: impl FnOnce(&mut Ui) -> R) -> Inne
 }
 
 pub fn page_title(ui: &mut Ui, p: &Palette, title: &str, subtitle: &str) {
-    ui.label(semibold(title, 26.0).color(p.text));
-    if !subtitle.is_empty() {
-        ui.label(RichText::new(subtitle).color(p.weak).size(15.0));
-    }
+    // Arabic: from the right edge.
+    let align = if i18n::is_rtl() { egui::Align::Max } else { egui::Align::Min };
+    ui.with_layout(egui::Layout::top_down(align), |ui| {
+        ui.label(semibold(title, 26.0).color(p.text));
+        if !subtitle.is_empty() {
+            ui.label(RichText::new(subtitle).color(p.weak).size(15.0));
+        }
+    });
     ui.add_space(14.0);
 }
 
+/// A page's title row: the title where reading starts (left, or right for
+/// Arabic), buttons in [`far_side`] at the other end.
+pub fn title_row<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    if !i18n::is_rtl() {
+        return ui.horizontal(add).inner;
+    }
+    let size = Vec2::new(ui.available_width(), ui.spacing().interact_size.y);
+    ui.allocate_ui_with_layout(size, egui::Layout::right_to_left(egui::Align::Min), add).inner
+}
+
+/// The layout for buttons at the end of a row: the right, or the left for
+/// Arabic.
+pub fn far_side(align: egui::Align) -> egui::Layout {
+    if i18n::is_rtl() { egui::Layout::left_to_right(align) } else { egui::Layout::right_to_left(align) }
+}
+
+/// A row that starts at the right edge for Arabic, at the left otherwise.
+fn leading_row<R>(ui: &mut Ui, wrap: bool, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let layout = if i18n::is_rtl() {
+        egui::Layout::right_to_left(egui::Align::Center)
+    } else {
+        egui::Layout::left_to_right(egui::Align::Center)
+    };
+    // One row high to begin with, as `ui.horizontal` (else the row would
+    // be centred in all the height left).
+    let size = Vec2::new(ui.available_width(), ui.spacing().interact_size.y);
+    ui.allocate_ui_with_layout(size, layout.with_main_wrap(wrap), add).inner
+}
+
 pub fn section_title(ui: &mut Ui, p: &Palette, icon: &str, title: &str) {
-    ui.horizontal(|ui| {
+    leading_row(ui, false, |ui| {
         ui.label(RichText::new(icon).size(18.0).color(p.accent));
         ui.label(semibold(title, 16.5).color(p.text));
     });
@@ -466,7 +499,7 @@ pub fn notice(ui: &mut Ui, p: &Palette, color: Color32, icon: &str, text: &str) 
         .inner_margin(Margin::symmetric(14, 10))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
+            leading_row(ui, false, |ui| {
                 ui.label(RichText::new(icon).size(18.0).color(color));
                 paragraph(ui, text, 14.5, p.text);
             });
@@ -502,7 +535,8 @@ pub fn paragraph(ui: &mut Ui, text: &str, size: f32, color: Color32) {
         lines.push(line);
     }
     let centered = ui.layout().is_vertical() && ui.layout().horizontal_align() == egui::Align::Center;
-    let align = if centered { egui::Align::Center } else { egui::Align::Min };
+    // Lines of right-to-left text end at the right edge.
+    let align = if centered { egui::Align::Center } else { egui::Align::Max };
     ui.with_layout(egui::Layout::top_down(align), |ui| {
         ui.spacing_mut().item_spacing.y = 2.0;
         for line in lines {
@@ -539,7 +573,7 @@ pub fn info_row(ui: &mut Ui, p: &Palette, label: &str, value: &str, copy: bool) 
 
 /// A row of pill-shaped tabs; returns the clicked one.
 pub fn tabs<T: Copy + PartialEq>(ui: &mut Ui, p: &Palette, current: &mut T, items: &[(T, &str, &str)]) {
-    ui.horizontal_wrapped(|ui| {
+    leading_row(ui, true, |ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
         for (value, glyph, label) in items {
             let selected = *current == *value;
@@ -563,7 +597,7 @@ pub fn tabs<T: Copy + PartialEq>(ui: &mut Ui, p: &Palette, current: &mut T, item
 /// A lighter second row of tabs under [`tabs`]: text with an underline
 /// for the chosen one.
 pub fn subtabs<T: Copy + PartialEq>(ui: &mut Ui, p: &Palette, current: &mut T, items: &[(T, &str, &str)]) {
-    ui.horizontal_wrapped(|ui| {
+    leading_row(ui, true, |ui| {
         ui.spacing_mut().item_spacing.x = 18.0;
         for (value, glyph, label) in items {
             let selected = *current == *value;

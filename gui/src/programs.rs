@@ -146,10 +146,12 @@ impl Programs {
             theme::paragraph(
                 ui,
                 if cfg!(windows) {
-                    trl("Which programs use the network and how fast, from Windows' TCP statistics (IPv4 connections).")
+                    trl(
+                        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted.",
+                    )
                 } else if cfg!(target_os = "linux") {
                     trl(
-                        "Which programs use the network and how fast, from the system's TCP statistics. Other users' programs appear only with administrator rights.",
+                        "Which programs use the network and how fast, from the system's TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted. Other users' programs appear only with administrator rights.",
                     )
                 } else {
                     trl("Which programs use the network and how fast, as macOS counts it.")

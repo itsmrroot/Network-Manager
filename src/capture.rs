@@ -512,6 +512,8 @@ fn create_output(out: &Path) -> Result<std::fs::File> {
 /// `max_bytes`. Needs administrator rights.
 pub fn run(interface: &str, out: &Path, stop: &Path, parent: Option<u32>, seconds: u64, max_bytes: u64) -> Result<()> {
     ensure!(crate::cmd::is_admin(), "capturing packets needs administrator rights");
+    // Windows' raw socket sees incoming packets only when they are allowed in.
+    crate::cmd::allow_through_firewall();
     let mut sniffer = imp::Sniffer::open(interface)?;
     let mut file = create_output(out)?;
     file.write_all(&pcap_header(imp::LINK))?;

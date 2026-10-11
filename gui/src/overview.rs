@@ -80,9 +80,9 @@ impl Overview {
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         self.poll(sh);
-        ui.horizontal(|ui| {
+        theme::title_row(ui, |ui| {
             ui.vertical(|ui| theme::page_title(ui, p, tr("Overview"), tr("Your connection at a glance.")));
-            ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+            ui.with_layout(theme::far_side(Align::Min), |ui| {
                 if let Some(job) = &self.report {
                     ui.spinner();
                     ui.label(RichText::new(job.progress.snapshot().message).color(p.weak).size(12.5));

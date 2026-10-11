@@ -196,6 +196,40 @@ pub fn private_dir(prefix: &str) -> Result<std::path::PathBuf> {
     bail!("could not create a temporary folder")
 }
 
+/// Windows: lets this program receive connections on every kind of
+/// network. A lab cable counts as a "Public" network, where Windows'
+/// firewall otherwise drops what the servers and the capture wait for.
+/// Once per run; needs administrator rights (the app has them).
+pub fn allow_through_firewall() {
+    #[cfg(windows)]
+    {
+        static DONE: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+        DONE.get_or_init(|| {
+            let Ok(exe) = std::env::current_exe() else { return };
+            let file = exe.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+            let name = format!("name=Network Manager ({file})");
+            // Replaced each time: an update may have moved the program.
+            let _ = output("netsh", &["advfirewall", "firewall", "delete", "rule", &name]);
+            let program = format!("program={}", exe.display());
+            let _ = output(
+                "netsh",
+                &[
+                    "advfirewall",
+                    "firewall",
+                    "add",
+                    "rule",
+                    &name,
+                    "dir=in",
+                    "action=allow",
+                    &program,
+                    "profile=any",
+                    "enable=yes",
+                ],
+            );
+        });
+    }
+}
+
 /// Single-quotes `s` for `sh`.
 pub fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
@@ -365,6 +399,19 @@ mod tests {
         assert_eq!(ps_quote("it's"), "'it''s'");
         // PowerShell ends a string at a curly quote too.
         assert_eq!(ps_quote("a’; calc; ’"), "'a’’; calc; ’’'");
+    }
+
+    /// Runs on Windows in CI (as administrator): the rule is there afterwards.
+    #[cfg(windows)]
+    #[test]
+    fn firewall_rule_is_added() {
+        allow_through_firewall();
+        let exe = std::env::current_exe().unwrap();
+        let file = exe.file_name().unwrap().to_string_lossy().into_owned();
+        let name = format!("name=Network Manager ({file})");
+        let out = output("netsh", &["advfirewall", "firewall", "show", "rule", &name, "verbose"]).unwrap();
+        let _ = output("netsh", &["advfirewall", "firewall", "delete", "rule", &name]);
+        assert!(out.success && out.stdout.to_lowercase().contains(&file.to_lowercase()), "{}", out.stdout);
     }
 
     #[test]

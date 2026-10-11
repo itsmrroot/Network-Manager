@@ -64,7 +64,7 @@ impl AdaptersPage {
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         self.poll(sh);
-        ui.horizontal(|ui| {
+        theme::title_row(ui, |ui| {
             ui.vertical(|ui| {
                 theme::page_title(
                     ui,
@@ -73,7 +73,7 @@ impl AdaptersPage {
                     tr("Change IP and MAC addresses, DNS servers, and turn adapters on or off."),
                 )
             });
-            ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+            ui.with_layout(theme::far_side(Align::Min), |ui| {
                 if theme::secondary_button(ui, &icon_label(icon::ARROWS_CLOCKWISE, "Refresh")).clicked() {
                     sh.refresh = true;
                 }

@@ -149,6 +149,7 @@ pub fn tftp_serve(
     log: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<()> {
     ensure!(opts.root.is_dir(), "the folder {} does not exist", opts.root.display());
+    crate::cmd::allow_through_firewall();
     let sock = bind_udp(opts.listen, opts.port).with_context(|| port_hint(opts.port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     log(format!("TFTP server listening on {}:{}, folder {}", opts.listen, opts.port, opts.root.display()));
@@ -605,6 +606,7 @@ pub fn syslog_serve(
     stop: Arc<AtomicBool>,
     message: Arc<dyn Fn(SyslogMessage) + Send + Sync>,
 ) -> Result<()> {
+    crate::cmd::allow_through_firewall();
     let sock = bind_udp(listen, port).with_context(|| port_hint(port))?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     // TCP too, for devices that must not lose messages; optional, since
@@ -690,6 +692,7 @@ pub fn throughput_serve(
     stop: Arc<AtomicBool>,
     log: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<()> {
+    crate::cmd::allow_through_firewall();
     let listener = bind_tcp(listen, port).with_context(|| port_hint(port))?;
     listener.set_nonblocking(true)?;
     log(format!("Throughput server listening on port {port}"));

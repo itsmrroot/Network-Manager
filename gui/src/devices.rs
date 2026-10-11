@@ -192,7 +192,7 @@ impl Devices {
         if !self.scanned && self.job.is_none() && sh.adapters_loaded && sh.default_adapter().is_some() {
             self.start(ui.ctx(), sh);
         }
-        ui.horizontal(|ui| {
+        theme::title_row(ui, |ui| {
             ui.vertical(|ui| {
                 let sub = match &self.range {
                     Some(r) => trf(
@@ -207,7 +207,7 @@ impl Devices {
                 };
                 theme::page_title(ui, p, tr("Devices"), &sub);
             });
-            ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+            ui.with_layout(theme::far_side(Align::Min), |ui| {
                 if let Some(job) = &self.job {
                     if theme::danger_button(ui, p, &icon_label(icon::STOP, "Stop")).clicked() {
                         job.stop();
@@ -318,7 +318,7 @@ impl Devices {
             ui.allocate_ui_with_layout(egui::vec2(table_w, height), Layout::top_down(Align::Min), |ui| {
                 theme::card(ui, p, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.set_min_height(height - 40.0);
+                    ui.set_min_height((height - 40.0).max(0.0));
                     if rows.is_empty() {
                         let msg = if self.job.is_some() {
                             tr("Looking for devices…")

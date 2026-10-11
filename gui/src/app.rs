@@ -474,12 +474,27 @@ impl App {
 
     fn header(&mut self, ui: &mut Ui, p: &Palette) {
         let white = Color32::from_rgb(245, 247, 252);
-        ui.horizontal_centered(|ui| {
+        // Arabic: the name on the right, the status on the left.
+        let (outer, inner) = if i18n::is_rtl() {
+            (Layout::right_to_left(Align::Center), Layout::left_to_right(Align::Center))
+        } else {
+            (Layout::left_to_right(Align::Center), Layout::right_to_left(Align::Center))
+        };
+        ui.with_layout(outer, |ui| {
             ui.add(egui::Image::new(&self.logo).fit_to_exact_size(Vec2::splat(30.0)));
             ui.add_space(4.0);
-            ui.label(theme::semibold("Network", 17.0).color(white));
-            ui.label(RichText::new("Manager").color(white.gamma_multiply(0.75)).size(17.0));
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            // The name reads "Network Manager" either way (this row runs from
+            // the right for Arabic, so "Manager" comes first there).
+            let network = theme::semibold("Network", 17.0).color(white);
+            let manager = RichText::new("Manager").color(white.gamma_multiply(0.75)).size(17.0);
+            if i18n::is_rtl() {
+                ui.label(manager);
+                ui.label(network);
+            } else {
+                ui.label(network);
+                ui.label(manager);
+            }
+            ui.with_layout(inner, |ui| {
                 if self.updater.available().is_some() {
                     self.updater.button(ui, p);
                 } else {
@@ -576,7 +591,8 @@ impl App {
             }
         });
 
-        ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
+        let side = if i18n::is_rtl() { Align::Max } else { Align::Min };
+        ui.with_layout(Layout::bottom_up(side), |ui| {
             ui.add_space(16.0);
             ui.horizontal(|ui| {
                 ui.add_space(10.0);
@@ -724,7 +740,9 @@ impl eframe::App for App {
                 .frame(Frame::new().fill(fill).inner_margin(Margin::symmetric(18, 0)))
                 .show(ui, |ui| self.header(ui, &p));
         }
-        egui::Panel::left("sidebar")
+        // Arabic reads from the right: the sidebar is there too.
+        let sidebar = if i18n::is_rtl() { egui::Panel::right("sidebar") } else { egui::Panel::left("sidebar") };
+        sidebar
             .exact_size(236.0)
             .resizable(false)
             .frame(
@@ -761,8 +779,9 @@ fn nav_item(ui: &mut Ui, p: &Palette, glyph: &str, label: &str, active: bool, ba
         let painter = ui.painter();
         if active {
             painter.rect_filled(rect, CornerRadius::same(10), p.tint(p.accent));
+            let x = if i18n::is_rtl() { rect.right() - 3.0 } else { rect.left() };
             painter.rect_filled(
-                egui::Rect::from_min_size(rect.min + Vec2::new(0.0, 10.0), Vec2::new(3.0, rect.height() - 20.0)),
+                egui::Rect::from_min_size(egui::pos2(x, rect.top() + 10.0), Vec2::new(3.0, rect.height() - 20.0)),
                 CornerRadius::same(2),
                 p.accent,
             );
@@ -771,29 +790,31 @@ fn nav_item(ui: &mut Ui, p: &Palette, glyph: &str, label: &str, active: bool, ba
         }
         let color = if active { p.text } else { p.weak };
         let y = rect.center().y;
+        // Right to left (Arabic): icon and text from the right, badge on the left.
+        let rtl = i18n::is_rtl();
+        let (start, toward, align, end_align) = if rtl {
+            (rect.right(), -1.0, egui::Align2::RIGHT_CENTER, egui::Align2::LEFT_CENTER)
+        } else {
+            (rect.left(), 1.0, egui::Align2::LEFT_CENTER, egui::Align2::RIGHT_CENTER)
+        };
         painter.text(
-            egui::pos2(rect.left() + 16.0, y),
-            egui::Align2::LEFT_CENTER,
+            egui::pos2(start + toward * 16.0, y),
+            align,
             glyph,
             egui::FontId::proportional(19.0),
             if active { p.accent } else { color },
         );
         painter.text(
-            egui::pos2(rect.left() + 46.0, y),
-            egui::Align2::LEFT_CENTER,
+            egui::pos2(start + toward * 46.0, y),
+            align,
             label,
             egui::FontId::new(15.0, egui::FontFamily::Name(theme::SEMIBOLD.into())),
             color,
         );
         if let Some(b) = badge {
             let c = if b == "●" { p.accent } else { p.weak };
-            painter.text(
-                egui::pos2(rect.right() - 12.0, y),
-                egui::Align2::RIGHT_CENTER,
-                b,
-                egui::FontId::proportional(12.5),
-                c,
-            );
+            let end = if rtl { rect.left() + 12.0 } else { rect.right() - 12.0 };
+            painter.text(egui::pos2(end, y), end_align, b, egui::FontId::proportional(12.5), c);
         }
     }
     ui.add_space(2.0);

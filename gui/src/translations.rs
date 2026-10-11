@@ -1563,14 +1563,6 @@ pub const GERMAN: &[(&str, &str)] = &[
         "Which programs use the network and how fast, as macOS counts it.",
         "Welche Programme das Netzwerk nutzen und wie schnell, wie macOS es zählt.",
     ),
-    (
-        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 connections).",
-        "Welche Programme das Netzwerk nutzen und wie schnell, aus der TCP-Statistik von Windows (IPv4-Verbindungen).",
-    ),
-    (
-        "Which programs use the network and how fast, from the system's TCP statistics. Other users' programs appear only with administrator rights.",
-        "Welche Programme das Netzwerk nutzen und wie schnell, aus der TCP-Statistik des Systems. Programme anderer Benutzer erscheinen nur mit Administratorrechten.",
-    ),
     ("e.g. Core switch", "z. B. Core-Switch"),
     ("{n} h", "{n} h"),
     ("{n} min", "{n} min"),
@@ -1982,6 +1974,14 @@ pub const GERMAN: &[(&str, &str)] = &[
     (
         "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
         "Beim ersten Mal lädt Windows den OpenSSH-Server herunter: Das dauert einige Minuten.",
+    ),
+    (
+        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted.",
+        "Welche Programme das Netzwerk wie schnell nutzen, aus den TCP-Statistiken von Windows (IPv4 und IPv6). UDP, etwa Videoanrufe und QUIC in Browsern, wird nicht gezählt.",
+    ),
+    (
+        "Which programs use the network and how fast, from the system's TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted. Other users' programs appear only with administrator rights.",
+        "Welche Programme das Netzwerk wie schnell nutzen, aus den TCP-Statistiken des Systems (IPv4 und IPv6). UDP, etwa Videoanrufe und QUIC in Browsern, wird nicht gezählt. Programme anderer Benutzer erscheinen nur mit Administratorrechten.",
     ),
 ];
 
@@ -3529,14 +3529,6 @@ pub const SPANISH: &[(&str, &str)] = &[
         "Which programs use the network and how fast, as macOS counts it.",
         "Qué programas usan la red y a qué velocidad, según macOS.",
     ),
-    (
-        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 connections).",
-        "Qué programas usan la red y a qué velocidad, según las estadísticas TCP de Windows (conexiones IPv4).",
-    ),
-    (
-        "Which programs use the network and how fast, from the system's TCP statistics. Other users' programs appear only with administrator rights.",
-        "Qué programas usan la red y a qué velocidad, según las estadísticas TCP del sistema. Los programas de otros usuarios solo aparecen con permisos de administrador.",
-    ),
     ("e.g. Core switch", "p. ej. Switch principal"),
     ("{n} h", "{n} h"),
     ("{n} min", "{n} min"),
@@ -3948,6 +3940,14 @@ pub const SPANISH: &[(&str, &str)] = &[
     (
         "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
         "La primera vez, Windows descarga OpenSSH Server: tarda unos minutos.",
+    ),
+    (
+        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted.",
+        "Qué programas usan la red y a qué velocidad, según las estadísticas TCP de Windows (IPv4 e IPv6). No se cuenta UDP, como las videollamadas y QUIC en los navegadores.",
+    ),
+    (
+        "Which programs use the network and how fast, from the system's TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted. Other users' programs appear only with administrator rights.",
+        "Qué programas usan la red y a qué velocidad, según las estadísticas TCP del sistema (IPv4 e IPv6). No se cuenta UDP, como las videollamadas y QUIC en los navegadores. Los programas de otros usuarios solo aparecen con derechos de administrador.",
     ),
 ];
 
@@ -5510,14 +5510,6 @@ pub const FRENCH: &[(&str, &str)] = &[
         "Which programs use the network and how fast, as macOS counts it.",
         "Quels programmes utilisent le réseau et à quel débit, tel que macOS le compte.",
     ),
-    (
-        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 connections).",
-        "Quels programmes utilisent le réseau et à quel débit, d’après les statistiques TCP de Windows (connexions IPv4).",
-    ),
-    (
-        "Which programs use the network and how fast, from the system's TCP statistics. Other users' programs appear only with administrator rights.",
-        "Quels programmes utilisent le réseau et à quel débit, d’après les statistiques TCP du système. Les programmes des autres utilisateurs n’apparaissent qu’avec les droits d’administrateur.",
-    ),
     ("e.g. Core switch", "p. ex. Switch cœur"),
     ("{n} h", "{n} h"),
     ("{n} min", "{n} min"),
@@ -5935,6 +5927,14 @@ pub const FRENCH: &[(&str, &str)] = &[
     (
         "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
         "La première fois, Windows télécharge OpenSSH Server : cela prend quelques minutes.",
+    ),
+    (
+        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted.",
+        "Quels programmes utilisent le réseau et à quelle vitesse, d’après les statistiques TCP de Windows (IPv4 et IPv6). L’UDP, comme les appels vidéo et QUIC dans les navigateurs, n’est pas compté.",
+    ),
+    (
+        "Which programs use the network and how fast, from the system's TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted. Other users' programs appear only with administrator rights.",
+        "Quels programmes utilisent le réseau et à quelle vitesse, d’après les statistiques TCP du système (IPv4 et IPv6). L’UDP, comme les appels vidéo et QUIC dans les navigateurs, n’est pas compté. Les programmes des autres utilisateurs n’apparaissent qu’avec les droits d’administrateur.",
     ),
 ];
 
@@ -7461,14 +7461,6 @@ pub const TURKISH: &[(&str, &str)] = &[
         "Which programs use the network and how fast, as macOS counts it.",
         "Hangi programların ağı ne hızda kullandığı, macOS'un saydığı şekliyle.",
     ),
-    (
-        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 connections).",
-        "Hangi programların ağı ne hızda kullandığı, Windows'un TCP istatistiklerinden (IPv4 bağlantıları).",
-    ),
-    (
-        "Which programs use the network and how fast, from the system's TCP statistics. Other users' programs appear only with administrator rights.",
-        "Hangi programların ağı ne hızda kullandığı, sistemin TCP istatistiklerinden. Diğer kullanıcıların programları yalnızca yönetici haklarıyla görünür.",
-    ),
     ("e.g. Core switch", "ör. Çekirdek switch"),
     ("{n} h", "{n} sa"),
     ("{n} min", "{n} dk"),
@@ -7886,6 +7878,14 @@ pub const TURKISH: &[(&str, &str)] = &[
     (
         "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
         "Windows ilk seferde OpenSSH Server'ı indirir: bu birkaç dakika sürer.",
+    ),
+    (
+        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted.",
+        "Hangi programların ağı ne hızda kullandığı, Windows'un TCP istatistiklerinden (IPv4 ve IPv6). Görüntülü aramalar ve tarayıcılardaki QUIC gibi UDP trafiği sayılmaz.",
+    ),
+    (
+        "Which programs use the network and how fast, from the system's TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted. Other users' programs appear only with administrator rights.",
+        "Hangi programların ağı ne hızda kullandığı, sistemin TCP istatistiklerinden (IPv4 ve IPv6). Görüntülü aramalar ve tarayıcılardaki QUIC gibi UDP trafiği sayılmaz. Diğer kullanıcıların programları yalnızca yönetici haklarıyla görünür.",
     ),
 ];
 
@@ -9427,14 +9427,6 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "Which programs use the network and how fast, as macOS counts it.",
         "Какие программы используют сеть и с какой скоростью — по данным macOS.",
     ),
-    (
-        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 connections).",
-        "Какие программы используют сеть и с какой скоростью — по статистике TCP Windows (соединения IPv4).",
-    ),
-    (
-        "Which programs use the network and how fast, from the system's TCP statistics. Other users' programs appear only with administrator rights.",
-        "Какие программы используют сеть и с какой скоростью — по статистике TCP системы. Программы других пользователей видны только с правами администратора.",
-    ),
     ("e.g. Core switch", "например Ядро-коммутатор"),
     ("{n} h", "{n} ч"),
     ("{n} min", "{n} мин"),
@@ -9846,6 +9838,14 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     (
         "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
         "В первый раз Windows скачивает OpenSSH Server: это занимает несколько минут.",
+    ),
+    (
+        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted.",
+        "Какие программы используют сеть и с какой скоростью, по статистике TCP Windows (IPv4 и IPv6). UDP, например видеозвонки и QUIC в браузерах, не учитывается.",
+    ),
+    (
+        "Which programs use the network and how fast, from the system's TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted. Other users' programs appear only with administrator rights.",
+        "Какие программы используют сеть и с какой скоростью, по статистике TCP системы (IPv4 и IPv6). UDP, например видеозвонки и QUIC в браузерах, не учитывается. Программы других пользователей видны только с правами администратора.",
     ),
 ];
 
@@ -11339,14 +11339,6 @@ pub const ARABIC: &[(&str, &str)] = &[
         "Which programs use the network and how fast, as macOS counts it.",
         "أي البرامج تستخدم الشبكة وبأي سرعة، كما يحسبها macOS.",
     ),
-    (
-        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 connections).",
-        "أي البرامج تستخدم الشبكة وبأي سرعة، من إحصاءات TCP في Windows (اتصالات IPv4).",
-    ),
-    (
-        "Which programs use the network and how fast, from the system's TCP statistics. Other users' programs appear only with administrator rights.",
-        "أي البرامج تستخدم الشبكة وبأي سرعة، من إحصاءات TCP في النظام. برامج المستخدمين الآخرين تظهر فقط مع صلاحيات المدير.",
-    ),
     ("e.g. Core switch", "مثلًا: السويتش الرئيسي"),
     ("{n} h", "{n} س"),
     ("{n} min", "{n} د"),
@@ -11752,6 +11744,14 @@ pub const ARABIC: &[(&str, &str)] = &[
     (
         "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
         "في المرة الأولى، ينزّل Windows خادم OpenSSH: يستغرق ذلك بضع دقائق.",
+    ),
+    (
+        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted.",
+        "البرامج التي تستخدم الشبكة وبأي سرعة، من إحصاءات TCP في Windows (IPv4 وIPv6). لا يُحسب UDP، مثل مكالمات الفيديو وQUIC في المتصفحات.",
+    ),
+    (
+        "Which programs use the network and how fast, from the system's TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted. Other users' programs appear only with administrator rights.",
+        "البرامج التي تستخدم الشبكة وبأي سرعة، من إحصاءات TCP في النظام (IPv4 وIPv6). لا يُحسب UDP، مثل مكالمات الفيديو وQUIC في المتصفحات. لا تظهر برامج المستخدمين الآخرين إلا بصلاحيات المسؤول.",
     ),
 ];
 
@@ -13224,14 +13224,6 @@ pub const CHINESE: &[(&str, &str)] = &[
         "Which programs use the network and how fast, as macOS counts it.",
         "哪些程序在使用网络以及速度如何，按 macOS 的统计。",
     ),
-    (
-        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 connections).",
-        "哪些程序在使用网络以及速度如何，来自 Windows 的 TCP 统计（IPv4 连接）。",
-    ),
-    (
-        "Which programs use the network and how fast, from the system's TCP statistics. Other users' programs appear only with administrator rights.",
-        "哪些程序在使用网络以及速度如何，来自系统的 TCP 统计。其他用户的程序只有在拥有管理员权限时才会显示。",
-    ),
     ("e.g. Core switch", "例如 核心交换机"),
     ("{n} h", "{n} 小时"),
     ("{n} min", "{n} 分钟"),
@@ -13634,5 +13626,13 @@ pub const CHINESE: &[(&str, &str)] = &[
     (
         "The first time, Windows downloads OpenSSH Server: this takes a few minutes.",
         "首次使用时，Windows 会下载 OpenSSH Server：需要几分钟。",
+    ),
+    (
+        "Which programs use the network and how fast, from Windows' TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted.",
+        "哪些程序在使用网络以及速度多快，数据来自 Windows 的 TCP 统计（IPv4 和 IPv6）。不统计 UDP，例如视频通话和浏览器中的 QUIC。",
+    ),
+    (
+        "Which programs use the network and how fast, from the system's TCP statistics (IPv4 and IPv6). UDP, such as video calls and QUIC in browsers, is not counted. Other users' programs appear only with administrator rights.",
+        "哪些程序在使用网络以及速度多快，数据来自系统的 TCP 统计（IPv4 和 IPv6）。不统计 UDP，例如视频通话和浏览器中的 QUIC。其他用户的程序只有在拥有管理员权限时才会显示。",
     ),
 ];

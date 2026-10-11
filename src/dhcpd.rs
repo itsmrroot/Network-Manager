@@ -404,6 +404,7 @@ pub fn handle(cfg: &Config, leases: &mut Vec<Lease>, m: &Message, now: SystemTim
 /// (its device name) that faces the devices; answers go out through it.
 pub fn serve(cfg: Config, iface: &str, leases: Leases, stop: Arc<AtomicBool>, log: Log) -> Result<()> {
     cfg.check()?;
+    crate::cmd::allow_through_firewall();
     let sock = socket(cfg.server, iface)?;
     sock.set_read_timeout(Some(Duration::from_millis(300)))?;
     log(format!("DHCP server on {} for {} – {}", cfg.server, cfg.first, cfg.last));

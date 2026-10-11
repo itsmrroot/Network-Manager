@@ -231,14 +231,15 @@ mod imp {
 mod imp {
     use super::*;
     use anyhow::bail;
-    use std::net::Ipv4Addr;
+    use std::net::{Ipv4Addr, Ipv6Addr};
     use windows_sys::Win32::Foundation::{CloseHandle, NO_ERROR};
     use windows_sys::Win32::NetworkManagement::IpHelper::{
-        GetExtendedTcpTable, GetPerTcpConnectionEStats, MIB_TCP_STATE_ESTAB, MIB_TCPROW_LH, MIB_TCPROW_OWNER_PID,
-        MIB_TCPTABLE_OWNER_PID, SetPerTcpConnectionEStats, TCP_ESTATS_DATA_ROD_v0, TCP_ESTATS_DATA_RW_v0,
+        GetExtendedTcpTable, GetPerTcp6ConnectionEStats, GetPerTcpConnectionEStats, MIB_TCP_STATE, MIB_TCP_STATE_ESTAB,
+        MIB_TCP6ROW, MIB_TCP6TABLE_OWNER_PID, MIB_TCPROW_LH, MIB_TCPROW_OWNER_PID, MIB_TCPTABLE_OWNER_PID,
+        SetPerTcp6ConnectionEStats, SetPerTcpConnectionEStats, TCP_ESTATS_DATA_ROD_v0, TCP_ESTATS_DATA_RW_v0,
         TCP_TABLE_OWNER_PID_ALL, TcpConnectionEstatsData,
     };
-    use windows_sys::Win32::Networking::WinSock::AF_INET;
+    use windows_sys::Win32::Networking::WinSock::{AF_INET, AF_INET6, IN6_ADDR, IN6_ADDR_0};
     use windows_sys::Win32::System::Threading::{
         OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
     };
@@ -324,6 +325,74 @@ mod imp {
                 out.push(Counter {
                     key: format!("{} {}", ep(r.dwLocalAddr, r.dwLocalPort), ep(r.dwRemoteAddr, r.dwRemotePort)),
                     program: program(r.dwOwningPid, &mut names),
+                    pid: Some(r.dwOwningPid),
+                    received: rod.DataBytesIn,
+                    sent: rod.DataBytesOut,
+                });
+            }
+            // IPv6: most of what browsers fetch today.
+            out.extend(read_v6(&mut names).unwrap_or_default());
+            Ok(out)
+        }
+    }
+
+    /// The IPv6 connections, as [`read`] does the IPv4 ones.
+    unsafe fn read_v6(names: &mut HashMap<u32, String>) -> Result<Vec<Counter>> {
+        // SAFETY: as in `read`, with the IPv6 table and rows.
+        unsafe {
+            let mut size = 0u32;
+            GetExtendedTcpTable(std::ptr::null_mut(), &mut size, 0, AF_INET6 as u32, TCP_TABLE_OWNER_PID_ALL, 0);
+            let mut buf = vec![0u8; size as usize + 4096];
+            size = buf.len() as u32;
+            let r =
+                GetExtendedTcpTable(buf.as_mut_ptr().cast(), &mut size, 0, AF_INET6 as u32, TCP_TABLE_OWNER_PID_ALL, 0);
+            if r != NO_ERROR {
+                bail!("could not read the IPv6 connection table (error {r})");
+            }
+            let table = &*(buf.as_ptr() as *const MIB_TCP6TABLE_OWNER_PID);
+            let rows = std::slice::from_raw_parts(table.table.as_ptr(), table.dwNumEntries as usize);
+            let mut out = Vec::new();
+            for r in rows.iter().filter(|r| r.dwState == MIB_TCP_STATE_ESTAB as u32) {
+                let row = MIB_TCP6ROW {
+                    State: r.dwState as MIB_TCP_STATE,
+                    LocalAddr: IN6_ADDR { u: IN6_ADDR_0 { Byte: r.ucLocalAddr } },
+                    dwLocalScopeId: r.dwLocalScopeId,
+                    dwLocalPort: r.dwLocalPort,
+                    RemoteAddr: IN6_ADDR { u: IN6_ADDR_0 { Byte: r.ucRemoteAddr } },
+                    dwRemoteScopeId: r.dwRemoteScopeId,
+                    dwRemotePort: r.dwRemotePort,
+                };
+                let rw = TCP_ESTATS_DATA_RW_v0 { EnableCollection: true };
+                SetPerTcp6ConnectionEStats(
+                    &row,
+                    TcpConnectionEstatsData,
+                    &rw as *const _ as *const u8,
+                    0,
+                    std::mem::size_of::<TCP_ESTATS_DATA_RW_v0>() as u32,
+                    0,
+                );
+                let mut rod: TCP_ESTATS_DATA_ROD_v0 = std::mem::zeroed();
+                let ok = GetPerTcp6ConnectionEStats(
+                    &row,
+                    TcpConnectionEstatsData,
+                    std::ptr::null_mut(),
+                    0,
+                    0,
+                    std::ptr::null_mut(),
+                    0,
+                    0,
+                    &mut rod as *mut _ as *mut u8,
+                    0,
+                    std::mem::size_of::<TCP_ESTATS_DATA_ROD_v0>() as u32,
+                ) == NO_ERROR;
+                if !ok {
+                    continue;
+                }
+                let ep =
+                    |addr: [u8; 16], port: u32| format!("[{}]:{}", Ipv6Addr::from(addr), u16::from_be(port as u16));
+                out.push(Counter {
+                    key: format!("{} {}", ep(r.ucLocalAddr, r.dwLocalPort), ep(r.ucRemoteAddr, r.dwRemotePort)),
+                    program: program(r.dwOwningPid, names),
                     pid: Some(r.dwOwningPid),
                     received: rod.DataBytesIn,
                     sent: rod.DataBytesOut,

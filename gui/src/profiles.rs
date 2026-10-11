@@ -58,7 +58,7 @@ impl Profiles {
             sh.refresh = true;
             sh.refresh_wifi = true;
         }
-        ui.horizontal(|ui| {
+        theme::title_row(ui, |ui| {
             ui.vertical(|ui| {
                 theme::page_title(
                     ui,
@@ -67,7 +67,7 @@ impl Profiles {
                     tr("Saved settings for the networks you use, applied in one click."),
                 )
             });
-            ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+            ui.with_layout(theme::far_side(Align::Min), |ui| {
                 if theme::primary_button(ui, p, &icon_label(icon::PLUS, "New profile"), true).clicked() {
                     let a = sh.default_adapter().cloned();
                     self.editor = Some(Editor {

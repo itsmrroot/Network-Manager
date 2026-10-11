@@ -348,8 +348,12 @@ impl Servers {
             });
             ui.add_space(6.0);
         }
-        let badge =
-            |on: bool, label: &'static str| if on { format!("{} ●", tr(label)) } else { tr(label).to_string() };
+        let badge = |on: bool, label: &str| match (on, crate::i18n::is_rtl()) {
+            (false, _) => label.to_string(),
+            // Right to left: the dot at the end of reading, on the left.
+            (true, true) => crate::i18n::with_icon("●", label),
+            (true, false) => format!("{label} ●"),
+        };
         let (t, s, tp) = (
             badge(self.tftp.is_some(), tr("TFTP server")),
             badge(self.syslog.is_some(), tr("Syslog server")),

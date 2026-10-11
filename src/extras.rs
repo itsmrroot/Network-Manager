@@ -2,7 +2,7 @@
 //! printer and network drives — the things that change with the place,
 //! like the office's proxy and printer and the file server's shares.
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 
 use crate::adapters::Adapter;
@@ -139,11 +139,56 @@ fn set_default_printer(name: &str) -> Result<()> {
     Ok(())
 }
 
+/// Windows: runs `net use` through a one-off scheduled task as the user
+/// signed in at the screen, without administrator rights, so that the
+/// drive appears in Explorer. `letter` and `unc` are checked by the caller.
+fn map_as_user(letter: &str, unc: &str) -> Result<()> {
+    let ps = format!(
+        r#"$ErrorActionPreference = 'Stop'
+$user = (Get-CimInstance Win32_ComputerSystem).UserName
+if (-not $user) {{ throw 'no signed-in user' }}
+$out = Join-Path $env:TEMP ('netmgr-drive-' + [guid]::NewGuid().ToString() + '.txt')
+$cmd = '/c net use {letter} /delete /y >nul 2>&1 & net use {letter} "{unc}" /persistent:no > "' + $out + '" 2>&1'
+$name = 'Network Manager drive ' + [guid]::NewGuid().ToString()
+$action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument $cmd
+$principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName $name -Action $action -Principal $principal | Out-Null
+try {{
+    Start-ScheduledTask -TaskName $name
+    for ($i = 0; $i -lt 120; $i++) {{
+        Start-Sleep -Milliseconds 250
+        $info = Get-ScheduledTaskInfo -TaskName $name
+        if ((Get-ScheduledTask -TaskName $name).State -ne 'Running' -and $info.LastTaskResult -ne 267011) {{ break }}
+    }}
+}} finally {{
+    Unregister-ScheduledTask -TaskName $name -Confirm:$false
+}}
+$text = if (Test-Path $out) {{ (Get-Content $out -Raw) }} else {{ '' }}
+Remove-Item $out -ErrorAction SilentlyContinue
+if ($info.LastTaskResult -ne 0) {{ throw ("$text".Trim()) }}"#
+    );
+    cmd::powershell(&ps)?;
+    Ok(())
+}
+
 fn connect_drive(d: &Drive) -> Result<()> {
     let (server, share) = split_share(&d.path)?;
     if cfg!(windows) {
         let unc = format!("\\\\{server}\\{}", share.replace('/', "\\"));
         let letter = d.letter.trim().trim_end_matches('\\');
+        ensure!(
+            !format!("{unc}{letter}").contains(['"', '&', '|', '<', '>', '^', '%', '\'', '\n', '\r']),
+            "the share's name has characters Windows does not allow"
+        );
+        // The app runs as administrator, and Windows keeps an administrator's
+        // drives apart from Explorer's: map it as the signed-in user instead.
+        if !letter.is_empty() {
+            match map_as_user(letter, &unc) {
+                Ok(()) => return Ok(()),
+                Err(e) if !e.to_string().contains("no signed-in user") => return Err(e),
+                Err(_) => {}
+            }
+        }
         let mut args = vec!["use"];
         if !letter.is_empty() {
             // Free the letter first: it may point somewhere else.
@@ -164,35 +209,86 @@ fn connect_drive(d: &Drive) -> Result<()> {
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+enum WinProxy {
+    Direct,
+    Manual,
+    Script,
+}
+
+/// Sets Windows' proxy the way Internet Options does (every program that
+/// asks Windows for it, Edge and Chrome too), and tells running programs.
+/// Writing only the registry would leave them on the old setting.
+fn windows_proxy(mode: WinProxy, server: &str, bypass: &str, script: &str) -> Result<()> {
+    // INTERNET_PER_CONN_FLAGS: 1 direct, 2 proxy, 4 configuration script.
+    let flags = match mode {
+        WinProxy::Direct => 1,
+        WinProxy::Manual => 3,
+        WinProxy::Script => 5,
+    };
+    let ps = format!(
+        r#"$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class NetMgrProxy {{
+    [StructLayout(LayoutKind.Sequential)] struct Opt {{ public int Option; public IntPtr Value; }}
+    [StructLayout(LayoutKind.Sequential)] struct OptList {{ public int Size; public IntPtr Connection; public int Count; public int Error; public IntPtr Options; }}
+    [DllImport("wininet.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    static extern bool InternetSetOption(IntPtr h, int option, IntPtr buffer, int length);
+    public static void Set(int flags, string server, string bypass, string script) {{
+        string[] values = {{ null, server, bypass, script }};
+        int size = Marshal.SizeOf(typeof(Opt));
+        IntPtr opts = Marshal.AllocCoTaskMem(size * 4);
+        IntPtr[] strings = new IntPtr[4];
+        for (int i = 0; i < 4; i++) {{
+            Opt o = new Opt();
+            o.Option = i + 1;
+            if (i == 0) {{ o.Value = new IntPtr(flags); }} else {{ strings[i] = Marshal.StringToHGlobalUni(values[i]); o.Value = strings[i]; }}
+            Marshal.StructureToPtr(o, IntPtr.Add(opts, i * size), false);
+        }}
+        OptList l = new OptList();
+        l.Size = Marshal.SizeOf(typeof(OptList));
+        l.Count = 4;
+        l.Options = opts;
+        IntPtr pl = Marshal.AllocCoTaskMem(l.Size);
+        Marshal.StructureToPtr(l, pl, false);
+        bool ok = InternetSetOption(IntPtr.Zero, 75, pl, l.Size);
+        int err = Marshal.GetLastWin32Error();
+        InternetSetOption(IntPtr.Zero, 39, IntPtr.Zero, 0);
+        InternetSetOption(IntPtr.Zero, 37, IntPtr.Zero, 0);
+        Marshal.FreeCoTaskMem(pl);
+        Marshal.FreeCoTaskMem(opts);
+        for (int i = 1; i < 4; i++) {{ Marshal.FreeHGlobal(strings[i]); }}
+        if (!ok) {{ throw new System.ComponentModel.Win32Exception(err); }}
+    }}
+}}
+'@
+[NetMgrProxy]::Set({flags}, {}, {}, {})"#,
+        cmd::ps_quote(server),
+        cmd::ps_quote(bypass),
+        cmd::ps_quote(script)
+    );
+    cmd::powershell(&ps).context("the proxy could not be set")?;
+    Ok(())
+}
+
 fn set_proxy(a: &Adapter, e: &Extras) -> Result<()> {
     let bypass: Vec<String> =
         e.proxy_bypass.split([',', ';', ' ']).map(str::trim).filter(|s| !s.is_empty()).map(String::from).collect();
     if cfg!(windows) {
-        let key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
-        let reg = |name: &str, kind: &str, value: &str| {
-            cmd::run("reg", &["add", key, "/v", name, "/t", kind, "/d", value, "/f"])
-        };
         match e.proxy {
             ProxyMode::Keep => {}
-            ProxyMode::Off => {
-                reg("ProxyEnable", "REG_DWORD", "0")?;
-                let _ = cmd::run("reg", &["delete", key, "/v", "AutoConfigURL", "/f"]);
-            }
+            ProxyMode::Off => windows_proxy(WinProxy::Direct, "", "", "")?,
             ProxyMode::Manual => {
                 let (h, p) = split_server(&e.proxy_server)?;
-                reg("ProxyServer", "REG_SZ", &format!("{h}:{p}"))?;
                 let mut over = bypass.join(";");
                 if !over.contains("<local>") {
                     over = if over.is_empty() { "<local>".into() } else { format!("{over};<local>") };
                 }
-                reg("ProxyOverride", "REG_SZ", &over)?;
-                reg("ProxyEnable", "REG_DWORD", "1")?;
-                let _ = cmd::run("reg", &["delete", key, "/v", "AutoConfigURL", "/f"]);
+                windows_proxy(WinProxy::Manual, &format!("{h}:{p}"), &over, "")?;
             }
-            ProxyMode::Script => {
-                reg("AutoConfigURL", "REG_SZ", e.proxy_script.trim())?;
-                reg("ProxyEnable", "REG_DWORD", "0")?;
-            }
+            ProxyMode::Script => windows_proxy(WinProxy::Script, "", "", e.proxy_script.trim())?,
         }
         return Ok(());
     }
@@ -271,6 +367,19 @@ fn set_proxy(a: &Adapter, e: &Extras) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Runs on Windows in CI: the proxy as Windows reports it afterwards.
+    #[cfg(windows)]
+    #[test]
+    fn windows_proxy_is_set_and_cleared() {
+        let key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings";
+        let query = |name: &str| cmd::run("reg", &["query", key, "/v", name]).unwrap_or_default();
+        windows_proxy(WinProxy::Manual, "127.0.0.1:3128", "*.lab;<local>", "").unwrap();
+        assert!(query("ProxyServer").contains("127.0.0.1:3128"), "{}", query("ProxyServer"));
+        assert!(query("ProxyEnable").contains("0x1"), "{}", query("ProxyEnable"));
+        windows_proxy(WinProxy::Direct, "", "", "").unwrap();
+        assert!(query("ProxyEnable").contains("0x0"), "{}", query("ProxyEnable"));
+    }
 
     #[test]
     fn servers_and_shares() {
