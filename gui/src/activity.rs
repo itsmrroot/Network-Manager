@@ -96,29 +96,19 @@ impl Activity {
     }
 }
 
-/// Watches for SSH sign-ins to this computer: new connections to its port
-/// 22 from another machine. Runs for as long as the app.
+/// Watches for SSH sign-ins to this computer. Runs for as long as the app.
+/// macOS and Linux: the sessions the system lists as signed in from another
+/// machine (`who`); Windows: new connections to port 22 (the app sees every
+/// connection there, as administrator).
 pub fn watch_ssh(activity: Activity) {
     std::thread::spawn(move || {
-        let mut known: Option<HashSet<String>> = None;
+        let mut known: Option<HashSet<(String, String)>> = None;
         loop {
-            if let Ok(list) = netmgr::system::connections() {
-                let now: HashSet<String> = list
-                    .iter()
-                    .filter(|c| {
-                        c.proto == "TCP"
-                            && c.local_port == Some(netmgr::sshd::PORT)
-                            && c.state.eq_ignore_ascii_case("ESTABLISHED")
-                            && !c.remote.is_empty()
-                    })
-                    .map(|c| c.remote.clone())
-                    .filter(|r| !remote_ip(r).is_some_and(|ip| ip.is_loopback()))
-                    .collect();
+            if let Some(now) = ssh_sessions() {
                 // Sessions already open when the app started are not news.
                 if let Some(known) = &known {
-                    for r in now.difference(known) {
-                        let who = remote_ip(r).map_or(r.clone(), |ip| ip.to_string());
-                        activity.add(Kind::Ssh, crate::i18n::trlf("SSH sign-in from {address}", &[("address", &who)]));
+                    for (_, host) in now.difference(known) {
+                        activity.add(Kind::Ssh, crate::i18n::trlf("SSH sign-in from {address}", &[("address", host)]));
                     }
                 }
                 known = Some(now);
@@ -126,6 +116,44 @@ pub fn watch_ssh(activity: Activity) {
             std::thread::sleep(Duration::from_secs(4));
         }
     });
+}
+
+/// The SSH sessions now: (what tells them apart, where from).
+fn ssh_sessions() -> Option<HashSet<(String, String)>> {
+    if cfg!(windows) {
+        let list = netmgr::system::connections().ok()?;
+        return Some(
+            list.iter()
+                .filter(|c| {
+                    c.proto == "TCP"
+                        && c.local_port == Some(netmgr::sshd::PORT)
+                        && c.state.eq_ignore_ascii_case("ESTABLISHED")
+                        && !c.remote.is_empty()
+                })
+                .filter_map(|c| {
+                    let ip = remote_ip(&c.remote)?;
+                    (!ip.is_loopback()).then(|| (c.remote.clone(), ip.to_string()))
+                })
+                .collect(),
+        );
+    }
+    let text = netmgr::cmd::run("who", &[]).ok()?;
+    Some(parse_who(&text))
+}
+
+/// `who`: "mbp  ttys004  Oct 12 13:05 (192.168.1.40)" — sessions from
+/// another machine have its address in brackets (local ones have none, or
+/// a display such as ":0").
+fn parse_who(text: &str) -> HashSet<(String, String)> {
+    text.lines()
+        .filter_map(|l| {
+            let host = l.rsplit_once('(')?.1.trim_end().strip_suffix(')')?.trim();
+            let tty = l.split_whitespace().nth(1)?;
+            let local = host.is_empty() || host.starts_with(':') || host.starts_with("tmux") || host == "localhost";
+            let loopback = host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback());
+            (!local && !loopback).then(|| (format!("{tty} {l}"), host.to_string()))
+        })
+        .collect()
 }
 
 /// The address in "192.168.1.5:51234", "[fe80::1]:22" or "192.168.1.5.51234".
@@ -189,6 +217,14 @@ mod tests {
         assert_eq!(remote_ip("192.168.1.5:51234"), Some("192.168.1.5".parse().unwrap()));
         assert_eq!(remote_ip("192.168.1.5.51234"), Some("192.168.1.5".parse().unwrap()));
         assert_eq!(remote_ip("[fe80::1]:22"), Some("fe80::1".parse().unwrap()));
+    }
+
+    #[test]
+    fn signed_in_sessions() {
+        let who = "mbp      console  Oct 12 09:00\nmbp      ttys004  Oct 12 13:05 (192.168.1.40)\nroot     pts/1        2026-10-12 13:06 (10.0.0.9)\nme       pts/2        2026-10-12 13:07 (:0)\nme       pts/3        2026-10-12 13:08 (127.0.0.1)";
+        let hosts: Vec<String> = parse_who(who).into_iter().map(|(_, h)| h).collect();
+        assert_eq!(hosts.len(), 2);
+        assert!(hosts.contains(&"192.168.1.40".to_string()) && hosts.contains(&"10.0.0.9".to_string()));
     }
 
     #[test]
