@@ -98,6 +98,8 @@ pub struct Shared {
     pub refresh_wifi: bool,
     pub nav: Option<Nav>,
     pub traffic: Traffic,
+    /// What others do with this computer (Servers → Activity).
+    pub activity: crate::activity::Activity,
 }
 
 impl Shared {
@@ -129,6 +131,8 @@ impl Shared {
 }
 
 pub struct App {
+    /// Desktop notifications for Servers → Activity.
+    notifier: crate::activity::Notifier,
     shared: Shared,
     applied: Option<(theme::Accent, f32, settings::ThemeChoice)>,
     language: Option<i18n::Lang>,
@@ -205,6 +209,8 @@ impl App {
             updater.check(&cc.egui_ctx, false);
         }
         let refresh_public = settings.lookup_public_ip;
+        let activity_log = crate::activity::Activity::default();
+        crate::activity::watch_ssh(activity_log.clone());
         Self {
             shared: Shared {
                 settings,
@@ -222,7 +228,9 @@ impl App {
                 refresh_wifi: true,
                 nav: None,
                 traffic: Traffic::default(),
+                activity: activity_log,
             },
+            notifier: Default::default(),
             applied: None,
             language: Some(lang),
             page: Page::Overview,
@@ -736,6 +744,10 @@ impl eframe::App for App {
             self.run(&ctx, c);
         }
         self.refresh(&ctx);
+        // What others did meanwhile: noted, and notified as chosen.
+        self.servers.watch(&self.shared);
+        let events = self.shared.activity.take_pending();
+        self.notifier.handle(events, &self.shared.settings);
         if self.updater.poll(&ctx) {
             // The installer takes over and starts the new version.
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -903,7 +915,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 27] = [
+        let pages: [(Page, &str, u32); 28] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -930,6 +942,7 @@ impl App {
             (Page::Servers, "24-dhcp", 40),
             (Page::Servers, "25-traps", 40),
             (Page::Servers, "27-ssh", 30),
+            (Page::Servers, "28-activity", 30),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_LIGHT: the light theme instead.
@@ -1036,6 +1049,28 @@ impl App {
             }
             if name == "27-ssh" {
                 self.servers.show("ssh");
+            }
+            if name == "28-activity" && t.frames == 1 {
+                use crate::activity::Kind;
+                let a = &self.shared.activity;
+                a.add(Kind::Ssh, i18n::trlf("SSH sign-in from {address}", &[("address", &"192.168.1.42")]));
+                for (who, file, size) in
+                    [("10.0.0.2", "c2960x-universalk9.bin", "26.4 MB"), ("10.0.0.3", "sw2-confg", "8.1 KB")]
+                {
+                    a.add(
+                        Kind::File,
+                        i18n::trlf(
+                            "{address} downloaded {file} ({size}) over TFTP",
+                            &[("address", &who), ("file", &file), ("size", &size)],
+                        ),
+                    );
+                }
+                a.first_use(
+                    "ntp",
+                    "10.0.0.2".parse().unwrap(),
+                    i18n::trlf("{address} asked this computer for the time", &[("address", &"10.0.0.2")]),
+                );
+                self.servers.open_tab("activity");
             }
             if name == "20-map" {
                 self.devices.show("map");

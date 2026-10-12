@@ -602,6 +602,7 @@ mod tests {
 
     const SOURCES: &[&str] = &[
         include_str!("about.rs"),
+        include_str!("activity.rs"),
         include_str!("adapters_page.rs"),
         include_str!("app.rs"),
         include_str!("backups.rs"),

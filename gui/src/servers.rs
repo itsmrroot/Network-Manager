@@ -28,6 +28,7 @@ enum Tab {
     Time,
     Ssh,
     Throughput,
+    Activity,
 }
 
 /// A running server: its stop switch, its log, and the error it ended with.
@@ -58,6 +59,8 @@ impl Running {
 
 pub struct Servers {
     tab: Tab,
+    /// TFTP transfers already noted in the activity log.
+    reported: std::collections::HashSet<u64>,
     tftp_port: u16,
     tftp_upload: bool,
     tftp_overwrite: bool,
@@ -114,6 +117,7 @@ impl Default for Servers {
             dhcp: Default::default(),
             ntp: Default::default(),
             ssh: Default::default(),
+            reported: Default::default(),
             syslog_file: Default::default(),
         }
     }
@@ -278,12 +282,37 @@ impl Servers {
             "dhcp" => Tab::Dhcp,
             "time" => Tab::Time,
             "ssh" => Tab::Ssh,
+            "activity" => Tab::Activity,
             "throughput" => Tab::Throughput,
             _ => Tab::Tftp,
         };
     }
 
     /// Servers running now (not the throughput test as a client).
+    /// Notes finished TFTP transfers in the activity log (every frame,
+    /// whatever page is shown).
+    pub fn watch(&mut self, sh: &Shared) {
+        let Ok(list) = self.transfers.lock() else { return };
+        for t in list.iter().filter(|t| t.done && t.error.is_none()) {
+            if self.reported.insert(t.id) {
+                let (who, file, size) =
+                    (t.peer.ip().to_string(), t.file.clone(), netmgr::adapters::format_bytes(t.bytes));
+                let text = if t.upload {
+                    trlf(
+                        "{address} sent {file} ({size}) over TFTP",
+                        &[("address", &who), ("file", &file), ("size", &size)],
+                    )
+                } else {
+                    trlf(
+                        "{address} downloaded {file} ({size}) over TFTP",
+                        &[("address", &who), ("file", &file), ("size", &size)],
+                    )
+                };
+                sh.activity.add(crate::activity::Kind::File, text);
+            }
+        }
+    }
+
     pub fn running_count(&self) -> usize {
         [
             self.tftp.is_some(),
@@ -365,6 +394,12 @@ impl Servers {
             badge(self.dhcp.running(), "DHCP"),
             badge(self.ntp.running(), tr("Time (NTP)")),
         );
+        let unread = sh.activity.unread();
+        let activity = if unread > 0 && self.tab != Tab::Activity {
+            format!("{} ({unread})", tr("Activity"))
+        } else {
+            tr("Activity").to_string()
+        };
         theme::tabs(
             ui,
             p,
@@ -378,6 +413,7 @@ impl Servers {
                 (Tab::Time, icon::CLOCK, &n),
                 (Tab::Ssh, icon::TERMINAL_WINDOW, "SSH"),
                 (Tab::Throughput, icon::GAUGE, &tp),
+                (Tab::Activity, icon::BELL, &activity),
             ],
         );
         ui.add_space(10.0);
@@ -398,10 +434,15 @@ impl Servers {
                 egui::ScrollArea::vertical().id_salt("ssh-tab").show(ui, |ui| self.ssh.ui(ui, p, sh));
             }
             Tab::Throughput => self.throughput_tab(ui, p, sh),
+            Tab::Activity => activity_tab(ui, p, sh),
         }
     }
 
     fn tftp_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
+        egui::ScrollArea::vertical().id_salt("tftp-tab").show(ui, |ui| self.tftp_page(ui, p, sh));
+    }
+
+    fn tftp_page(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         if sh.settings.tftp_folder.is_empty() {
             let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
                 .map(PathBuf::from)
@@ -486,10 +527,14 @@ impl Servers {
                 ui.add_space(8.0);
                 theme::paragraph(
                     ui,
-                    &trlf("Devices reach this server at {addresses}.", &[("addresses", &addrs.join(", "))]),
+                    &trlf(
+                        "Listening on UDP port {port} at {addresses}.",
+                        &[("port", &self.tftp_port), ("addresses", &addrs.join(", "))],
+                    ),
                     14.0,
                     p.text,
                 );
+                udp_hint(ui, p, sh, "TFTP", self.tftp_port, &ip);
                 ui.add_space(4.0);
                 ui.label(RichText::new(tr("Example commands")).color(p.weak).size(12.5));
                 let examples = [
@@ -544,46 +589,66 @@ impl Servers {
                         }
                     });
                 });
-                for t in transfers.iter().rev().take(20) {
-                    ui.horizontal(|ui| {
-                        let (g, c) = match (&t.error, t.done) {
-                            (Some(_), _) => (icon::X_CIRCLE, p.danger),
-                            (None, true) => (icon::CHECK_CIRCLE, p.success),
-                            (None, false) => {
-                                (if t.upload { icon::UPLOAD_SIMPLE } else { icon::DOWNLOAD_SIMPLE }, p.accent)
-                            }
-                        };
-                        ui.label(RichText::new(g).color(c).size(17.0));
-                        ui.label(RichText::new(&t.file).color(p.text));
-                        ui.label(
-                            RichText::new(format!("{} {}", if t.upload { tr("from") } else { tr("to") }, t.peer.ip()))
+                let (done, failed) = (
+                    transfers.iter().filter(|t| t.done && t.error.is_none()).count(),
+                    transfers.iter().filter(|t| t.error.is_some()).count(),
+                );
+                ui.label(
+                    RichText::new(trf(
+                        "{active} running · {done} done · {failed} failed",
+                        &[("active", &(transfers.len() - done - failed)), ("done", &done), ("failed", &failed)],
+                    ))
+                    .color(p.weak)
+                    .size(12.5),
+                );
+                ui.add_space(4.0);
+                // The newest first, in a list of its own that scrolls.
+                egui::ScrollArea::vertical().id_salt("tftp-transfers").max_height(320.0).show(ui, |ui| {
+                    for t in transfers.iter().rev() {
+                        ui.horizontal_wrapped(|ui| {
+                            let (g, c) = match (&t.error, t.done) {
+                                (Some(_), _) => (icon::X_CIRCLE, p.danger),
+                                (None, true) => (icon::CHECK_CIRCLE, p.success),
+                                (None, false) => {
+                                    (if t.upload { icon::UPLOAD_SIMPLE } else { icon::DOWNLOAD_SIMPLE }, p.accent)
+                                }
+                            };
+                            ui.label(RichText::new(g).color(c).size(17.0));
+                            ui.label(RichText::new(&t.file).color(p.text));
+                            ui.label(
+                                RichText::new(format!(
+                                    "{} {}",
+                                    if t.upload { tr("from") } else { tr("to") },
+                                    t.peer.ip()
+                                ))
                                 .color(p.weak)
                                 .size(12.5),
-                        );
-                        let frac = t.total.filter(|x| *x > 0).map(|x| t.bytes as f32 / x as f32);
-                        let mut bar = egui::ProgressBar::new(frac.unwrap_or(if t.done { 1.0 } else { 0.0 }))
-                            .desired_width(180.0)
-                            .fill(c);
-                        if !t.done && frac.is_none() {
-                            bar = bar.animate(true);
-                        }
-                        ui.add(bar);
-                        let speed =
-                            t.started.map(|s| t.bytes as f64 / s.elapsed().as_secs_f64().max(0.1)).unwrap_or(0.0);
-                        ui.label(
-                            RichText::new(match &t.error {
-                                Some(e) => e.clone(),
-                                None => format!(
-                                    "{} · {}/s",
-                                    netmgr::adapters::format_bytes(t.bytes),
-                                    netmgr::adapters::format_bytes(speed as u64)
-                                ),
-                            })
-                            .color(p.weak)
-                            .size(12.5),
-                        );
-                    });
-                }
+                            );
+                            let frac = t.total.filter(|x| *x > 0).map(|x| t.bytes as f32 / x as f32);
+                            let mut bar = egui::ProgressBar::new(frac.unwrap_or(if t.done { 1.0 } else { 0.0 }))
+                                .desired_width(180.0)
+                                .fill(c);
+                            if !t.done && frac.is_none() {
+                                bar = bar.animate(true);
+                            }
+                            ui.add(bar);
+                            let speed =
+                                t.started.map(|s| t.bytes as f64 / s.elapsed().as_secs_f64().max(0.1)).unwrap_or(0.0);
+                            ui.label(
+                                RichText::new(match &t.error {
+                                    Some(e) => e.clone(),
+                                    None => format!(
+                                        "{} · {}/s",
+                                        netmgr::adapters::format_bytes(t.bytes),
+                                        netmgr::adapters::format_bytes(speed as u64)
+                                    ),
+                                })
+                                .color(p.weak)
+                                .size(12.5),
+                            );
+                        });
+                    }
+                });
             });
             ui.add_space(10.0);
         }
@@ -611,12 +676,18 @@ impl Servers {
                 ui.spinner();
             } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start"), true).clicked() {
                 let (port, messages, file) = (self.syslog_port, self.messages.clone(), self.syslog_file.clone());
+                let activity = sh.activity.clone();
                 self.syslog = Some(Running::spawn(move |stop| {
                     ns::syslog_serve(
                         listen,
                         port,
                         stop,
                         Arc::new(move |m| {
+                            activity.first_use(
+                                "syslog",
+                                m.from,
+                                trlf("{address} sends syslog messages to this computer", &[("address", &m.from)]),
+                            );
                             if let Ok(mut f) = file.lock()
                                 && let Some((_, f)) = f.as_mut()
                             {
@@ -854,12 +925,21 @@ impl Servers {
                     theme::paragraph(ui, &trlf("On the other computer, test to {addresses} (port {port}).", &[("addresses", &my_addresses(sh).join(", ")), ("port", &ns::THROUGHPUT_PORT)]), 13.5, p.text);
                 } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), true).clicked() {
                     let log = self.tp_log.clone();
+                    let activity = sh.activity.clone();
                     self.tp_server = Some(Running::spawn(move |stop| {
                         ns::throughput_serve(
                             listen,
                             ns::THROUGHPUT_PORT,
                             stop,
                             Arc::new(move |l| {
+                                // "192.168.1.5:51234: received …"
+                                if let Some(peer) = l.split(": ").next().and_then(|a| a.parse::<std::net::SocketAddr>().ok()) {
+                                    activity.first_use(
+                                        "throughput",
+                                        peer.ip(),
+                                        trlf("{address} ran a throughput test", &[("address", &peer.ip())]),
+                                    );
+                                }
                                 if let Ok(mut v) = log.lock() {
                                     push_log(&mut v, format!("{}  {l}", chrono::Local::now().format("%H:%M:%S")));
                                 }
@@ -926,6 +1006,78 @@ impl Servers {
             });
         });
     }
+}
+
+/// How to check a UDP server from another computer: a TCP port check
+/// (nmap's default, or Tools → Ports) does not see it.
+pub(crate) fn udp_hint(ui: &mut Ui, p: &Palette, sh: &mut Shared, what: &str, port: u16, ip: &str) {
+    let command = format!("nmap -sU -p {port} {ip}");
+    ui.horizontal_wrapped(|ui| {
+        ui.label(
+            RichText::new(trf(
+                "{service} uses UDP: a TCP port check does not see it. To check it from another computer:",
+                &[("service", &what)],
+            ))
+            .color(p.weak)
+            .size(12.5),
+        );
+        let r = ui.add(egui::Label::new(RichText::new(&command).monospace().color(p.text)).sense(egui::Sense::click()));
+        if r.on_hover_text(tr("Click to copy")).clicked() {
+            ui.ctx().copy_text(command.clone());
+            sh.toast(tr("Copied."));
+        }
+    });
+}
+
+/// Servers → Activity: what others did with this computer.
+fn activity_tab(ui: &mut Ui, p: &Palette, sh: &mut Shared) {
+    sh.activity.mark_read();
+    theme::card(ui, p, |ui| {
+        ui.set_width(ui.available_width());
+        theme::paragraph(
+            ui,
+            trl(
+                "What others do with this computer while the app runs: SSH sign-ins, files fetched or sent through the servers, and the first time a device uses a service.",
+            ),
+            14.0,
+            p.weak,
+        );
+        ui.add_space(6.0);
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(tr("Notify me about")).color(p.weak));
+            ui.checkbox(&mut sh.settings.notify_ssh, tr("SSH sign-ins"));
+            ui.checkbox(&mut sh.settings.notify_files, tr("File transfers"));
+            ui.checkbox(&mut sh.settings.notify_services, tr("Other services"));
+            theme::trailing(ui, "activity", |ui| {
+                if ui.button(icon_label(icon::TRASH, "Clear")).clicked() {
+                    sh.activity.clear();
+                }
+            });
+        });
+    });
+    ui.add_space(10.0);
+    let events = sh.activity.newest(500);
+    theme::card(ui, p, |ui| {
+        ui.set_width(ui.available_width());
+        if events.is_empty() {
+            ui.label(RichText::new(tr("Nothing yet.")).color(p.weak));
+            return;
+        }
+        egui::ScrollArea::vertical().id_salt("activity-list").auto_shrink([false, true]).show(ui, |ui| {
+            for e in &events {
+                ui.horizontal(|ui| {
+                    let (g, c) = match e.kind {
+                        crate::activity::Kind::Ssh => (icon::TERMINAL_WINDOW, p.warning),
+                        crate::activity::Kind::File => (icon::FILE_ARROW_DOWN, p.accent),
+                        crate::activity::Kind::Service => (icon::PLUGS_CONNECTED, p.success),
+                    };
+                    ui.label(RichText::new(e.when.format("%H:%M:%S").to_string()).monospace().color(p.weak).size(12.5));
+                    ui.label(RichText::new(g).color(c).size(16.0));
+                    ui.label(RichText::new(crate::i18n::visual(&e.text)).color(p.text));
+                });
+            }
+        });
+    });
 }
 
 /// The most lines a server's log keeps: a flood of requests must not fill

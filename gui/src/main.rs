@@ -4,6 +4,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod about;
+mod activity;
 mod adapters_page;
 mod app;
 mod backups;

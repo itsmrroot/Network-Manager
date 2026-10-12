@@ -13,7 +13,7 @@ use netmgr::dhcpd::{self, Lease, Reservation};
 use netmgr::snmp::{self, Trap};
 
 use crate::app::{Nav, Page, Shared};
-use crate::i18n::{tr, trf, trl};
+use crate::i18n::{tr, trf, trl, trlf};
 use crate::servers::{Running, listen_address, listen_picker, my_addresses};
 use crate::theme::{self, Palette, icon_label};
 
@@ -136,12 +136,29 @@ impl HttpTab {
                 let (port, upload, overwrite, log) = (self.port, self.upload, self.overwrite, self.log.clone());
                 let root = PathBuf::from(sh.settings.tftp_folder.trim());
                 let listen = listen_address(sh);
+                let activity = sh.activity.clone();
                 start_stop(ui, p, &mut self.server, || {
                     Some(Running::spawn(move |stop| {
                         netmgr::httpd::serve(
                             netmgr::httpd::Options { root, port, listen, allow_upload: upload, overwrite },
                             stop,
                             Arc::new(move |e| {
+                                // A file fetched or sent (not folder pages or errors).
+                                let size = netmgr::adapters::format_bytes(e.bytes);
+                                let (who, file) = (e.from.to_string(), e.path.clone());
+                                let args: [(&str, &dyn std::fmt::Display); 3] =
+                                    [("address", &who), ("file", &file), ("size", &size)];
+                                if matches!(e.status, 200 | 206) && e.method == "GET" && !e.path.ends_with('/') {
+                                    activity.add(
+                                        crate::activity::Kind::File,
+                                        trlf("{address} downloaded {file} ({size}) over HTTP", &args),
+                                    );
+                                } else if e.status == 201 {
+                                    activity.add(
+                                        crate::activity::Kind::File,
+                                        trlf("{address} sent {file} ({size}) over HTTP", &args),
+                                    );
+                                }
                                 if let Ok(mut v) = log.lock() {
                                     crate::servers::push_log(
                                         &mut v,
@@ -303,6 +320,7 @@ impl TrapTab {
                     ui.add(egui::DragValue::new(&mut self.port).range(1..=65535));
                 });
                 let (port, traps) = (self.port, self.traps.clone());
+                let activity = sh.activity.clone();
                 start_stop(ui, p, &mut self.server, || {
                     Some(Running::spawn(move |stop| {
                         snmp::trap_serve(
@@ -310,6 +328,11 @@ impl TrapTab {
                             port,
                             stop,
                             Arc::new(move |t| {
+                                activity.first_use(
+                                    "traps",
+                                    t.from,
+                                    trlf("{address} sends SNMP traps to this computer", &[("address", &t.from)]),
+                                );
                                 if let Ok(mut v) = traps.lock() {
                                     v.push_back(t);
                                     while v.len() > 10_000 {
@@ -486,6 +509,7 @@ impl NtpTab {
                         .on_hover_text(tr("1: the server has its own reference clock (GPS, atomic); 2: it follows a stratum 1 server; and so on."));
                 });
                 let (port, stratum, log) = (self.port, self.stratum, self.log.clone());
+                let activity = sh.activity.clone();
                 start_stop(ui, p, &mut self.server, || {
                     Some(Running::spawn(move |stop| {
                         netmgr::ntp::serve(
@@ -494,6 +518,11 @@ impl NtpTab {
                             stratum,
                             stop,
                             Arc::new(move |ip| {
+                                activity.first_use(
+                                    "ntp",
+                                    ip,
+                                    trlf("{address} asked this computer for the time", &[("address", &ip)]),
+                                );
                                 if let Ok(mut v) = log.lock() {
                                     crate::servers::push_log(&mut v, format!("{}  {ip}", clock()));
                                 }
@@ -830,6 +859,7 @@ impl DhcpTab {
                             sh.settings.dhcp_server = Some(cfg.clone());
                             sh.settings.dhcp_adapter = self.adapter.clone();
                             let (leases, log) = (self.leases.clone(), self.log.clone());
+                            let activity = sh.activity.clone();
                             self.server = Some(Running::spawn(move |stop| {
                                 dhcpd::serve(
                                     cfg,
@@ -837,6 +867,13 @@ impl DhcpTab {
                                     leases,
                                     stop,
                                     Arc::new(move |l| {
+                                        // An address given out.
+                                        if l.contains("→ ACK") {
+                                            activity.add(
+                                                crate::activity::Kind::Service,
+                                                trlf("DHCP: {what}", &[("what", &l)]),
+                                            );
+                                        }
                                         if let Ok(mut v) = log.lock() {
                                             crate::servers::push_log(&mut v, format!("{}  {l}", clock()));
                                         }

@@ -75,6 +75,14 @@ pub struct Settings {
     pub saved_hosts: Vec<SavedHost>,
     /// Desktop notifications for monitored hosts and new devices.
     pub notifications: bool,
+    /// Notifications for what others do with this computer (Servers →
+    /// Activity): SSH sign-ins, files through the servers, other services.
+    #[serde(default = "yes")]
+    pub notify_ssh: bool,
+    #[serde(default = "yes")]
+    pub notify_files: bool,
+    #[serde(default = "yes")]
+    pub notify_services: bool,
     /// The DHCP server's last settings, and the adapter it served.
     pub dhcp_server: Option<netmgr::dhcpd::Config>,
     pub dhcp_adapter: String,
@@ -88,6 +96,10 @@ pub struct Settings {
     pub planner: Option<netmgr::plan::Input>,
     pub saved_plans: BTreeMap<String, netmgr::plan::Input>,
     pub plan_vendor: netmgr::plan::Vendor,
+}
+
+fn yes() -> bool {
+    true
 }
 
 impl Default for Settings {
@@ -113,6 +125,9 @@ impl Default for Settings {
             sessions: Vec::new(),
             saved_hosts: Vec::new(),
             notifications: true,
+            notify_ssh: true,
+            notify_files: true,
+            notify_services: true,
             dhcp_server: None,
             dhcp_adapter: String::new(),
             simple_mode: false,
@@ -285,6 +300,23 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
                 tr("Notifications"),
                 trl("A desktop notification when a watched host goes down or comes back, and when a new device joins the network."),
                 |ui| toggle(ui, &mut s.notifications),
+            );
+            row(ui, p, tr("SSH sign-ins"), trl("A notification when someone signs in to this computer over SSH."), |ui| {
+                toggle(ui, &mut s.notify_ssh)
+            });
+            row(
+                ui,
+                p,
+                tr("File transfers"),
+                trl("A notification when a device fetches or sends a file through the TFTP or HTTP server."),
+                |ui| toggle(ui, &mut s.notify_files),
+            );
+            row(
+                ui,
+                p,
+                tr("Other services"),
+                trl("A notification the first time a device uses syslog, SNMP traps, the time server, DHCP or the throughput test."),
+                |ui| toggle(ui, &mut s.notify_services),
             );
             ui.add_space(8.0);
             ui.label(theme::semibold(tr("My hosts"), 15.0).color(p.text));
