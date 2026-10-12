@@ -34,9 +34,9 @@ pub enum Command {
     Open(&'static str),
 }
 
-pub const PROJECT: &str = "https://github.com/itsmrroot/Network-Manager";
-const RELEASES: &str = "https://github.com/itsmrroot/Network-Manager/releases";
-const ISSUES: &str = "https://github.com/itsmrroot/Network-Manager/issues";
+pub const PROJECT: &str = "https://github.com/itsmrroot/Network-Manager-releases";
+const RELEASES: &str = "https://github.com/itsmrroot/Network-Manager-releases/releases";
+const ISSUES: &str = "https://github.com/itsmrroot/Network-Manager-releases/issues";
 
 /// The pages in sidebar order, with their ⌘/Ctrl digit.
 pub const PAGES: [(Page, &str); 10] = [

@@ -49,7 +49,7 @@ winit = { version = "0.30", default-features = false }
 product-name = "Network Manager"
 identifier = "io.github.itsmrroot.netmgr"
 description = "Change IP and MAC addresses, see saved Wi-Fi passwords and the devices on your network"
-homepage = "https://github.com/itsmrroot/Network-Manager"
+homepage = "https://github.com/itsmrroot/Network-Manager-releases"
 authors = ["Bashar Salmo"]
 publisher = "Bashar Salmo"
 copyright = "© 2026 Bashar Salmo. Powered by Bashar Salmo."

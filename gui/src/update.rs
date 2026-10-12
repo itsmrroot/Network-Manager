@@ -29,7 +29,7 @@ use crate::i18n::{tr, trf, trl, trlf, with_icon};
 use crate::jobs::{Job, Progress};
 use crate::theme::{self, Palette, icon_label};
 
-const LATEST: &str = "https://api.github.com/repos/itsmrroot/Network-Manager/releases/latest";
+const LATEST: &str = "https://api.github.com/repos/itsmrroot/Network-Manager-releases/releases/latest";
 
 /// The version of this program.
 pub fn current() -> &'static str {

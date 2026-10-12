@@ -5,8 +5,8 @@
 <br>
 
 [![CI](https://github.com/itsmrroot/Network-Manager/actions/workflows/ci.yml/badge.svg)](https://github.com/itsmrroot/Network-Manager/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/itsmrroot/Network-Manager?color=0b5cad)](https://github.com/itsmrroot/Network-Manager/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/itsmrroot/Network-Manager/total?color=16a34a)](https://github.com/itsmrroot/Network-Manager/releases)
+[![Latest release](https://img.shields.io/github/v/release/itsmrroot/Network-Manager-releases?color=0b5cad)](https://github.com/itsmrroot/Network-Manager-releases/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/itsmrroot/Network-Manager-releases/total?color=16a34a)](https://github.com/itsmrroot/Network-Manager-releases/releases)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-6b7280)](#-install)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-dea584?logo=rust&logoColor=white)](https://www.rust-lang.org)
 [![License: MIT](https://img.shields.io/github/license/itsmrroot/Network-Manager?color=a78bfa)](LICENSE)
@@ -402,14 +402,14 @@ test, the public IP lookup and the update check.
 ## 📥 Install
 
 Every installer contains the desktop app **and** the command line (`netmgr`). All files are also on the
-**[latest release](https://github.com/itsmrroot/Network-Manager/releases/latest)** page.
+**[latest release](https://github.com/itsmrroot/Network-Manager-releases/releases/latest)** page.
 
 ### 🪟 Windows
 
 | Your PC | Download |
 |---|---|
-| **Most PCs** (Intel or AMD) | **[netmgr-windows-x64-setup.exe](https://github.com/itsmrroot/Network-Manager/releases/latest/download/netmgr-windows-x64-setup.exe)** |
-| ARM laptops (Snapdragon, Surface Pro X) | [netmgr-windows-arm64-setup.exe](https://github.com/itsmrroot/Network-Manager/releases/latest/download/netmgr-windows-arm64-setup.exe) |
+| **Most PCs** (Intel or AMD) | **[netmgr-windows-x64-setup.exe](https://github.com/itsmrroot/Network-Manager-releases/releases/latest/download/netmgr-windows-x64-setup.exe)** |
+| ARM laptops (Snapdragon, Surface Pro X) | [netmgr-windows-arm64-setup.exe](https://github.com/itsmrroot/Network-Manager-releases/releases/latest/download/netmgr-windows-arm64-setup.exe) |
 
 1. Double-click the downloaded file. If Windows shows **"Windows protected your PC"**, click **More info → Run
    anyway** (the app is new and not code-signed yet).
@@ -423,8 +423,8 @@ Every installer contains the desktop app **and** the command line (`netmgr`). Al
 
 | Your Mac | Download |
 |---|---|
-| **Apple Silicon** (M1 and newer) | **[netmgr-macos-apple-silicon.dmg](https://github.com/itsmrroot/Network-Manager/releases/latest/download/netmgr-macos-apple-silicon.dmg)** |
-| Intel | [netmgr-macos-intel.dmg](https://github.com/itsmrroot/Network-Manager/releases/latest/download/netmgr-macos-intel.dmg) |
+| **Apple Silicon** (M1 and newer) | **[netmgr-macos-apple-silicon.dmg](https://github.com/itsmrroot/Network-Manager-releases/releases/latest/download/netmgr-macos-apple-silicon.dmg)** |
+| Intel | [netmgr-macos-intel.dmg](https://github.com/itsmrroot/Network-Manager-releases/releases/latest/download/netmgr-macos-intel.dmg) |
 
 1. Open the `.dmg` and drag **Network Manager** onto **Applications**.
 2. The first time, macOS blocks the app because it is not signed by Apple yet:
@@ -443,9 +443,9 @@ Every installer contains the desktop app **and** the command line (`netmgr`). Al
 
 | Your distribution | Intel / AMD (`x86_64`) | ARM (`aarch64`) |
 |---|---|---|
-| **Ubuntu, Debian, Mint, Pop!_OS** | **[netmgr-linux-x86_64.deb](https://github.com/itsmrroot/Network-Manager/releases/latest/download/netmgr-linux-x86_64.deb)** | [netmgr-linux-arm64.deb](https://github.com/itsmrroot/Network-Manager/releases/latest/download/netmgr-linux-arm64.deb) |
-| **Fedora, openSUSE, RHEL** | [netmgr-linux-x86_64.rpm](https://github.com/itsmrroot/Network-Manager/releases/latest/download/netmgr-linux-x86_64.rpm) | [netmgr-linux-arm64.rpm](https://github.com/itsmrroot/Network-Manager/releases/latest/download/netmgr-linux-arm64.rpm) |
-| **Any other** (AppImage) | [netmgr-linux-x86_64.AppImage](https://github.com/itsmrroot/Network-Manager/releases/latest/download/netmgr-linux-x86_64.AppImage) | [netmgr-linux-arm64.AppImage](https://github.com/itsmrroot/Network-Manager/releases/latest/download/netmgr-linux-arm64.AppImage) |
+| **Ubuntu, Debian, Mint, Pop!_OS** | **[netmgr-linux-x86_64.deb](https://github.com/itsmrroot/Network-Manager-releases/releases/latest/download/netmgr-linux-x86_64.deb)** | [netmgr-linux-arm64.deb](https://github.com/itsmrroot/Network-Manager-releases/releases/latest/download/netmgr-linux-arm64.deb) |
+| **Fedora, openSUSE, RHEL** | [netmgr-linux-x86_64.rpm](https://github.com/itsmrroot/Network-Manager-releases/releases/latest/download/netmgr-linux-x86_64.rpm) | [netmgr-linux-arm64.rpm](https://github.com/itsmrroot/Network-Manager-releases/releases/latest/download/netmgr-linux-arm64.rpm) |
+| **Any other** (AppImage) | [netmgr-linux-x86_64.AppImage](https://github.com/itsmrroot/Network-Manager-releases/releases/latest/download/netmgr-linux-x86_64.AppImage) | [netmgr-linux-arm64.AppImage](https://github.com/itsmrroot/Network-Manager-releases/releases/latest/download/netmgr-linux-arm64.AppImage) |
 
 ```bash
 sudo apt install ./netmgr-linux-x86_64.deb       # Ubuntu, Debian, Mint
@@ -709,7 +709,7 @@ Next:
 - **Scheduled backups** inside the app, and pushing a configuration to many switches
 - **Wi-Fi heat maps** on a floor plan
 
-Suggestions are welcome in the [issues](https://github.com/itsmrroot/Network-Manager/issues).
+Suggestions are welcome in the [issues](https://github.com/itsmrroot/Network-Manager-releases/issues).
 
 ## 🛠️ Build from source
 

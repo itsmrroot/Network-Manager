@@ -39,4 +39,4 @@ pub mod web;
 pub mod wifi;
 
 pub const POWERED_BY: &str = "Powered by Bashar Salmo";
-pub const REPO: &str = "https://github.com/itsmrroot/Network-Manager";
+pub const REPO: &str = "https://github.com/itsmrroot/Network-Manager-releases";

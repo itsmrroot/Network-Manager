@@ -52,10 +52,14 @@ jobs:
             tar czf "$name.tar.gz" "$name"
             echo "ASSET=$name.tar.gz" >> "$GITHUB_ENV"
           fi
+      # Published to the public repository (the code stays private): the
+      # app's updater and the download links look there.
       - uses: softprops/action-gh-release@v2
         with:
+          repository: itsmrroot/Network-Manager-releases
+          token: ${{ secrets.RELEASES_TOKEN }}
+          target_commitish: main
           files: ${{ env.ASSET }}
-          generate_release_notes: true
 
       # Installers (configured in gui/Cargo.toml). They run after the archive is
       # published, so a failing installer never holds back the plain download.
@@ -102,4 +106,7 @@ jobs:
       - if: matrix.installer
         uses: softprops/action-gh-release@v2
         with:
+          repository: itsmrroot/Network-Manager-releases
+          token: ${{ secrets.RELEASES_TOKEN }}
+          target_commitish: main
           files: installers/*
