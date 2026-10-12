@@ -1,4 +1,4 @@
-//! SNMP v1 and v2c: reading a switch's or router's name, uptime and the
+//! SNMP v1, v2c and v3: reading a switch's or router's name, uptime and the
 //! traffic, errors and state of every interface, and walking any part of
 //! its MIB.
 
@@ -14,6 +14,44 @@ pub enum Version {
     V1,
     #[default]
     V2c,
+    V3,
+}
+
+impl Version {
+    pub fn label(self) -> &'static str {
+        match self {
+            Version::V1 => "v1",
+            Version::V2c => "v2c",
+            Version::V3 => "v3",
+        }
+    }
+}
+
+/// How to reach a device: the community (v1, v2c) or a user (v3).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Access {
+    pub version: Version,
+    pub community: String,
+    pub user: crate::usm::User,
+    /// v3: the context, when the device has several (usually empty).
+    pub context: String,
+}
+
+impl Default for Access {
+    fn default() -> Self {
+        Self::community("public", Version::V2c)
+    }
+}
+
+impl Access {
+    pub fn community(community: &str, version: Version) -> Self {
+        Self { version, community: community.to_string(), user: Default::default(), context: String::new() }
+    }
+
+    pub fn v3(user: crate::usm::User) -> Self {
+        Self { version: Version::V3, community: String::new(), user, context: String::new() }
+    }
 }
 
 /// An object identifier, such as 1.3.6.1.2.1.1.5.0.
@@ -149,7 +187,7 @@ pub fn uptime(ticks: u32) -> String {
 
 // ---------------------------------------------------------------- BER
 
-fn push_len(out: &mut Vec<u8>, len: usize) {
+pub(crate) fn push_len(out: &mut Vec<u8>, len: usize) {
     if len < 0x80 {
         out.push(len as u8);
     } else {
@@ -160,14 +198,14 @@ fn push_len(out: &mut Vec<u8>, len: usize) {
     }
 }
 
-fn tlv(tag: u8, body: &[u8]) -> Vec<u8> {
+pub(crate) fn tlv(tag: u8, body: &[u8]) -> Vec<u8> {
     let mut out = vec![tag];
     push_len(&mut out, body.len());
     out.extend_from_slice(body);
     out
 }
 
-fn int(v: i64) -> Vec<u8> {
+pub(crate) fn int(v: i64) -> Vec<u8> {
     let bytes = v.to_be_bytes();
     let mut i = 0;
     // Shortest two's-complement form.
@@ -177,7 +215,7 @@ fn int(v: i64) -> Vec<u8> {
     tlv(0x02, &bytes[i..])
 }
 
-fn oid(o: &Oid) -> Vec<u8> {
+pub(crate) fn oid(o: &Oid) -> Vec<u8> {
     let p = &o.0;
     let mut body = Vec::new();
     // The first two numbers as one (40 × X + Y), coded like the others.
@@ -199,6 +237,7 @@ const GET: u8 = 0xa0;
 const GET_NEXT: u8 = 0xa1;
 const RESPONSE: u8 = 0xa2;
 const GET_BULK: u8 = 0xa5;
+const REPORT: u8 = 0xa8;
 
 /// A request message. For GetBulk, `a` and `b` are non-repeaters and
 /// max-repetitions; otherwise both 0.
@@ -209,6 +248,7 @@ pub fn encode(version: Version, community: &str, pdu: u8, id: i32, a: i64, b: i6
         int(match version {
             Version::V1 => 0,
             Version::V2c => 1,
+            Version::V3 => 3,
         }),
         tlv(0x04, community.as_bytes()),
         tlv(pdu, &body),
@@ -217,12 +257,12 @@ pub fn encode(version: Version, community: &str, pdu: u8, id: i32, a: i64, b: i6
     tlv(0x30, &msg)
 }
 
-struct Reader<'a> {
-    b: &'a [u8],
+pub(crate) struct Reader<'a> {
+    pub(crate) b: &'a [u8],
 }
 
 impl<'a> Reader<'a> {
-    fn next(&mut self) -> Result<(u8, &'a [u8])> {
+    pub(crate) fn next(&mut self) -> Result<(u8, &'a [u8])> {
         ensure!(self.b.len() >= 2, "short answer");
         let tag = self.b[0];
         let (len, head) = if self.b[1] & 0x80 == 0 {
@@ -238,14 +278,14 @@ impl<'a> Reader<'a> {
         Ok((tag, body))
     }
 
-    fn expect(&mut self, tag: u8) -> Result<&'a [u8]> {
+    pub(crate) fn expect(&mut self, tag: u8) -> Result<&'a [u8]> {
         let (t, body) = self.next()?;
         ensure!(t == tag, "unexpected field {t:#x} (wanted {tag:#x})");
         Ok(body)
     }
 }
 
-fn read_int(b: &[u8]) -> i64 {
+pub(crate) fn read_int(b: &[u8]) -> i64 {
     let mut v: i64 = if b.first().is_some_and(|x| x & 0x80 != 0) { -1 } else { 0 };
     for &x in b.iter().take(8) {
         v = v << 8 | x as i64;
@@ -253,11 +293,11 @@ fn read_int(b: &[u8]) -> i64 {
     v
 }
 
-fn read_uint(b: &[u8]) -> u64 {
+pub(crate) fn read_uint(b: &[u8]) -> u64 {
     b.iter().fold(0u64, |a, &x| a << 8 | x as u64)
 }
 
-fn read_oid(b: &[u8]) -> Result<Oid> {
+pub(crate) fn read_oid(b: &[u8]) -> Result<Oid> {
     ensure!(!b.is_empty(), "empty OID");
     let mut out = Vec::new();
     let mut n: u32 = 0;
@@ -279,7 +319,7 @@ fn read_oid(b: &[u8]) -> Result<Oid> {
     Ok(Oid(out))
 }
 
-fn read_value(tag: u8, b: &[u8]) -> Result<Value> {
+pub(crate) fn read_value(tag: u8, b: &[u8]) -> Result<Value> {
     Ok(match tag {
         0x02 => Value::Integer(read_int(b)),
         0x04 => Value::Text(b.to_vec()),
@@ -311,7 +351,12 @@ pub fn decode(msg: &[u8]) -> Result<Response> {
     let mut m = Reader { b: top.expect(0x30)? };
     m.expect(0x02)?;
     m.expect(0x04)?;
-    let mut pdu = Reader { b: m.expect(RESPONSE)? };
+    pdu_body(m.expect(RESPONSE)?)
+}
+
+/// A response, report or request PDU's fields.
+fn pdu_body(body: &[u8]) -> Result<Response> {
+    let mut pdu = Reader { b: body };
     let id = read_int(pdu.expect(0x02)?) as i32;
     let error = read_int(pdu.expect(0x02)?);
     let index = read_int(pdu.expect(0x02)?);
@@ -327,7 +372,7 @@ pub fn decode(msg: &[u8]) -> Result<Response> {
 }
 
 /// What SNMP's error-status numbers mean.
-fn error_text(e: i64) -> &'static str {
+pub(crate) fn error_text(e: i64) -> &'static str {
     match e {
         1 => "the answer would be too big",
         2 => "no such name (the device does not have this object)",
@@ -343,15 +388,44 @@ fn error_text(e: i64) -> &'static str {
 
 pub struct Client {
     sock: UdpSocket,
-    community: String,
+    access: Access,
     pub version: Version,
     retries: u32,
     next_id: std::cell::Cell<i32>,
+    /// v3: the user's keys, and the device's engine once it is known.
+    master: Option<crate::usm::Master>,
+    engine: std::cell::RefCell<Option<Engine>>,
+}
+
+/// What a v3 device told about itself.
+struct Engine {
+    id: Vec<u8>,
+    boots: u32,
+    time: u32,
+    at: std::time::Instant,
+    keys: crate::usm::Keys,
+    salt: u64,
+}
+
+impl Engine {
+    fn time_now(&self) -> u32 {
+        self.time.saturating_add(self.at.elapsed().as_secs() as u32)
+    }
+}
+
+/// A v3 answer.
+enum Reply {
+    Response(Response),
+    Report(Oid, Vec<u8>, u32, u32),
 }
 
 impl Client {
     /// `host` is an address or name, with `:port` when it is not 161.
     pub fn new(host: &str, community: &str, version: Version) -> Result<Self> {
+        Self::connect(host, &Access::community(community, version))
+    }
+
+    pub fn connect(host: &str, access: &Access) -> Result<Self> {
         let target: SocketAddr = if let Ok(a) = host.parse::<SocketAddr>() {
             a
         } else if let Ok(ip) = host.parse::<IpAddr>() {
@@ -360,6 +434,9 @@ impl Client {
             let with_port = if host.contains(':') { host.to_string() } else { format!("{host}:161") };
             with_port.to_socket_addrs()?.next().with_context(|| format!("{host} was not found"))?
         };
+        if access.version == Version::V3 {
+            access.user.validate()?;
+        }
         let bind: SocketAddr = if target.is_ipv4() { "0.0.0.0:0".parse()? } else { "[::]:0".parse()? };
         let sock = UdpSocket::bind(bind)?;
         sock.connect(target)?;
@@ -367,20 +444,26 @@ impl Client {
         let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(1, |d| d.subsec_nanos());
         Ok(Self {
             sock,
-            community: community.to_string(),
-            version,
+            access: access.clone(),
+            version: access.version,
             retries: 2,
             next_id: std::cell::Cell::new((seed & 0x3fff_ffff) as i32),
+            master: (access.version == Version::V3).then(|| crate::usm::Master::new(&access.user)),
+            engine: std::cell::RefCell::new(None),
         })
     }
 
-    fn request(&self, pdu: u8, a: i64, b: i64, oids: &[Oid]) -> Result<Vec<(Oid, Value)>> {
+    fn new_id(&self) -> i32 {
         let id = self.next_id.get().wrapping_add(1) & 0x7fff_ffff;
         self.next_id.set(id);
-        let msg = encode(self.version, &self.community, pdu, id, a, b, oids);
+        id
+    }
+
+    /// Sends `msg`, again after each silence, until `accept` takes an answer.
+    fn exchange<T>(&self, msg: &[u8], mut accept: impl FnMut(&[u8]) -> Option<T>) -> Result<T> {
         let mut buf = vec![0u8; 65535];
         for _ in 0..=self.retries {
-            self.sock.send(&msg)?;
+            self.sock.send(msg)?;
             loop {
                 let n = match self.sock.recv(&mut buf) {
                     Ok(n) => n,
@@ -389,17 +472,108 @@ impl Client {
                     }
                     Err(e) => return Err(e).context("the device refused SNMP (is it enabled?)"),
                 };
-                let Ok(r) = decode(&buf[..n]) else { continue };
-                if r.id != id {
-                    continue; // a late answer to an earlier try
+                // Anything else is a late answer to an earlier try.
+                if let Some(t) = accept(&buf[..n]) {
+                    return Ok(t);
                 }
-                if r.error != 0 {
-                    bail!("the device answered: {}", error_text(r.error));
-                }
-                return Ok(r.varbinds);
             }
         }
+        if self.version == Version::V3 {
+            bail!(
+                "no answer: check the address, the user and its privacy password (devices ignore what they cannot \
+                 decrypt), and that SNMPv3 is enabled and allowed from this computer"
+            )
+        }
         bail!("no answer: check the address, the community and that SNMP is enabled and allowed from this computer")
+    }
+
+    fn request(&self, pdu: u8, a: i64, b: i64, oids: &[Oid]) -> Result<Vec<(Oid, Value)>> {
+        if self.version == Version::V3 {
+            return self.request_v3(pdu, a, b, oids);
+        }
+        let id = self.new_id();
+        let msg = encode(self.version, &self.access.community, pdu, id, a, b, oids);
+        let r = self.exchange(&msg, |buf| decode(buf).ok().filter(|r| r.id == id))?;
+        if r.error != 0 {
+            bail!("the device answered: {}", error_text(r.error));
+        }
+        Ok(r.varbinds)
+    }
+
+    /// Asks a v3 device for its engine ID, boots and time.
+    fn discover(&self) -> Result<()> {
+        if self.engine.borrow().is_some() {
+            return Ok(());
+        }
+        let id = self.new_id();
+        let pdu = tlv(GET, &[int(id as i64), int(0), int(0), tlv(0x30, &[])].concat());
+        let scoped = tlv(0x30, &[tlv(0x04, &[]), tlv(0x04, &[]), pdu].concat());
+        let h = crate::usm::Header { msg_id: id, reportable: true, engine: &[], boots: 0, time: 0, user: "", salt: 0 };
+        let msg = crate::usm::encode(&h, &Default::default(), &scoped)?;
+        let (engine, boots, time) = self.exchange(&msg, |buf| {
+            let inc = crate::usm::parse(buf).ok()?;
+            (inc.msg_id == id && !inc.engine.is_empty()).then_some((inc.engine, inc.boots, inc.time))
+        })?;
+        let keys = self.master.as_ref().context("no SNMPv3 user")?.localize(&engine);
+        let salt =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos() as u64);
+        *self.engine.borrow_mut() = Some(Engine { id: engine, boots, time, at: std::time::Instant::now(), keys, salt });
+        Ok(())
+    }
+
+    fn request_v3(&self, pdu: u8, a: i64, b: i64, oids: &[Oid]) -> Result<Vec<(Oid, Value)>> {
+        let user = &self.access.user;
+        let mut synced = false;
+        for _ in 0..3 {
+            self.discover()?;
+            let id = self.new_id();
+            let (msg, keys) = {
+                let mut e = self.engine.borrow_mut();
+                let e = e.as_mut().context("no engine")?;
+                e.salt = e.salt.wrapping_add(1);
+                let varbinds: Vec<u8> =
+                    oids.iter().flat_map(|o| tlv(0x30, &[oid(o), vec![0x05, 0x00]].concat())).collect();
+                let body = [int(id as i64), int(a), int(b), tlv(0x30, &varbinds)].concat();
+                let scoped =
+                    tlv(0x30, &[tlv(0x04, &e.id), tlv(0x04, self.access.context.as_bytes()), tlv(pdu, &body)].concat());
+                let h = crate::usm::Header {
+                    msg_id: id,
+                    reportable: true,
+                    engine: &e.id,
+                    boots: e.boots,
+                    time: e.time_now(),
+                    user: &user.name,
+                    salt: e.salt,
+                };
+                (crate::usm::encode(&h, &e.keys, &scoped)?, e.keys.clone())
+            };
+            let reply = self.exchange(&msg, |buf| {
+                let inc = crate::usm::parse(buf).ok()?;
+                (inc.msg_id == id).then(|| open_v3(&inc, &keys))
+            })??;
+            match reply {
+                Reply::Response(r) => {
+                    if r.error != 0 {
+                        bail!("the device answered: {}", error_text(r.error));
+                    }
+                    return Ok(r.varbinds);
+                }
+                Reply::Report(o, engine, boots, time) => match o.to_string().as_str() {
+                    // Our idea of the device's clock was off: take its own.
+                    crate::usm::NOT_IN_TIME_WINDOW if !synced => {
+                        synced = true;
+                        if let Some(e) = self.engine.borrow_mut().as_mut() {
+                            (e.boots, e.time, e.at) = (boots, time, std::time::Instant::now());
+                        }
+                    }
+                    crate::usm::UNKNOWN_ENGINE_ID if !engine.is_empty() => {
+                        *self.engine.borrow_mut() = None;
+                    }
+                    _ => bail!("the device answered: {}", crate::usm::report_text(&o)),
+                },
+            }
+        }
+        bail!("the device kept refusing the request")
     }
 
     pub fn get(&self, oids: &[Oid]) -> Result<Vec<(Oid, Value)>> {
@@ -412,7 +586,7 @@ impl Client {
         let mut at = root.clone();
         while out.len() < limit {
             let page = match self.version {
-                Version::V2c => self.request(GET_BULK, 0, 25, std::slice::from_ref(&at))?,
+                Version::V2c | Version::V3 => self.request(GET_BULK, 0, 25, std::slice::from_ref(&at))?,
                 Version::V1 => match self.request(GET_NEXT, 0, 0, std::slice::from_ref(&at)) {
                     Ok(v) => v,
                     // v1 ends a walk with noSuchName.
@@ -434,6 +608,21 @@ impl Client {
             }
         }
         Ok(out)
+    }
+}
+
+/// Checks and opens a v3 answer.
+fn open_v3(inc: &crate::usm::Incoming, keys: &crate::usm::Keys) -> Result<Reply> {
+    inc.verify(keys)?;
+    let (_, _, tag, body) = crate::usm::scoped_pdu(&inc.scoped(keys)?)?;
+    let r = pdu_body(&body)?;
+    match tag {
+        RESPONSE => Ok(Reply::Response(r)),
+        REPORT => {
+            let o = r.varbinds.first().map(|(o, _)| o.clone()).context("an empty report")?;
+            Ok(Reply::Report(o, inc.engine.clone(), inc.boots, inc.time))
+        }
+        t => bail!("unexpected answer (PDU type {t:#x})"),
     }
 }
 
@@ -834,8 +1023,7 @@ pub struct Switch {
 /// `found` is told each device as it is read.
 pub fn crawl(
     seeds: &[IpAddr],
-    community: &str,
-    version: Version,
+    access: &Access,
     limit: usize,
     stop: &std::sync::atomic::AtomicBool,
     mut found: impl FnMut(&Switch),
@@ -850,7 +1038,7 @@ pub fn crawl(
         if !seen.insert(ip) {
             continue;
         }
-        let Ok(c) = Client::new(&ip.to_string(), community, version) else { continue };
+        let Ok(c) = Client::connect(&ip.to_string(), access) else { continue };
         let Ok(system) = system(&c) else { continue };
         let neighbors = neighbors(&c).unwrap_or_default();
         for n in &neighbors {
@@ -977,25 +1165,7 @@ pub fn decode_trap(msg: &[u8], from: IpAddr) -> Result<(Trap, Option<Vec<u8>>)> 
         }
         // SNMPv2-Trap and InformRequest.
         0xa7 | 0xa6 => {
-            let id = read_int(pdu.expect(0x02)?);
-            pdu.expect(0x02)?;
-            pdu.expect(0x02)?;
-            let mut varbinds = read_list(&mut pdu)?;
-            let mut oid = Oid(Vec::new());
-            let mut uptime = None;
-            varbinds.retain(|(o, v)| match o.to_string().as_str() {
-                SNMP_TRAP_OID => {
-                    if let Value::Oid(x) = v {
-                        oid = x.clone();
-                    }
-                    false
-                }
-                SYS_UPTIME => {
-                    uptime = v.as_u64().map(|t| t as u32);
-                    false
-                }
-                _ => true,
-            });
+            let (id, oid, uptime, varbinds) = notification(body)?;
             let response = (tag == 0xa6).then(|| {
                 // The same varbinds, as a Response with no error.
                 let list: Vec<u8> = body_varbinds(body).unwrap_or_default();
@@ -1007,6 +1177,157 @@ pub fn decode_trap(msg: &[u8], from: IpAddr) -> Result<(Trap, Option<Vec<u8>>)> 
             Ok((Trap { received: now, from, kind, community, oid, name, uptime, varbinds }, response))
         }
         t => bail!("not a trap (PDU type {t:#x})"),
+    }
+}
+
+/// A v2 notification's request ID, OID, uptime and other values.
+type Notification = (i64, Oid, Option<u32>, Vec<(Oid, Value)>);
+
+fn notification(body: &[u8]) -> Result<Notification> {
+    let r = pdu_body(body)?;
+    let mut oid = Oid(Vec::new());
+    let mut uptime = None;
+    let mut varbinds = r.varbinds;
+    varbinds.retain(|(o, v)| match o.to_string().as_str() {
+        SNMP_TRAP_OID => {
+            if let Value::Oid(x) = v {
+                oid = x.clone();
+            }
+            false
+        }
+        SYS_UPTIME => {
+            uptime = v.as_u64().map(|t| t as u32);
+            false
+        }
+        _ => true,
+    });
+    Ok((r.id as i64, oid, uptime, varbinds))
+}
+
+/// What the trap receiver needs for SNMPv3: the users devices send as, and
+/// this computer's engine ID (devices sending informs need it).
+pub struct TrapV3 {
+    users: Vec<crate::usm::Master>,
+    pub engine: Vec<u8>,
+    started: std::time::Instant,
+    /// Keys by user and sending engine.
+    keys: std::collections::HashMap<(String, Vec<u8>), crate::usm::Keys>,
+    unknown_engines: u32,
+}
+
+impl TrapV3 {
+    pub fn new(users: &[crate::usm::User], engine: Vec<u8>) -> Self {
+        Self {
+            users: users.iter().filter(|u| !u.name.trim().is_empty()).map(crate::usm::Master::new).collect(),
+            engine,
+            started: std::time::Instant::now(),
+            keys: Default::default(),
+            unknown_engines: 0,
+        }
+    }
+
+    fn keys(&mut self, user: &str, engine: &[u8]) -> Result<crate::usm::Keys> {
+        let key = (user.to_string(), engine.to_vec());
+        if let Some(k) = self.keys.get(&key) {
+            return Ok(k.clone());
+        }
+        let m = self
+            .users
+            .iter()
+            .find(|m| m.user.name == user)
+            .with_context(|| format!("a v3 trap from the user \"{user}\", which is not in the list"))?;
+        let k = m.localize(engine);
+        self.keys.insert(key, k.clone());
+        Ok(k)
+    }
+
+    fn time(&self) -> u32 {
+        self.started.elapsed().as_secs() as u32
+    }
+
+    /// Reads a v3 trap or inform: the trap, and what to answer. Devices
+    /// first ask for this computer's engine ID before sending informs.
+    pub fn receive(&mut self, msg: &[u8], from: IpAddr) -> Result<(Option<Trap>, Option<Vec<u8>>)> {
+        use crate::usm;
+        let inc = usm::parse(msg)?;
+        if inc.engine.is_empty() {
+            // Discovery: a report with our engine ID, boots and time.
+            let (_, _, _, body) = usm::scoped_pdu(&inc.scoped(&Default::default())?)?;
+            let id = pdu_body(&body).map_or(0, |r| r.id);
+            self.unknown_engines = self.unknown_engines.wrapping_add(1);
+            let report = tlv(
+                REPORT,
+                &[
+                    int(id as i64),
+                    int(0),
+                    int(0),
+                    tlv(
+                        0x30,
+                        &tlv(
+                            0x30,
+                            &[
+                                oid(&Oid::parse(usm::UNKNOWN_ENGINE_ID)?),
+                                tlv(0x41, &self.unknown_engines.to_be_bytes()),
+                            ]
+                            .concat(),
+                        ),
+                    ),
+                ]
+                .concat(),
+            );
+            let scoped = tlv(0x30, &[tlv(0x04, &self.engine), tlv(0x04, &[]), report].concat());
+            let h = usm::Header {
+                msg_id: inc.msg_id,
+                reportable: false,
+                engine: &self.engine,
+                boots: 1,
+                time: self.time(),
+                user: &inc.user,
+                salt: 0,
+            };
+            return Ok((None, Some(usm::encode(&h, &Default::default(), &scoped)?)));
+        }
+        let keys = if inc.flags & (usm::AUTH | usm::PRIV) == 0 {
+            Default::default()
+        } else {
+            self.keys(&inc.user, &inc.engine)?
+        };
+        inc.verify(&keys)?;
+        let (ctx_engine, ctx_name, tag, body) = usm::scoped_pdu(&inc.scoped(&keys)?)?;
+        ensure!(tag == 0xa7 || tag == 0xa6, "not a trap (PDU type {tag:#x})");
+        let (id, trap_oid, uptime, varbinds) = notification(&body)?;
+        let response = if tag == 0xa6 {
+            let list = body_varbinds(&body).unwrap_or_default();
+            let pdu = tlv(RESPONSE, &[int(id), int(0), int(0), list].concat());
+            let scoped = tlv(0x30, &[tlv(0x04, &ctx_engine), tlv(0x04, &ctx_name), pdu].concat());
+            let h = usm::Header {
+                msg_id: inc.msg_id,
+                reportable: false,
+                engine: &self.engine,
+                boots: 1,
+                time: self.time(),
+                user: &inc.user,
+                salt: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_nanos() as u64),
+            };
+            Some(usm::encode(&h, &keys, &scoped)?)
+        } else {
+            None
+        };
+        let name = trap_name(&trap_oid);
+        let kind = if tag == 0xa6 { "v3 inform" } else { "v3" };
+        let trap = Trap {
+            received: std::time::SystemTime::now(),
+            from,
+            kind,
+            community: inc.user.clone(),
+            oid: trap_oid,
+            name,
+            uptime,
+            varbinds,
+        };
+        Ok((Some(trap), response))
     }
 }
 
@@ -1022,11 +1343,18 @@ fn body_varbinds(body: &[u8]) -> Result<Vec<u8>> {
     Ok(body[start..start + header + list.len()].to_vec())
 }
 
+/// Whether a message is SNMPv3.
+fn is_v3(msg: &[u8]) -> bool {
+    let mut top = Reader { b: msg };
+    top.expect(0x30).ok().and_then(|b| Reader { b }.expect(0x02).ok().map(read_int)) == Some(3)
+}
+
 /// Receives traps on UDP `port` until `stop` is set; answers informs.
 pub fn trap_serve(
     listen: Ipv4Addr,
     port: u16,
     stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    mut v3: Option<TrapV3>,
     trap: std::sync::Arc<dyn Fn(Trap) + Send + Sync>,
 ) -> Result<()> {
     let sock = crate::servers::bind_udp(listen, port).map_err(|e| match e.kind() {
@@ -1041,7 +1369,20 @@ pub fn trap_serve(
     let mut buf = vec![0u8; 65535];
     while !stop.load(std::sync::atomic::Ordering::Relaxed) {
         let Ok((n, from)) = sock.recv_from(&mut buf) else { continue };
-        if let Ok((t, response)) = decode_trap(&buf[..n], from.ip()) {
+        if is_v3(&buf[..n]) {
+            let Some(v3) = v3.as_mut() else { continue };
+            match v3.receive(&buf[..n], from.ip()) {
+                Ok((t, response)) => {
+                    if let Some(r) = response {
+                        let _ = sock.send_to(&r, from);
+                    }
+                    if let Some(t) = t {
+                        trap(t);
+                    }
+                }
+                Err(e) => log::info!("SNMPv3 message from {from} not read: {e:#}"),
+            }
+        } else if let Ok((t, response)) = decode_trap(&buf[..n], from.ip()) {
             if let Some(r) = response {
                 let _ = sock.send_to(&r, from);
             }

@@ -75,7 +75,7 @@ impl Profiles {
                         name: String::new(),
                         adapter: a.as_ref().map(|a| a.name.clone()).unwrap_or_default(),
                         note: String::new(),
-                        form: IpForm::new(&IpSettings { mode: Ipv4Mode::Dhcp, dns: Vec::new() }, a.as_ref()),
+                        form: IpForm::new(&IpSettings::dhcp(), a.as_ref()),
                         extras: Default::default(),
                         printers: netmgr::extras::printers(),
                         error: None,
@@ -330,12 +330,21 @@ fn summary(s: &IpSettings) -> String {
             trf("{address}, no gateway", &[("address", &format!("{address}/{prefix}"))])
         }
     };
-    if s.dns.is_empty() {
-        ip
-    } else {
-        let dns: Vec<String> = s.dns.iter().map(std::net::IpAddr::to_string).collect();
-        format!("{ip} · {}", trf("DNS {servers}", &[("servers", &dns.join(", "))]))
+    let mut out = ip;
+    if !s.extra.is_empty() {
+        let more: Vec<String> = s.extra.iter().map(|(a, p)| format!("{a}/{p}")).collect();
+        out += &format!(" + {}", more.join(", "));
     }
+    match &s.ipv6 {
+        netmgr::config::Ipv6Mode::Unchanged => {}
+        netmgr::config::Ipv6Mode::Automatic => out += &format!(" · IPv6 {}", tr("Automatic")),
+        netmgr::config::Ipv6Mode::Static { address, prefix, .. } => out += &format!(" · IPv6 {address}/{prefix}"),
+    }
+    if !s.dns.is_empty() {
+        let dns: Vec<String> = s.dns.iter().map(std::net::IpAddr::to_string).collect();
+        out += &format!(" · {}", trf("DNS {servers}", &[("servers", &dns.join(", "))]));
+    }
+    out
 }
 
 /// The proxy, default printer and network drives a profile switches too.

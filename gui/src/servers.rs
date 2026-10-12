@@ -274,6 +274,10 @@ impl Servers {
                 self.ssh.demo();
                 self.tab = Tab::Ssh;
             }
+            "traps3" => {
+                self.traps.demo_v3();
+                self.tab = Tab::Traps;
+            }
             _ => {
                 self.traps.demo();
                 self.tab = Tab::Traps;

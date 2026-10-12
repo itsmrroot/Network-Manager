@@ -18,6 +18,7 @@ enum View {
     Serial,
     Remote,
     Backups,
+    Push,
 }
 
 /// An SSH or Telnet session in a tab.
@@ -30,6 +31,7 @@ struct Open {
 pub struct Console {
     view: View,
     backups: crate::backups::Backups,
+    push: crate::push::Push,
     open: Vec<Open>,
     active: usize,
     next_id: u64,
@@ -52,6 +54,7 @@ impl Default for Console {
         Self {
             view: View::Serial,
             backups: Default::default(),
+            push: Default::default(),
             open: Vec::new(),
             active: 0,
             next_id: 0,
@@ -75,6 +78,7 @@ impl Console {
         self.view = match id {
             "remote" => View::Remote,
             "backups" => View::Backups,
+            "push" => View::Push,
             _ => View::Serial,
         };
     }
@@ -84,7 +88,8 @@ impl Console {
     }
 
     /// Takes in what the devices sent (also while another page is shown).
-    pub fn poll(&mut self) {
+    pub fn poll(&mut self, ctx: &egui::Context, sh: &mut Shared) {
+        self.backups.tick(ctx, sh);
         for o in &mut self.open {
             let Some(r) = &o.remote else { continue };
             while let Ok(bytes) = r.received.try_recv() {
@@ -114,7 +119,7 @@ impl Console {
     }
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
-        self.poll();
+        self.poll(&ui.ctx().clone(), sh);
         if self.connected() {
             ui.ctx().request_repaint_after(Duration::from_millis(50));
         }
@@ -132,6 +137,7 @@ impl Console {
                 (View::Serial, icon::USB, tr("Serial console")),
                 (View::Remote, icon::TERMINAL_WINDOW, tr("SSH and Telnet")),
                 (View::Backups, icon::CLOUD_ARROW_DOWN, tr("Backups")),
+                (View::Push, icon::PAPER_PLANE_TILT, tr("Push configuration")),
             ],
         );
         ui.add_space(8.0);
@@ -143,6 +149,7 @@ impl Console {
             }
             View::Remote => self.remote_ui(ui, p, sh),
             View::Backups => self.backups.ui(ui, p, sh),
+            View::Push => self.push.ui(ui, p, sh),
         }
         self.edit_window(ui.ctx(), p, sh);
     }
@@ -172,6 +179,22 @@ impl Console {
             let mut saved = Saved::parse(Protocol::Telnet, t);
             saved.name = "core-sw1".into();
             self.connect(saved, sh);
+        }
+    }
+
+    /// Development aid: Push configuration or Backups with sample sessions.
+    #[cfg(debug_assertions)]
+    pub fn show(&mut self, sh: &mut Shared, view: &str) {
+        self.demo(sh, None);
+        for s in sh.settings.sessions.iter_mut().filter(|s| s.protocol == Protocol::Ssh) {
+            s.backup_command = "show running-config".into();
+        }
+        if view == "push" {
+            self.view = View::Push;
+            self.push.demo(&sh.settings.sessions);
+        } else {
+            self.view = View::Backups;
+            self.backups.demo(sh);
         }
     }
 

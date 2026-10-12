@@ -251,7 +251,13 @@ fn from_netdev(i: netdev::Interface, extra: &Extra) -> Adapter {
     let mut disabled = false;
     let mut physical = !matches!(kind, Kind::Loopback | Kind::Vpn | Kind::Bridge | Kind::Virtual);
 
-    if let Some((_, port, svc, enabled)) = extra.services.iter().find(|(d, ..)| *d == i.name) {
+    // The service itself, not a copy that only carries an extra address.
+    if let Some((_, port, svc, enabled)) = extra
+        .services
+        .iter()
+        .filter(|(d, ..)| *d == i.name)
+        .min_by_key(|(_, _, svc, _)| crate::config::is_alias_service(svc))
+    {
         name = svc.clone();
         service = Some(svc.clone());
         disabled = !enabled;

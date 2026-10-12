@@ -506,7 +506,7 @@ impl NetMap {
                     }
                     let community = self.community.clone();
                     self.job = Some(Job::spawn(ui.ctx(), move |progress, cancel: &AtomicBool| {
-                        Ok(snmp::crawl(&seeds, &community, Version::V2c, 64, cancel, |s| {
+                        Ok(snmp::crawl(&seeds, &snmp::Access::community(&community, Version::V2c), 64, cancel, |s| {
                             progress.line(&s.system.name);
                         }))
                     }));

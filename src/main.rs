@@ -30,6 +30,77 @@ struct Cli {
     command: Option<Cmd>,
 }
 
+/// How to reach a device over SNMP.
+#[derive(clap::Args)]
+struct SnmpArgs {
+    #[arg(long, short, default_value = "public")]
+    community: String,
+    /// Use SNMP v1 instead of v2c.
+    #[arg(long)]
+    v1: bool,
+    /// Use SNMPv3 with this user instead of a community.
+    #[arg(long, short = 'u')]
+    user: Option<String>,
+    #[command(flatten)]
+    v3: UsmArgs,
+    /// SNMPv3 context (usually none).
+    #[arg(long, default_value = "")]
+    context: String,
+}
+
+/// An SNMPv3 user's protocols and passwords.
+#[derive(clap::Args)]
+struct UsmArgs {
+    /// SNMPv3 authentication: md5, sha, sha224, sha256, sha384 or sha512.
+    #[arg(long, short = 'a', default_value = "sha")]
+    auth: String,
+    /// SNMPv3 authentication password (none: no authentication).
+    #[arg(long, short = 'A')]
+    auth_password: Option<String>,
+    /// SNMPv3 privacy: des, aes, aes192, aes256, aes192c or aes256c (Cisco).
+    #[arg(long, short = 'x', default_value = "aes")]
+    privacy: String,
+    /// SNMPv3 privacy password (none: not encrypted).
+    #[arg(long, short = 'X')]
+    privacy_password: Option<String>,
+}
+
+impl UsmArgs {
+    fn user(&self, name: &str) -> Result<netmgr::usm::User> {
+        use netmgr::usm::{Auth, Privacy};
+        let auth = match &self.auth_password {
+            Some(_) => Auth::parse(&self.auth).with_context(|| format!("unknown authentication \"{}\"", self.auth))?,
+            None => Auth::None,
+        };
+        let privacy = match &self.privacy_password {
+            Some(_) => {
+                Privacy::parse(&self.privacy).with_context(|| format!("unknown privacy \"{}\"", self.privacy))?
+            }
+            None => Privacy::None,
+        };
+        let user = netmgr::usm::User {
+            name: name.to_string(),
+            auth,
+            auth_password: self.auth_password.clone().unwrap_or_default(),
+            privacy,
+            privacy_password: self.privacy_password.clone().unwrap_or_default(),
+        };
+        user.validate()?;
+        Ok(user)
+    }
+}
+
+impl SnmpArgs {
+    fn access(&self) -> Result<snmp::Access> {
+        Ok(match &self.user {
+            Some(u) => snmp::Access { context: self.context.clone(), ..snmp::Access::v3(self.v3.user(u)?) },
+            None => {
+                snmp::Access::community(&self.community, if self.v1 { snmp::Version::V1 } else { snmp::Version::V2c })
+            }
+        })
+    }
+}
+
 #[derive(Subcommand)]
 enum Cmd {
     /// List network adapters (the default).
@@ -50,6 +121,15 @@ enum Cmd {
         /// DNS servers, comma-separated, or "auto".
         #[arg(long, short)]
         dns: Option<String>,
+        /// One more IPv4 address on the adapter, e.g. 192.168.0.50/24 (repeat for several).
+        #[arg(long = "add", value_name = "ADDRESS/PREFIX")]
+        extra: Vec<String>,
+        /// IPv6: "auto", or an address with its prefix, e.g. 2001:db8::10/64.
+        #[arg(long)]
+        ipv6: Option<String>,
+        /// The IPv6 router, with --ipv6 ADDRESS/PREFIX.
+        #[arg(long)]
+        ipv6_gateway: Option<std::net::Ipv6Addr>,
     },
     /// Set the DNS servers: comma-separated addresses, or "auto".
     SetDns { adapter: String, servers: String },
@@ -160,11 +240,8 @@ enum Cmd {
     Snmp {
         /// Address or name (with :port when not 161).
         host: String,
-        #[arg(long, short, default_value = "public")]
-        community: String,
-        /// Use SNMP v1 instead of v2c.
-        #[arg(long)]
-        v1: bool,
+        #[command(flatten)]
+        access: SnmpArgs,
         /// Walk this OID instead, e.g. 1.3.6.1.2.1.1.
         #[arg(long)]
         walk: Option<String>,
@@ -218,8 +295,8 @@ enum Cmd {
     /// LLDP and CDP neighbors, and learned MAC addresses, of a switch (SNMP).
     Neighbors {
         host: String,
-        #[arg(long, short, default_value = "public")]
-        community: String,
+        #[command(flatten)]
+        access: SnmpArgs,
     },
     /// Wake a computer with Wake-on-LAN.
     Wol { mac: String },
@@ -314,6 +391,14 @@ enum Cmd {
         /// Listen only on this address (one adapter's); default: every network.
         #[arg(long, default_value = "0.0.0.0")]
         listen: Ipv4Addr,
+        /// Also read SNMPv3 traps and informs from this user.
+        #[arg(long, short = 'u')]
+        user: Option<String>,
+        #[command(flatten)]
+        v3: UsmArgs,
+        /// This computer's engine ID for informs, in hex (default: a new one).
+        #[arg(long)]
+        engine_id: Option<String>,
     },
     /// Run a DHCP server for a lab or staging network (never on a network that has one).
     DhcpServer {
@@ -565,7 +650,7 @@ fn run(cli: Cli) -> Result<()> {
             }
             show(&a);
         }
-        Cmd::SetIp { adapter, address, gateway, dns } => {
+        Cmd::SetIp { adapter, address, gateway, dns, extra, ipv6, ipv6_gateway } => {
             let a = adapters::find(&adapter)?;
             let mode = if address.eq_ignore_ascii_case("dhcp") || address.eq_ignore_ascii_case("auto") {
                 Ipv4Mode::Dhcp
@@ -582,7 +667,29 @@ fn run(cli: Cli) -> Result<()> {
                 // Keep the servers set by hand.
                 None => IpSettings::current(&a).dns,
             };
-            let s = IpSettings { mode, dns };
+            let extra = extra
+                .iter()
+                .map(|e| {
+                    let s = Subnet::parse(e)?;
+                    ensure!(e.contains('/'), "give the subnet too, e.g. {e}/24");
+                    Ok((s.address, s.prefix))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let ipv6 = match ipv6.as_deref() {
+                None => config::Ipv6Mode::Unchanged,
+                Some(v) if v.eq_ignore_ascii_case("auto") || v.eq_ignore_ascii_case("dhcp") => {
+                    config::Ipv6Mode::Automatic
+                }
+                Some(v) => {
+                    let (addr, prefix) = v.split_once('/').context("write the IPv6 address as ADDRESS/PREFIX")?;
+                    config::Ipv6Mode::Static {
+                        address: addr.parse().with_context(|| format!("\"{addr}\" is not an IPv6 address"))?,
+                        prefix: prefix.parse().context("the IPv6 prefix is a number, e.g. 64")?,
+                        gateway: ipv6_gateway,
+                    }
+                }
+            };
+            let s = IpSettings { mode, extra, ipv6, dns };
             config::apply(&a, &s)?;
             println!("{}: {}", a.name, s.summary());
         }
@@ -884,8 +991,8 @@ fn run(cli: Cli) -> Result<()> {
                 }
             }
         }
-        Cmd::Snmp { host, community, v1, walk } => {
-            let c = snmp::Client::new(&host, &community, if v1 { snmp::Version::V1 } else { snmp::Version::V2c })?;
+        Cmd::Snmp { host, access, walk } => {
+            let c = snmp::Client::connect(&host, &access.access()?)?;
             if let Some(root) = walk {
                 let rows = c.walk(&snmp::Oid::parse(&root)?, 100_000)?;
                 if json {
@@ -1126,8 +1233,8 @@ fn run(cli: Cli) -> Result<()> {
                 }
             }
         }
-        Cmd::Neighbors { host, community } => {
-            let c = snmp::Client::new(&host, &community, snmp::Version::V2c)?;
+        Cmd::Neighbors { host, access } => {
+            let c = snmp::Client::connect(&host, &access.access()?)?;
             let n = snmp::neighbors(&c)?;
             let macs = snmp::mac_ports(&c).unwrap_or_default();
             if json {
@@ -1435,13 +1542,23 @@ fn run(cli: Cli) -> Result<()> {
                 std::sync::Arc::new(|ip| println!("{ip} asked for the time")),
             )?;
         }
-        Cmd::TrapServer { port, listen } => {
+        Cmd::TrapServer { port, listen, user, v3, engine_id } => {
             let stop = stop_on_ctrl_c();
+            let engine = match engine_id {
+                Some(e) => netmgr::usm::parse_engine_id(&e)?,
+                None => netmgr::usm::new_engine_id(),
+            };
+            let users = match user {
+                Some(u) => vec![v3.user(&u)?],
+                None => Vec::new(),
+            };
             eprintln!("Listening for SNMP traps on {listen}, UDP port {port}…");
+            eprintln!("Engine ID for SNMPv3 informs: {}", netmgr::usm::engine_hex(&engine));
             snmp::trap_serve(
                 listen,
                 port,
                 stop,
+                Some(snmp::TrapV3::new(&users, engine)),
                 std::sync::Arc::new(move |t| {
                     let name = if t.name.is_empty() { t.oid.to_string() } else { t.name.to_string() };
                     println!("{:<15} {:<7} {}", t.from, t.kind, clean(&name));

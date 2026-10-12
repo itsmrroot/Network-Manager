@@ -151,6 +151,11 @@ impl Tools {
         self.snmp.demo(ctx, host, community);
     }
 
+    #[cfg(debug_assertions)]
+    pub fn snmp_demo_v3(&mut self, ctx: &egui::Context, host: &str, user: &str, auth: &str, privacy: &str) {
+        self.snmp.demo_v3(ctx, host, user, auth, privacy);
+    }
+
     /// Shows a tool without changing what is filled in.
     pub fn select(&mut self, tab: Tab) {
         self.tab = tab;

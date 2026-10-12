@@ -30,6 +30,7 @@ pub struct WifiPage {
     search: String,
     tab: Tab,
     roaming: crate::roaming::Roaming,
+    heatmap: crate::heatmap::Heatmap,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -38,6 +39,7 @@ enum Tab {
     Saved,
     Nearby,
     Signal,
+    Heatmap,
 }
 
 impl WifiPage {
@@ -46,6 +48,7 @@ impl WifiPage {
         self.tab = match id {
             "nearby" => Tab::Nearby,
             "signal" => Tab::Signal,
+            "heatmap" => Tab::Heatmap,
             _ => Tab::Saved,
         };
     }
@@ -55,6 +58,13 @@ impl WifiPage {
     pub fn show_signal(&mut self) {
         self.tab = Tab::Signal;
         self.roaming.demo();
+    }
+
+    /// Development aid: the heat map with a sample survey.
+    #[cfg(debug_assertions)]
+    pub fn show_heatmap(&mut self, ctx: &egui::Context) {
+        self.tab = Tab::Heatmap;
+        self.heatmap.demo(ctx);
     }
 
     /// Development aid: sample networks for README screenshots.
@@ -100,6 +110,7 @@ impl WifiPage {
                     (Tab::Saved, icon::KEY, tr("Saved networks")),
                     (Tab::Nearby, icon::BROADCAST, tr("Nearby networks")),
                     (Tab::Signal, icon::WAVE_SINE, tr("Signal and roaming")),
+                    (Tab::Heatmap, icon::MAP_TRIFOLD, tr("Heat map")),
                 ],
             );
             ui.add_space(8.0);
@@ -112,6 +123,7 @@ impl WifiPage {
                     self.nearby_card(ui, p)
                 }
                 Tab::Signal => self.roaming.ui(ui, p),
+                Tab::Heatmap => self.heatmap.ui(ui, p, sh),
             }
             ui.add_space(20.0);
         });

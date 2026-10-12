@@ -6,7 +6,7 @@ use std::net::{IpAddr, Ipv4Addr};
 use eframe::egui::{self, Align, Color32, Layout, RichText, Ui};
 use egui_phosphor::regular as icon;
 use netmgr::adapters::{Adapter, Kind, format_bytes, format_speed, mask_to_prefix, prefix_to_mask};
-use netmgr::config::{self, DNS_PRESETS, IpSettings, Ipv4Mode};
+use netmgr::config::{self, DNS_PRESETS, IpSettings, Ipv4Mode, Ipv6Mode};
 use netmgr::mac::{self, Mac};
 use netmgr::profiles::{self, Profile};
 
@@ -58,6 +58,25 @@ pub fn status_color(p: &Palette, a: &Adapter) -> Color32 {
 }
 
 impl AdaptersPage {
+    /// Development aid: the IP settings of the default adapter with more
+    /// addresses and IPv6 filled in.
+    #[cfg(debug_assertions)]
+    pub fn demo_ip(&mut self, sh: &Shared) {
+        let Some(a) = sh.default_adapter() else { return };
+        let mut e = IpEditor::new(a);
+        e.form.dhcp = false;
+        e.form.address = "192.168.1.10".into();
+        e.form.subnet = "255.255.255.0".into();
+        e.form.gateway = "192.168.1.1".into();
+        e.form.extra = "192.168.0.50/24\n10.10.0.5/16".into();
+        e.form.v6 = V6::Manual;
+        e.form.v6_address = "2001:db8::10".into();
+        e.form.v6_prefix = "64".into();
+        e.form.v6_gateway = "fe80::1".into();
+        self.selected = Some(a.id.clone());
+        self.ip = Some(e);
+    }
+
     pub fn select(&mut self, id: &str) {
         self.selected = Some(id.to_string());
     }
@@ -627,6 +646,20 @@ pub struct IpForm {
     pub dns_auto: bool,
     pub dns1: String,
     pub dns2: String,
+    /// More IPv4 addresses, one per line ("192.168.0.50/24").
+    pub extra: String,
+    pub v6: V6,
+    pub v6_address: String,
+    pub v6_prefix: String,
+    pub v6_gateway: String,
+}
+
+/// What the form does with IPv6.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum V6 {
+    Unchanged,
+    Automatic,
+    Manual,
 }
 
 impl IpForm {
@@ -647,7 +680,22 @@ impl IpForm {
             }
         };
         let dns: Vec<String> = s.dns.iter().map(IpAddr::to_string).collect();
+        let (v6, v6_address, v6_prefix, v6_gateway) = match &s.ipv6 {
+            Ipv6Mode::Unchanged => (V6::Unchanged, String::new(), "64".into(), String::new()),
+            Ipv6Mode::Automatic => (V6::Automatic, String::new(), "64".into(), String::new()),
+            Ipv6Mode::Static { address, prefix, gateway } => (
+                V6::Manual,
+                address.to_string(),
+                prefix.to_string(),
+                gateway.map(|g| g.to_string()).unwrap_or_default(),
+            ),
+        };
         Self {
+            extra: s.extra.iter().map(|(a, p)| format!("{a}/{p}")).collect::<Vec<_>>().join("\n"),
+            v6,
+            v6_address,
+            v6_prefix,
+            v6_gateway,
             dhcp: s.mode == Ipv4Mode::Dhcp,
             address: if ip.is_unspecified() || ip.is_link_local() { String::new() } else { ip.to_string() },
             subnet: prefix_to_mask(prefix).to_string(),
@@ -696,6 +744,62 @@ impl IpForm {
                         self.gateway = g.to_string();
                     }
                 });
+                ui.end_row();
+            });
+        }
+        ui.add_space(8.0);
+        let more = if self.extra.trim().is_empty() {
+            tr("More addresses").to_string()
+        } else {
+            trf("More addresses ({n})", &[("n", &self.extra.lines().filter(|l| !l.trim().is_empty()).count())])
+        };
+        egui::CollapsingHeader::new(RichText::new(more).color(p.weak).size(13.0))
+            .id_salt("ip-extra")
+            .default_open(!self.extra.trim().is_empty())
+            .show(ui, |ui| {
+                theme::paragraph(
+                    ui,
+                    trl(
+                        "More IPv4 addresses on this adapter, one per line, e.g. 192.168.0.50/24: to reach a device on another subnet without losing this network.",
+                    ),
+                    12.5,
+                    p.weak,
+                );
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::multiline(&mut self.extra)
+                        .hint_text("192.168.0.50/24")
+                        .desired_rows(2)
+                        .desired_width(300.0),
+                );
+            });
+        ui.add_space(6.0);
+        ui.label(RichText::new("IPv6").color(p.weak).size(13.0));
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut self.v6, V6::Unchanged, tr("Leave as it is"));
+            ui.selectable_value(&mut self.v6, V6::Automatic, tr("Automatic"));
+            ui.selectable_value(&mut self.v6, V6::Manual, tr("Manual"));
+        });
+        if self.v6 == V6::Manual {
+            ui.add_space(6.0);
+            egui::Grid::new("ip6-fields").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+                ui.label(tr("Address"));
+                ui.horizontal(|ui| {
+                    crate::theme::field(
+                        ui,
+                        egui::TextEdit::singleline(&mut self.v6_address).hint_text("2001:db8::10").desired_width(220.0),
+                    );
+                    ui.label("/");
+                    crate::theme::field(ui, egui::TextEdit::singleline(&mut self.v6_prefix).desired_width(36.0));
+                });
+                ui.end_row();
+                ui.label(tr("Gateway"));
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.v6_gateway)
+                        .hint_text(tr("fe80::1 (optional)"))
+                        .desired_width(220.0),
+                );
                 ui.end_row();
             });
         }
@@ -783,7 +887,44 @@ impl IpForm {
                 return Err(trl("Enter at least one DNS server, or choose Automatic.").into());
             }
         }
-        let s = IpSettings { mode, dns };
+        let mut extra = Vec::new();
+        for line in self.extra.lines().map(str::trim).filter(|l| !l.is_empty()) {
+            let (a, sub) = line
+                .split_once(['/', ' '])
+                .ok_or_else(|| trlf("Write {value} with its subnet, e.g. {value}/24.", &[("value", &line)]))?;
+            let a: Ipv4Addr =
+                a.trim().parse().map_err(|_| trlf("\"{value}\" is not an IPv4 address.", &[("value", &a.trim())]))?;
+            extra.push((a, parse_subnet(sub)?));
+        }
+        let ipv6 = match self.v6 {
+            V6::Unchanged => Ipv6Mode::Unchanged,
+            V6::Automatic => Ipv6Mode::Automatic,
+            V6::Manual => {
+                let a = self.v6_address.trim();
+                let (a, prefix) = match a.split_once('/') {
+                    Some((a, p)) => (a.trim(), p.trim()),
+                    None => (a, self.v6_prefix.trim()),
+                };
+                let address = a
+                    .parse::<std::net::Ipv6Addr>()
+                    .map_err(|_| trlf("\"{value}\" is not an IPv6 address.", &[("value", &a)]))?;
+                let prefix = prefix
+                    .trim_start_matches('/')
+                    .parse::<u8>()
+                    .ok()
+                    .filter(|p| (1..=128).contains(p))
+                    .ok_or_else(|| trl("The IPv6 prefix must be between 1 and 128.").to_string())?;
+                let gateway = match self.v6_gateway.trim() {
+                    "" => None,
+                    g => Some(
+                        g.parse::<std::net::Ipv6Addr>()
+                            .map_err(|_| trlf("\"{value}\" is not an IPv6 address.", &[("value", &g)]))?,
+                    ),
+                };
+                Ipv6Mode::Static { address, prefix, gateway }
+            }
+        };
+        let s = IpSettings { mode, extra, ipv6, dns };
         s.validate().map_err(|e| e.to_string())?;
         Ok(s)
     }

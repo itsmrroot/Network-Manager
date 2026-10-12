@@ -7,7 +7,8 @@ use std::time::{Duration, Instant};
 use eframe::egui::{self, RichText, Ui};
 use egui_phosphor::regular as icon;
 use netmgr::adapters::{format_bytes, format_speed};
-use netmgr::snmp::{self, Client, Interface, Oid, System, Version};
+use netmgr::snmp::{self, Access, Client, Interface, Oid, System, Version};
+use netmgr::usm::{Auth, Privacy, User};
 
 use crate::app::Shared;
 use crate::i18n::{tr, trf, trl};
@@ -24,8 +25,9 @@ type Walk = Vec<(String, &'static str, String)>;
 
 pub struct SnmpTool {
     host: String,
-    community: String,
-    version: Version,
+    access: Access,
+    /// The v3 user was taken from the settings.
+    loaded: bool,
     read: Option<Job<Reading>>,
     last: Option<Reading>,
     /// Bits per second in and out, by interface index.
@@ -42,8 +44,8 @@ impl Default for SnmpTool {
     fn default() -> Self {
         Self {
             host: String::new(),
-            community: "public".into(),
-            version: Version::V2c,
+            access: Access::default(),
+            loaded: false,
             read: None,
             last: None,
             rates: BTreeMap::new(),
@@ -61,7 +63,22 @@ impl SnmpTool {
     #[cfg(debug_assertions)]
     pub fn demo(&mut self, ctx: &egui::Context, host: &str, community: &str) {
         self.host = host.into();
-        self.community = community.into();
+        self.access.community = community.into();
+        self.start_read(ctx);
+    }
+
+    /// Development aid: reads `host` as SNMPv3 user `user` (SHA, AES).
+    #[cfg(debug_assertions)]
+    pub fn demo_v3(&mut self, ctx: &egui::Context, host: &str, user: &str, auth: &str, privacy: &str) {
+        self.loaded = true;
+        self.host = host.into();
+        self.access = Access::v3(User {
+            name: user.into(),
+            auth: Auth::Sha1,
+            auth_password: auth.into(),
+            privacy: Privacy::Aes128,
+            privacy_password: privacy.into(),
+        });
         self.start_read(ctx);
     }
 
@@ -70,9 +87,9 @@ impl SnmpTool {
     }
 
     fn start_read(&mut self, ctx: &egui::Context) {
-        let (host, community, version) = (self.host.trim().to_string(), self.community.clone(), self.version);
+        let (host, access) = (self.host.trim().to_string(), self.access.clone());
         self.read = Some(Job::spawn(ctx, move |_, _| {
-            let c = Client::new(&host, &community, version)?;
+            let c = Client::connect(&host, &access)?;
             let system = snmp::system(&c)?;
             let interfaces = snmp::interfaces(&c)?;
             Ok(Reading { system, interfaces, at: Instant::now() })
@@ -128,12 +145,16 @@ impl SnmpTool {
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         self.poll(ui.ctx(), sh);
+        if !self.loaded {
+            self.loaded = true;
+            self.access.user = sh.settings.snmp_user.clone();
+        }
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             theme::paragraph(
                 ui,
                 trl(
-                    "Reads a switch, router, firewall or printer over SNMP (v1 or v2c): its name and uptime, and every port with its state, speed, live traffic and errors.",
+                    "Reads a switch, router, firewall or printer over SNMP (v1, v2c or v3): its name and uptime, and every port with its state, speed, live traffic and errors.",
                 ),
                 14.0,
                 p.weak,
@@ -141,19 +162,23 @@ impl SnmpTool {
             ui.add_space(8.0);
             ui.horizontal_wrapped(|ui| {
                 crate::tools::host_picker(ui, sh, &mut self.host, "snmp-host");
-                ui.label(RichText::new(tr("Community")).color(p.weak));
-                crate::theme::field(
-                    ui,
-                    egui::TextEdit::singleline(&mut self.community).password(true).desired_width(120.0),
-                );
-                ui.selectable_value(&mut self.version, Version::V2c, "v2c");
-                ui.selectable_value(&mut self.version, Version::V1, "v1");
+                for v in [Version::V2c, Version::V1, Version::V3] {
+                    ui.selectable_value(&mut self.access.version, v, v.label());
+                }
+                if self.access.version != Version::V3 {
+                    ui.label(RichText::new(tr("Community")).color(p.weak));
+                    crate::theme::field(
+                        ui,
+                        egui::TextEdit::singleline(&mut self.access.community).password(true).desired_width(120.0),
+                    );
+                }
                 let busy = self.read.is_some();
+                let v3_ok = self.access.version != Version::V3 || self.access.user.validate().is_ok();
                 if theme::primary_button(
                     ui,
                     p,
                     &icon_label(icon::PLUGS_CONNECTED, "Read"),
-                    !busy && !self.host.trim().is_empty(),
+                    !busy && !self.host.trim().is_empty() && v3_ok,
                 )
                 .clicked()
                 {
@@ -170,6 +195,29 @@ impl SnmpTool {
                     ui.checkbox(&mut self.live, tr("Live (every 5 s)"));
                 }
             });
+            if self.access.version == Version::V3 {
+                ui.add_space(6.0);
+                let mut changed = user_fields(ui, p, &mut self.access.user, "snmp-v3");
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(RichText::new(tr("Context")).color(p.weak));
+                    crate::theme::field(
+                        ui,
+                        egui::TextEdit::singleline(&mut self.access.context)
+                            .hint_text(tr("usually empty"))
+                            .desired_width(120.0),
+                    );
+                    changed |= ui
+                        .checkbox(&mut sh.settings.snmp_remember, tr("Remember the passwords"))
+                        .on_hover_text(tr("Kept in this computer's settings for Network Manager."))
+                        .changed();
+                    if let Err(e) = self.access.user.validate() {
+                        ui.label(RichText::new(crate::i18n::tr_dyn(&e.to_string())).color(p.warning).size(12.5));
+                    }
+                });
+                if changed {
+                    sh.settings.snmp_user = stored(&self.access.user, sh.settings.snmp_remember);
+                }
+            }
         });
         ui.add_space(10.0);
         egui::ScrollArea::vertical().id_salt("snmp").show(ui, |ui| {
@@ -287,11 +335,10 @@ impl SnmpTool {
                 if self.walk.is_some() {
                     ui.spinner();
                 } else if ui.add_enabled(ok, egui::Button::new(icon_label(icon::PLAY, "Walk"))).clicked() {
-                    let (host, community, version) =
-                        (self.host.trim().to_string(), self.community.clone(), self.version);
+                    let (host, access) = (self.host.trim().to_string(), self.access.clone());
                     let root = Oid::parse(&self.walk_oid).expect("checked");
                     self.walk = Some(Job::spawn(ui.ctx(), move |_, _| {
-                        let c = Client::new(&host, &community, version)?;
+                        let c = Client::connect(&host, &access)?;
                         Ok(c.walk(&root, 20_000)?
                             .into_iter()
                             .map(|(o, v)| (o.to_string(), v.kind(), v.to_string()))
@@ -356,4 +403,71 @@ fn system_card(ui: &mut Ui, p: &Palette, sh: &mut Shared, s: &System) {
             sh.toast(tr("Copied."));
         }
     });
+}
+
+/// An SNMPv3 user's name, protocols and passwords. Returns whether
+/// anything changed.
+pub fn user_fields(ui: &mut Ui, p: &Palette, u: &mut User, id: &str) -> bool {
+    let mut changed = false;
+    ui.horizontal_wrapped(|ui| {
+        ui.label(RichText::new(tr("User")).color(p.weak));
+        changed |= crate::theme::field(ui, egui::TextEdit::singleline(&mut u.name).desired_width(110.0)).changed();
+        ui.label(RichText::new(tr("Authentication")).color(p.weak));
+        egui::ComboBox::from_id_salt((id, "auth")).selected_text(protocol_label(u.auth.label())).width(90.0).show_ui(
+            ui,
+            |ui| {
+                for a in Auth::ALL {
+                    changed |= ui.selectable_value(&mut u.auth, a, protocol_label(a.label())).changed();
+                }
+            },
+        );
+        if u.auth != Auth::None {
+            changed |= crate::theme::field(
+                ui,
+                egui::TextEdit::singleline(&mut u.auth_password)
+                    .password(true)
+                    .hint_text(tr("password"))
+                    .desired_width(110.0),
+            )
+            .changed();
+            ui.label(RichText::new(tr("Encryption")).color(p.weak));
+            egui::ComboBox::from_id_salt((id, "priv"))
+                .selected_text(protocol_label(u.privacy.label()))
+                .width(120.0)
+                .show_ui(ui, |ui| {
+                    for x in Privacy::ALL {
+                        changed |= ui.selectable_value(&mut u.privacy, x, protocol_label(x.label())).changed();
+                    }
+                });
+            if u.privacy != Privacy::None {
+                changed |= crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut u.privacy_password)
+                        .password(true)
+                        .hint_text(tr("password"))
+                        .desired_width(110.0),
+                )
+                .changed();
+            }
+        } else if u.privacy != Privacy::None {
+            // Encryption needs authentication.
+            u.privacy = Privacy::None;
+            changed = true;
+        }
+    });
+    changed
+}
+
+/// "None" in the user's language; protocol names as they are.
+fn protocol_label(label: &str) -> String {
+    if label == "None" { tr("None").to_string() } else { label.to_string() }
+}
+
+/// `u` as kept in the settings: without passwords unless they are remembered.
+pub fn stored(u: &User, remember: bool) -> User {
+    if remember {
+        u.clone()
+    } else {
+        User { auth_password: String::new(), privacy_password: String::new(), ..u.clone() }
+    }
 }

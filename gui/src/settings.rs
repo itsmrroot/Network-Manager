@@ -108,6 +108,21 @@ pub struct Settings {
     pub planner: Option<netmgr::plan::Input>,
     pub saved_plans: BTreeMap<String, netmgr::plan::Input>,
     pub plan_vendor: netmgr::plan::Vendor,
+    // SNMPv3
+    /// The SNMP tool's v3 user; its passwords only with `snmp_remember`.
+    pub snmp_user: netmgr::usm::User,
+    /// The trap receiver's v3 users, likewise.
+    pub trap_users: Vec<netmgr::usm::User>,
+    /// This computer's SNMP engine ID (hex), made once: devices sending
+    /// informs are set up with it.
+    pub trap_engine: String,
+    /// SNMPv3 passwords are kept in the settings.
+    pub snmp_remember: bool,
+    // Backups
+    pub backup_schedule: crate::backups::Schedule,
+    /// When the scheduled backups last ran, or the schedule was set (Unix
+    /// seconds).
+    pub backup_last: i64,
 }
 
 fn yes() -> bool {
@@ -151,6 +166,12 @@ impl Default for Settings {
             planner: None,
             saved_plans: BTreeMap::new(),
             plan_vendor: Default::default(),
+            snmp_user: Default::default(),
+            trap_users: Vec::new(),
+            trap_engine: String::new(),
+            snmp_remember: false,
+            backup_schedule: Default::default(),
+            backup_last: 0,
         }
     }
 }

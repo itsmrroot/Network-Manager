@@ -666,7 +666,7 @@ impl App {
         self.devices.poll(&ctx, sh);
         self.monitor.poll(&ctx, sh);
         self.tools.poll(sh);
-        self.console.poll();
+        self.console.poll(&ctx, sh);
         if let Some(nav) = sh.nav.take() {
             match nav {
                 Nav::Page(page) => self.page = page,
@@ -1013,7 +1013,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 29] = [
+        let pages: [(Page, &str, u32); 35] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1042,6 +1042,12 @@ impl App {
             (Page::Servers, "27-ssh", 30),
             (Page::Servers, "28-activity", 30),
             (Page::Servers, "29-logs", 30),
+            (Page::Console, "30-push", 30),
+            (Page::Console, "31-backups", 30),
+            (Page::Wifi, "32-heatmap", 40),
+            (Page::Tools, "33-snmpv3", 400),
+            (Page::Servers, "34-traps-v3", 40),
+            (Page::Adapters, "35-ip", 40),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_LIGHT: the light theme instead.
@@ -1203,6 +1209,31 @@ impl App {
             }
             if name == "20-map" {
                 self.devices.show("map");
+            }
+            if name == "30-push" {
+                self.console.show(&mut self.shared, "push");
+            }
+            if name == "31-backups" {
+                self.console.show(&mut self.shared, "backups");
+            }
+            if name == "32-heatmap" {
+                self.wifi_page.show_heatmap(ctx);
+            }
+            if name == "34-traps-v3" {
+                self.servers.show("traps3");
+            }
+            if name == "35-ip" {
+                self.adapters_page.demo_ip(&self.shared);
+            }
+            if name == "33-snmpv3" {
+                self.tools.open(tools::Tab::Snmp, "");
+                // NETMGR_TOUR_SNMP3=host,user,auth password,privacy password (SHA, AES).
+                if let Ok(v) = std::env::var("NETMGR_TOUR_SNMP3") {
+                    let f: Vec<&str> = v.split(',').collect();
+                    if f.len() == 4 {
+                        self.tools.snmp_demo_v3(ctx, f[0], f[1], f[2], f[3]);
+                    }
+                }
             }
             if name == "21-bonjour" {
                 self.devices.show("bonjour");

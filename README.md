@@ -229,7 +229,8 @@ Aruba / HP and MikroTik**. Plans are saved.
 ### 📊 SNMP
 Read any switch, router, firewall or printer: name, uptime and **every port**
 with state, speed, **live traffic, errors and discards**, and its description.
-**Walk** any OID — LLDP neighbors, ARP table, the whole MIB-2. v1 and v2c.
+**Walk** any OID — LLDP neighbors, ARP table, the whole MIB-2. v1, v2c and
+**v3** (MD5/SHA/SHA-2 authentication, DES/AES encryption).
 
 </td>
 </tr>
@@ -257,8 +258,9 @@ macOS and Linux.
 ### 🗄️ Configuration backups
 Saves the running configuration of your **switches, routers and firewalls**
 over SSH (Cisco, Juniper, Aruba, Arista, MikroTik, FortiGate…), keeps a copy
-**only when something changed**, and shows **what changed, line by line**.
-Schedule `netmgr backup` to run every night.
+**only when something changed**, and shows **what changed, line by line** —
+**on a schedule** (hourly, daily, weekly). **Push configuration** sends the same
+commands to many devices at once, backing them up first.
 
 </td>
 <td valign="top">
@@ -318,6 +320,8 @@ down or a new device joins; ping history of 5 min, 30 min or 2 h.
 > **LLDP/CDP** port discovery (LDWin, PortFinder, a LinkSprinter), **rogue DHCP** detection, **MTR/PingPlotter**-style
 > path analysis, a multi-host **ping monitor**, **Tftpd64**-style TFTP and syslog servers, an **iperf**-style
 > throughput test, a **PuTTY**-style serial console, TLS and WHOIS checks, and netstat, route and hosts tools.
+> Version 0.9 adds **several IP addresses** per adapter and **IPv6** settings, **SNMPv3** (queries, traps and
+> informs), **scheduled backups**, **pushing a configuration** to many switches and **Wi-Fi heat maps** on a floor plan.
 > Version 0.7 adds a **DHCP server** for zero-touch provisioning, an **HTTP file server**, an **SNMP trap receiver**,
 > an **NTP server** and TCP syslog with saving to a file; 0.6 a native **macOS menu bar**.
 > Version 0.5 adds **configuration backups** with differences, a **network map**, **free-address and IP
@@ -344,15 +348,15 @@ down or a new device joins; ping history of 5 min, 30 min or 2 h.
 | Page | What it does |
 |---|---|
 | **Overview** | Connected network and signal, local and public IP (with provider and location), router, DNS, link speed, MAC address, live traffic, **Check connection**, **Renew IP**, **Flush DNS**, speed test. |
-| **Adapters** | Every adapter with its status, addresses, DNS, MAC and maker, link speed, MTU and traffic. **Change IP settings**, **Change MAC address**, **Renew IP**, **Turn on/off**, **Undo**. |
-| **Wi-Fi** | The current network in detail; **saved networks with passwords** (show, copy, QR, export); **nearby networks** with a channel chart, width and Wi-Fi generation; **signal and roaming** over time. |
+| **Adapters** | Every adapter with its status, addresses, DNS, MAC and maker, link speed, MTU and traffic. **Change IP settings** (several IPv4 addresses, IPv6), **Change MAC address**, **Renew IP**, **Turn on/off**, **Undo**. |
+| **Wi-Fi** | The current network in detail; **saved networks with passwords** (show, copy, QR, export); **nearby networks** with a channel chart, width and Wi-Fi generation; **signal and roaming** over time; **heat maps** of the signal on a floor plan. |
 | **Devices** | Every device on the network with IP, MAC, maker, name and services; new devices marked; your own names for devices; ping, ports, web page and Wake-on-LAN per device; CSV export; **network map**; **free addresses** and IP conflict check; **Bonjour services**. |
 | **Switch port** | The switch, port, VLAN, voice VLAN, PoE and management address of this cable (LLDP/CDP); every DHCP server on the network. |
 | **Monitor** | Ping monitor for many hosts with alerts and export; path analysis (MTR) with a verdict; traffic per program; packet capture with filters and pcap files. |
 | **Profiles** | Saved IP settings applied to any adapter in one click; shared with the command line. |
 | **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Network planner, SNMP, Time (NTP), MTU, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
-| **Servers** | TFTP and HTTP file servers, DHCP server with zero-touch options (66, 67, 150, 43), syslog (UDP/TCP, save to file), SNMP trap receiver, NTP time server, throughput test between two computers. |
-| **Console** | Serial console for console cables; SSH and Telnet sessions in tabs, with saved sessions in groups; **configuration backups** with differences. |
+| **Servers** | TFTP and HTTP file servers, DHCP server with zero-touch options (66, 67, 150, 43), syslog (UDP/TCP, save to file), SNMP trap receiver (v1, v2c, v3), NTP time server, throughput test between two computers. |
+| **Console** | Serial console for console cables; SSH and Telnet sessions in tabs, with saved sessions in groups; **configuration backups** with differences, on a schedule; **push configuration** to many devices. |
 
 <table>
 <tr>
@@ -477,6 +481,7 @@ netmgr                                   # list adapters (* = default route)
 netmgr show Wi-Fi                        # everything about one adapter
 netmgr set-ip Ethernet 192.168.1.50/24 --gateway 192.168.1.1 --dns 1.1.1.1,1.0.0.1
 netmgr set-ip Ethernet dhcp              # back to automatic
+netmgr set-ip Ethernet dhcp --add 192.168.0.50/24 --ipv6 auto   # a second address next to DHCP
 netmgr mac Wi-Fi random                  # random private MAC address
 netmgr mac Wi-Fi restore                 # the original one
 netmgr wifi passwords                    # saved networks and passwords
@@ -525,6 +530,7 @@ netmgr bonjour                                  # printers, AirPlay, Chromecast,
 netmgr http-server ~/TFTP --port 8080           # firmware over HTTP (add --allow-upload for PUT)
 netmgr dhcp-server -i en5 --pool 192.168.50.100-192.168.50.199 --tftp 192.168.50.1 --bootfile network-confg
 netmgr trap-server                              # SNMP traps and informs
+netmgr snmp 10.0.0.2 -u admin -a sha256 -A 'auth pass' -x aes -X 'priv pass'   # SNMPv3
 netmgr ntp-server                               # time for a lab without internet
 netmgr wol AA:BB:CC:DD:EE:FF
 netmgr vendor B8:27:EB:12:34:56
@@ -610,7 +616,7 @@ is truncated), so resolvers can be compared without the system's cache in betwee
 | `internet` | Public IP, speed test, connection check |
 | `subnet` | Subnet calculator |
 | `plan` | Network planner: subnets, VLANs, IPv6 and switch configuration (Cisco, Juniper, Aruba, MikroTik) |
-| `snmp` | SNMP v1/v2c client: system, interfaces, walks |
+| `snmp` | SNMP v1/v2c/v3 client: system, interfaces, walks |
 | `capture` | Packet capture, pcap files and packet descriptions |
 | `traffic` | Traffic per program |
 | `remote` | SSH (system client in a pseudo-terminal) and built-in Telnet; saved sessions |
@@ -697,6 +703,8 @@ Nothing about your networks, devices or passwords is ever sent.
 
 ## 🗺️ Roadmap
 
+Done in 0.9: ~~several IP addresses and IPv6 settings~~, ~~SNMPv3~~, ~~scheduled backups and pushing a
+configuration~~, ~~Wi-Fi heat maps~~.
 Done in 0.7: ~~DHCP server with zero-touch provisioning~~, ~~HTTP file server~~, ~~SNMP trap receiver~~,
 ~~NTP server~~, ~~TCP syslog~~. Done in 0.6: ~~macOS menu bar~~.
 Done in 0.5: ~~configuration backups~~, ~~network map~~, ~~IP conflicts and free addresses~~, ~~NTP and MTU~~,
@@ -704,10 +712,9 @@ Done in 0.5: ~~configuration backups~~, ~~network map~~, ~~IP conflicts and free
 Done in 0.4: ~~network planner~~, ~~SNMP~~, ~~packet capture~~, ~~traffic per program~~, ~~built-in SSH terminal~~.
 Next:
 
-- **Several IP addresses** on one adapter, IPv6 static settings
-- **SNMPv3** and SNMP traps
-- **Scheduled backups** inside the app, and pushing a configuration to many switches
-- **Wi-Fi heat maps** on a floor plan
+- **Signed updates**, checked by the app before installing
+- **Heat maps** with several floors and measured distances
+- **NETCONF / RESTCONF** for switches that offer it
 
 Suggestions are welcome in the [issues](https://github.com/itsmrroot/Network-Manager-releases/issues).
 

@@ -14,7 +14,7 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 eframe = { version = "0.36.2", default-features = false, features = ["default_fonts", "wgpu", "persistence", "accesskit", "wayland", "x11", "links"] }
 egui-phosphor = "0.14.0"
 egui_extras = "0.36.2"
-image = { version = "0.25.10", default-features = false, features = ["png"] }
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
 log = "0.4.34"
 netdev = "0.46.3"
 netmgr = { version = "0.8.8", path = ".." }

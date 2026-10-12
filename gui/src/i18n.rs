@@ -326,6 +326,17 @@ pub const LIBRARY: &[&str] = &[
     "Connected (web check blocked)",
     "The internet does not answer",
     "The router is reachable but the internet is not: restart the router or modem. If it stays like this, your provider may have an outage.",
+    // netmgr::usm::User::validate
+    "Enter the SNMPv3 user name.",
+    "Encryption needs authentication too: choose an authentication protocol.",
+    "The authentication password must have at least 8 characters.",
+    "The encryption password must have at least 8 characters.",
+    // the Push configuration templates
+    "Save the configuration (Cisco)",
+    "Syslog to this computer (Cisco)",
+    "SNMP traps to this computer (Cisco)",
+    "Time from this computer (Cisco)",
+    "Device name as hostname (Cisco)",
 ];
 
 /// A fixed label, translated and ready to display.
@@ -609,6 +620,7 @@ mod tests {
         include_str!("capture_page.rs"),
         include_str!("console.rs"),
         include_str!("devices.rs"),
+        include_str!("heatmap.rs"),
         include_str!("help.rs"),
         include_str!("i18n.rs"),
         include_str!("inspect.rs"),
@@ -622,6 +634,7 @@ mod tests {
         include_str!("planner.rs"),
         include_str!("profiles.rs"),
         include_str!("programs.rs"),
+        include_str!("push.rs"),
         include_str!("roaming.rs"),
         include_str!("search.rs"),
         include_str!("servers.rs"),

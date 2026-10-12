@@ -22,7 +22,7 @@ fn clock() -> String {
 }
 
 /// The first address devices can reach this computer at.
-fn my_ip(sh: &Shared) -> String {
+pub fn my_ip(sh: &Shared) -> String {
     my_addresses(sh).first().and_then(|a| a.split(' ').next()).unwrap_or("this-computer").to_string()
 }
 
@@ -248,11 +248,23 @@ pub struct TrapTab {
     server: Option<Running>,
     traps: Arc<Mutex<VecDeque<Trap>>>,
     filter: String,
+    /// SNMPv3 users devices send as (with passwords, while the app runs).
+    users: Vec<netmgr::usm::User>,
+    loaded: bool,
+    show_v3: bool,
 }
 
 impl Default for TrapTab {
     fn default() -> Self {
-        Self { port: 162, server: None, traps: Default::default(), filter: String::new() }
+        Self {
+            port: 162,
+            server: None,
+            traps: Default::default(),
+            filter: String::new(),
+            users: Vec::new(),
+            loaded: false,
+            show_v3: false,
+        }
     }
 }
 
@@ -261,6 +273,22 @@ impl TrapTab {
         if let Some(r) = self.server.take() {
             r.stop.store(true, Ordering::Relaxed);
         }
+    }
+
+    /// Development aid: SNMPv3 users and a v3 trap.
+    #[cfg(debug_assertions)]
+    pub fn demo_v3(&mut self) {
+        use netmgr::usm::{Auth, Privacy, User};
+        self.loaded = true;
+        self.show_v3 = true;
+        self.users = vec![User {
+            name: "trapuser".into(),
+            auth: Auth::Sha256,
+            auth_password: "authpass12".into(),
+            privacy: Privacy::Aes128,
+            privacy_password: "privpass12".into(),
+        }];
+        self.demo();
     }
 
     /// Development aid: sample traps for screenshots.
@@ -315,12 +343,20 @@ impl TrapTab {
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         check_failed(sh, &mut self.server, trl("The trap receiver could not start."));
+        if !self.loaded {
+            self.loaded = true;
+            self.users = sh.settings.trap_users.clone();
+            self.show_v3 = !self.users.is_empty();
+        }
+        if netmgr::usm::parse_engine_id(&sh.settings.trap_engine).is_err() {
+            sh.settings.trap_engine = netmgr::usm::engine_hex(&netmgr::usm::new_engine_id());
+        }
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             theme::paragraph(
                 ui,
                 trl(
-                    "Receives the notifications devices send over SNMP (traps and informs, v1 and v2c): ports going down and up, restarts, failed logins, spanning-tree changes.",
+                    "Receives the notifications devices send over SNMP (traps and informs, v1, v2c and v3): ports going down and up, restarts, failed logins, spanning-tree changes.",
                 ),
                 14.0,
                 p.weak,
@@ -335,12 +371,16 @@ impl TrapTab {
                 });
                 let (port, traps) = (self.port, self.traps.clone());
                 let activity = sh.activity.clone();
+                let users: Vec<netmgr::usm::User> =
+                    self.users.iter().filter(|u| u.validate().is_ok()).cloned().collect();
+                let engine = netmgr::usm::parse_engine_id(&sh.settings.trap_engine).unwrap_or_default();
                 start_stop(ui, p, &mut self.server, || {
                     Some(Running::spawn(move |stop| {
                         snmp::trap_serve(
                             listen,
                             port,
                             stop,
+                            Some(snmp::TrapV3::new(&users, engine)),
                             Arc::new(move |t| {
                                 let name = if t.name.is_empty() { t.oid.to_string() } else { t.name.to_string() };
                                 let values: Vec<String> =
@@ -377,7 +417,12 @@ impl TrapTab {
                 if ui.button(icon_label(icon::EXPORT, "Export…")).clicked() {
                     self.export(sh);
                 }
+                ui.toggle_value(&mut self.show_v3, "SNMPv3");
             });
+            if self.show_v3 {
+                ui.add_space(6.0);
+                self.v3_ui(ui, p, sh);
+            }
             if self.server.is_some() {
                 let ip = my_ip(sh);
                 ui.add_space(6.0);
@@ -389,6 +434,13 @@ impl TrapTab {
                         (tr("Cisco IOS"), format!("snmp-server host {ip} version 2c public")),
                         (tr("Aruba / HP"), format!("snmp-server host {ip} community public")),
                         (tr("Juniper"), format!("set snmp trap-group lab targets {ip}")),
+                        (
+                            tr("Cisco IOS (v3)"),
+                            format!(
+                                "snmp-server host {ip} version 3 priv {}",
+                                self.users.first().map_or("USER", |u| u.name.as_str())
+                            ),
+                        ),
                     ],
                 );
             }
@@ -454,6 +506,70 @@ impl TrapTab {
                 }
             });
         });
+    }
+
+    /// The users v3 devices send as, and this computer's engine ID.
+    fn v3_ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
+        let running = self.server.is_some();
+        theme::paragraph(
+            ui,
+            trl(
+                "SNMPv3 traps are read when they come from one of these users. For informs, devices also need this computer's engine ID.",
+            ),
+            13.0,
+            p.weak,
+        );
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(tr("Engine ID")).color(p.weak));
+            let engine = sh.settings.trap_engine.clone();
+            ui.label(RichText::new(&engine).monospace().color(p.text));
+            if ui.small_button(icon_label(icon::COPY, "Copy")).clicked() {
+                ui.ctx().copy_text(engine);
+                sh.toast(tr("Copied."));
+            }
+        });
+        let mut changed = false;
+        ui.add_enabled_ui(!running, |ui| {
+            let mut remove = None;
+            for (i, u) in self.users.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    if ui.small_button(icon::X).on_hover_text(tr("Remove")).clicked() {
+                        remove = Some(i);
+                    }
+                    ui.vertical(|ui| {
+                        changed |= crate::snmp_tool::user_fields(ui, p, u, &format!("trap-user-{i}"));
+                        if let Err(e) = u.validate() {
+                            ui.label(RichText::new(crate::i18n::tr_dyn(&e.to_string())).color(p.warning).size(12.5));
+                        }
+                    });
+                });
+            }
+            if let Some(i) = remove {
+                self.users.remove(i);
+                changed = true;
+            }
+            ui.horizontal_wrapped(|ui| {
+                if ui.button(icon_label(icon::PLUS, "Add user")).clicked() {
+                    self.users.push(netmgr::usm::User {
+                        auth: netmgr::usm::Auth::Sha256,
+                        privacy: netmgr::usm::Privacy::Aes128,
+                        ..Default::default()
+                    });
+                    changed = true;
+                }
+                changed |= ui
+                    .checkbox(&mut sh.settings.snmp_remember, tr("Remember the passwords"))
+                    .on_hover_text(tr("Kept in this computer's settings for Network Manager."))
+                    .changed();
+            });
+        });
+        if running {
+            ui.label(RichText::new(tr("Stop the receiver to change the users.")).color(p.weak).size(12.5));
+        }
+        if changed {
+            let remember = sh.settings.snmp_remember;
+            sh.settings.trap_users = self.users.iter().map(|u| crate::snmp_tool::stored(u, remember)).collect();
+        }
     }
 
     fn export(&self, sh: &mut Shared) {

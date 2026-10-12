@@ -233,6 +233,235 @@ pub fn fetch(s: &Saved, password: Option<&str>) -> Result<String> {
     Ok(text)
 }
 
+/// What pushing commands to one device did.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Default)]
+pub struct Pushed {
+    /// What the device printed, from its first prompt to the last command.
+    pub transcript: String,
+    /// The commands the device rejected, with what it said.
+    pub errors: Vec<(String, String)>,
+    /// The lines typed (fewer than given when it stopped at an error).
+    pub sent: usize,
+}
+
+/// `template` with `{name}` and `{host}` replaced by the session's.
+pub fn fill(template: &str, s: &Saved) -> String {
+    template.replace("{name}", &s.name).replace("{host}", &s.host)
+}
+
+/// The lines of `commands` that are typed: blank lines are left out.
+pub fn command_lines(commands: &str) -> Vec<String> {
+    commands.lines().map(str::trim_end).filter(|l| !l.trim().is_empty()).map(String::from).collect()
+}
+
+/// Logs in to `s` over SSH and types `commands` line by line, waiting for
+/// the device's prompt after each, as a person would.
+pub fn push(s: &Saved, password: Option<&str>, commands: &str, stop_on_error: bool) -> Result<Pushed> {
+    if s.protocol == crate::remote::Protocol::Telnet {
+        bail!("{} uses Telnet: commands are sent over SSH only", s.name);
+    }
+    if !crate::remote::ssh_available() {
+        bail!("the ssh client is missing");
+    }
+    let mut cmd = CommandBuilder::new("ssh");
+    cmd.env("TERM", "dumb");
+    cmd.args(["-tt", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=10"]);
+    if password.is_none() {
+        cmd.args(["-o", "BatchMode=yes"]);
+    }
+    if s.port() != 22 {
+        cmd.args(["-p", &s.port().to_string()]);
+    }
+    cmd.arg("--");
+    cmd.arg(if s.user.is_empty() { s.host.clone() } else { format!("{}@{}", s.user, s.host) });
+    type_lines(cmd, password, &command_lines(&fill(commands, s)), stop_on_error)
+}
+
+/// What devices answer to a command they reject.
+const REJECTED: [&str; 14] = [
+    "% invalid",
+    "% incomplete",
+    "% ambiguous",
+    "% unknown",
+    "% unrecognized",
+    "% bad",
+    "% error",
+    "invalid input",
+    "syntax error",
+    "unknown command",
+    "error:",
+    "failure:",
+    "command not found",
+    "bad command",
+];
+
+/// The device's answer to a command, when it is a rejection.
+fn rejection(answer: &str) -> Option<String> {
+    answer
+        .lines()
+        .map(str::trim)
+        .find(|l| {
+            let l = l.to_lowercase();
+            REJECTED.iter().any(|r| l.contains(r))
+        })
+        .map(String::from)
+}
+
+/// The last line ends like a prompt: "sw1#", "sw1(config)#", "user@r1> ",
+/// "[admin@MikroTik] > ", "$ ".
+fn at_prompt(text: &str) -> bool {
+    let last = text.rsplit('\n').next().unwrap_or("").trim_end();
+    last.len() < 120 && last.ends_with(['#', '>', '$', '%', ']'])
+}
+
+/// An interactive session in a pseudo-terminal.
+struct Typist {
+    child: Box<dyn portable_pty::Child + Send + Sync>,
+    writer: Box<dyn Write + Send>,
+    rx: std::sync::mpsc::Receiver<Vec<u8>>,
+    out: Vec<u8>,
+    password: Option<String>,
+    answered: usize,
+    _master: Box<dyn portable_pty::MasterPty + Send>,
+}
+
+impl Typist {
+    fn write(&mut self, s: &str) -> Result<()> {
+        self.writer.write_all(s.as_bytes())?;
+        self.writer.flush()?;
+        Ok(())
+    }
+
+    /// The output from `from` on, without terminal codes.
+    fn text(&self, from: usize) -> String {
+        strip_escapes(&String::from_utf8_lossy(&self.out[from.min(self.out.len())..]))
+            .replace("\r\n", "\n")
+            .replace('\r', "")
+    }
+
+    /// Reads until the device shows a prompt and then stays quiet, paging
+    /// through "--More--" and answering password and confirm questions.
+    /// False when the session ended.
+    fn wait_prompt(&mut self, from: usize, timeout: Duration) -> Result<bool> {
+        let started = Instant::now();
+        let mut quiet_since = Instant::now();
+        loop {
+            match self.rx.recv_timeout(Duration::from_millis(50)) {
+                Ok(chunk) => {
+                    if chunk.windows(crate::remote::CURSOR_QUESTION.len()).any(|w| w == crate::remote::CURSOR_QUESTION)
+                    {
+                        self.writer.write_all(crate::remote::CURSOR_ANSWER)?;
+                        self.writer.flush()?;
+                    }
+                    self.out.extend(chunk);
+                    quiet_since = Instant::now();
+                    let text = self.text(from.max(self.out.len().saturating_sub(300))).to_lowercase();
+                    let tail = text.trim_end();
+                    if tail.ends_with("password:") || tail.ends_with("passphrase:") {
+                        let Some(p) = self.password.clone() else {
+                            bail!("the device asks for a password: enter it, or use an SSH key");
+                        };
+                        self.answered += 1;
+                        if self.answered > 3 {
+                            bail!("the password was not accepted");
+                        }
+                        self.write(&format!("{p}\r"))?;
+                        self.out.extend_from_slice(b"\n");
+                    } else if tail.ends_with("--more--")
+                        || tail.ends_with("-- more --")
+                        || tail.ends_with("<--- more --->")
+                    {
+                        self.write(" ")?;
+                    } else if tail.ends_with("[confirm]") || tail.ends_with("]?") {
+                        // "Destination filename [startup-config]?": the default.
+                        self.write("\r")?;
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return Ok(false),
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            }
+            if let Ok(Some(_)) = self.child.try_wait() {
+                while let Ok(chunk) = self.rx.recv_timeout(Duration::from_millis(200)) {
+                    self.out.extend(chunk);
+                }
+                return Ok(false);
+            }
+            if quiet_since.elapsed() > Duration::from_millis(500) && at_prompt(&self.text(from)) {
+                return Ok(true);
+            }
+            if started.elapsed() > timeout {
+                bail!("the device did not answer within {} seconds", timeout.as_secs());
+            }
+        }
+    }
+}
+
+impl Drop for Typist {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+    }
+}
+
+/// Starts `cmd` in a pseudo-terminal, waits for the first prompt and types
+/// `lines`, each when the prompt is back.
+pub fn type_lines(
+    cmd: CommandBuilder,
+    password: Option<&str>,
+    lines: &[String],
+    stop_on_error: bool,
+) -> Result<Pushed> {
+    let pty = native_pty_system().openpty(PtySize { rows: 50, cols: 250, pixel_width: 0, pixel_height: 0 })?;
+    let child = pty.slave.spawn_command(cmd).context("could not start ssh")?;
+    drop(pty.slave);
+    let mut reader = pty.master.try_clone_reader()?;
+    let writer = pty.master.take_writer()?;
+    let (tx, rx) = channel::<Vec<u8>>();
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 8192];
+        while let Ok(n) = reader.read(&mut buf) {
+            if n == 0 || tx.send(buf[..n].to_vec()).is_err() {
+                break;
+            }
+        }
+    });
+    let mut t = Typist {
+        child,
+        writer,
+        rx,
+        out: Vec::new(),
+        password: password.map(String::from),
+        answered: 0,
+        _master: pty.master,
+    };
+    if !t.wait_prompt(0, Duration::from_secs(45))? {
+        let text = t.text(0);
+        let last = text.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("the session ended").trim();
+        bail!("{last}");
+    }
+    let start = t.out.len();
+    let mut result = Pushed::default();
+    for line in lines {
+        let from = t.out.len();
+        t.write(&format!("{line}\r"))?;
+        result.sent += 1;
+        let alive = t.wait_prompt(from, Duration::from_secs(90))?;
+        // The answer, without the echoed command.
+        let answer = t.text(from);
+        let answer = answer.split_once('\n').map_or("", |(_, rest)| rest);
+        if let Some(e) = rejection(answer) {
+            result.errors.push((line.clone(), e));
+            if stop_on_error {
+                break;
+            }
+        }
+        if !alive {
+            break;
+        }
+    }
+    result.transcript = t.text(start).trim_start_matches('\n').to_string();
+    Ok(result)
+}
+
 /// One saved copy.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Version {
@@ -397,6 +626,43 @@ mod tests {
             clean("interfaces {\n\x1b[4Cge-0/0/0 {\n\x1b[8Xunit 0;\n"),
             "interfaces {\n    ge-0/0/0 {\nunit 0;\n"
         );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn types_commands_at_the_prompt() {
+        let device = "printf 'Password: '; read p; [ \"$p\" = s3cret ] || exit 1; \
+            while printf 'sw1(config)# '; read l; do case \"$l\" in bad*) echo '% Invalid input detected at marker.';; \
+            *) echo \"ok $l\";; esac; done";
+        let sh = || {
+            let mut cmd = CommandBuilder::new("/bin/sh");
+            cmd.args(["-c", device]);
+            cmd
+        };
+        let lines: Vec<String> = ["hostname sw1", "bad command", "end"].map(String::from).to_vec();
+        let r = type_lines(sh(), Some("s3cret"), &lines, false).unwrap();
+        assert_eq!(r.sent, 3);
+        assert_eq!(r.errors, vec![("bad command".to_string(), "% Invalid input detected at marker.".to_string())]);
+        assert!(r.transcript.contains("ok hostname sw1") && r.transcript.contains("ok end"), "{}", r.transcript);
+        let r = type_lines(sh(), Some("s3cret"), &lines, true).unwrap();
+        assert_eq!((r.sent, r.errors.len()), (2, 1));
+        assert!(type_lines(sh(), Some("wrong"), &lines, false).is_err());
+    }
+
+    #[test]
+    fn prompts_and_rejections() {
+        assert!(at_prompt("banner\nsw1#"));
+        assert!(at_prompt("x\nadmin@r1> "));
+        assert!(at_prompt("[admin@MikroTik] > "));
+        assert!(!at_prompt("Building configuration..."));
+        assert_eq!(
+            rejection("     ^\n% Invalid input detected at '^' marker.").as_deref(),
+            Some("% Invalid input detected at '^' marker.")
+        );
+        assert_eq!(rejection("ok"), None);
+        let s = Saved { name: "sw1".into(), host: "10.0.0.2".into(), ..Default::default() };
+        assert_eq!(fill("hostname {name}\n! {host}", &s), "hostname sw1\n! 10.0.0.2");
+        assert_eq!(command_lines("conf t\n\n  \nend\n"), vec!["conf t", "end"]);
     }
 
     #[test]
