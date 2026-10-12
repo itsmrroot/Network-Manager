@@ -135,6 +135,8 @@ pub struct App {
     notifier: crate::activity::Notifier,
     shared: Shared,
     applied: Option<(theme::Accent, f32, settings::ThemeChoice)>,
+    /// The icon shown in the Dock or task bar.
+    icon_shown: Option<theme::AppIcon>,
     language: Option<i18n::Lang>,
     page: Page,
     menu: menu::MenuBar,
@@ -188,16 +190,7 @@ impl App {
         theme::install_fonts(&cc.egui_ctx, lang);
         // Zoom shortcuts are handled as changes of the interface size setting.
         cc.egui_ctx.options_mut(|o| o.zoom_with_keyboard = false);
-        let logo = {
-            let img = image::load_from_memory(include_bytes!("../assets/icon.png")).map(|i| i.to_rgba8());
-            let color = match img {
-                Ok(i) => {
-                    egui::ColorImage::from_rgba_unmultiplied([i.width() as usize, i.height() as usize], i.as_raw())
-                }
-                Err(_) => egui::ColorImage::filled([1, 1], Color32::TRANSPARENT),
-            };
-            cc.egui_ctx.load_texture("logo", color, egui::TextureOptions::LINEAR)
-        };
+        let logo = theme::icon_texture(&cc.egui_ctx, settings.app_icon);
         #[cfg(debug_assertions)]
         let tour = tour::Tour::from_env();
         #[cfg(debug_assertions)]
@@ -232,6 +225,7 @@ impl App {
             },
             notifier: Default::default(),
             applied: None,
+            icon_shown: None,
             language: Some(lang),
             page: Page::Overview,
             menu: Default::default(),
@@ -359,6 +353,11 @@ impl App {
             ctx.set_theme(s.theme.preference());
             ctx.set_zoom_factor(s.ui_scale);
             self.applied = Some(want);
+        }
+        if self.icon_shown != Some(s.app_icon) {
+            show_icon(ctx, s.app_icon);
+            self.logo = theme::icon_texture(ctx, s.app_icon);
+            self.icon_shown = Some(s.app_icon);
         }
         let lang = i18n::set_language(self.shared.settings.language);
         if self.language != Some(lang) {
@@ -853,6 +852,27 @@ fn nav_item(
     resp
 }
 
+/// `icon` in the task bar (Windows, Linux) or the Dock (macOS).
+fn show_icon(ctx: &egui::Context, icon: theme::AppIcon) {
+    let Some(i) = icon.image(256) else { return };
+    let data = egui::IconData { width: i.width(), height: i.height(), rgba: i.into_raw() };
+    ctx.send_viewport_cmd(egui::ViewportCommand::Icon(Some(std::sync::Arc::new(data))));
+    #[cfg(target_os = "macos")]
+    set_dock_icon(icon.png());
+}
+
+/// macOS: the Dock shows the app's own icon, not the window's.
+#[cfg(target_os = "macos")]
+fn set_dock_icon(png: &[u8]) {
+    use objc2::AnyThread;
+    let Some(mtm) = objc2::MainThreadMarker::new() else { return };
+    let data = objc2_foundation::NSData::with_bytes(png);
+    let Some(image) = objc2_app_kit::NSImage::initWithData(objc2_app_kit::NSImage::alloc(), &data) else { return };
+    let app = objc2_app_kit::NSApplication::sharedApplication(mtm);
+    // SAFETY: on the main thread (checked above), with a valid image.
+    unsafe { app.setApplicationIconImage(Some(&image)) };
+}
+
 /// Opens a file, folder or web address with the system.
 pub fn open_path(path: &str) {
     let program = if cfg!(windows) {
@@ -949,6 +969,19 @@ impl App {
         // NETMGR_TOUR_LIGHT: the light theme instead.
         if t.frames == 1 && t.step == 0 && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {
             self.shared.settings.theme = settings::ThemeChoice::Light;
+        }
+        // NETMGR_TOUR_ICON=violet|graphite|kiwi: that icon and its colours.
+        if t.frames == 1 && t.step == 0 {
+            let icon = match std::env::var("NETMGR_TOUR_ICON").as_deref() {
+                Ok("violet") => Some(theme::AppIcon::Violet),
+                Ok("graphite") => Some(theme::AppIcon::Graphite),
+                Ok("kiwi") => Some(theme::AppIcon::Kiwi),
+                _ => None,
+            };
+            if let Some(i) = icon {
+                self.shared.settings.app_icon = i;
+                self.shared.settings.accent = i.accent();
+            }
         }
         // NETMGR_TOUR_SCALE=1.5: the interface size (narrow layouts).
         if t.frames == 1

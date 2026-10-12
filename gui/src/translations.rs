@@ -1605,10 +1605,6 @@ pub const GERMAN: &[(&str, &str)] = &[
         "Wählen Sie ein Gerät, um seine Kopien und die Änderungen zu sehen.",
     ),
     ("Chromecast / Google Cast", "Chromecast / Google Cast"),
-    (
-        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Tools turns desktop notifications on or off.",
-        "Klicken Sie auf den Stern neben einem Adressfeld, um die Adresse in „Meine Hosts“ zu behalten, die in jedem Werkzeug angeboten werden. Einstellungen → Werkzeuge schaltet Desktop-Mitteilungen ein oder aus.",
-    ),
     ("Compare", "Vergleichen"),
     (
         "Compares this computer's clock with time servers (NTP). A clock that is off by minutes breaks Windows logins (Kerberos), certificates and the order of log messages.",
@@ -2032,6 +2028,18 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("Notification sound", "Ton bei Mitteilungen"),
     ("Notifications play the system's sound.", "Mitteilungen spielen den Ton des Systems."),
     ("Open but quiet, or a firewall in between", "Offen, aber still – oder eine Firewall dazwischen"),
+    ("App icon", "App-Symbol"),
+    ("Graphite", "Graphit"),
+    ("Hosts and devices", "Hosts und Geräte"),
+    (
+        "In the app, the Dock and the task bar; the colours follow it.",
+        "In der App, im Dock und in der Taskleiste; die Farben passen sich an.",
+    ),
+    ("Kiwi", "Kiwi"),
+    (
+        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
+        "Klicken Sie auf den Stern neben einem Adressfeld, um die Adresse unter „Meine Hosts“ zu behalten, angeboten in jedem Werkzeug. Unter Einstellungen → Mitteilungen wählen Sie, welche Mitteilungen Sie erhalten.",
+    ),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -3620,10 +3628,6 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("Check the clock and the MTU", "Comprobar el reloj y la MTU"),
     ("Choose a device to see its copies and what changed.", "Elija un dispositivo para ver sus copias y qué cambió."),
     ("Chromecast / Google Cast", "Chromecast / Google Cast"),
-    (
-        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Tools turns desktop notifications on or off.",
-        "Haga clic en la estrella junto a un campo de dirección para guardarla en «Mis hosts», disponibles en todas las herramientas. Ajustes → Herramientas activa o desactiva las notificaciones de escritorio.",
-    ),
     ("Compare", "Comparar"),
     (
         "Compares this computer's clock with time servers (NTP). A clock that is off by minutes breaks Windows logins (Kerberos), certificates and the order of log messages.",
@@ -4047,6 +4051,18 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("Notification sound", "Sonido de las notificaciones"),
     ("Notifications play the system's sound.", "Las notificaciones reproducen el sonido del sistema."),
     ("Open but quiet, or a firewall in between", "Abierto pero en silencio, o un cortafuegos en medio"),
+    ("App icon", "Icono de la app"),
+    ("Graphite", "Grafito"),
+    ("Hosts and devices", "Hosts y dispositivos"),
+    (
+        "In the app, the Dock and the task bar; the colours follow it.",
+        "En la app, el Dock y la barra de tareas; los colores lo siguen.",
+    ),
+    ("Kiwi", "Kiwi"),
+    (
+        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
+        "Haz clic en la estrella junto a un campo de dirección para guardarla en Mis hosts, disponible en todas las herramientas. En Ajustes → Notificaciones eliges qué notificaciones recibes.",
+    ),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -5653,10 +5669,6 @@ pub const FRENCH: &[(&str, &str)] = &[
         "Choisissez un appareil pour voir ses copies et ce qui a changé.",
     ),
     ("Chromecast / Google Cast", "Chromecast / Google Cast"),
-    (
-        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Tools turns desktop notifications on or off.",
-        "Cliquez sur l’étoile à côté d’un champ d’adresse pour la garder dans « Mes hôtes », proposés dans chaque outil. Réglages → Outils active ou désactive les notifications de bureau.",
-    ),
     ("Compare", "Comparer"),
     (
         "Compares this computer's clock with time servers (NTP). A clock that is off by minutes breaks Windows logins (Kerberos), certificates and the order of log messages.",
@@ -6083,6 +6095,18 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("Notification sound", "Son des notifications"),
     ("Notifications play the system's sound.", "Les notifications jouent le son du système."),
     ("Open but quiet, or a firewall in between", "Ouvert mais silencieux, ou un pare-feu entre les deux"),
+    ("App icon", "Icône de l’app"),
+    ("Graphite", "Graphite"),
+    ("Hosts and devices", "Hôtes et appareils"),
+    (
+        "In the app, the Dock and the task bar; the colours follow it.",
+        "Dans l’app, le Dock et la barre des tâches ; les couleurs suivent.",
+    ),
+    ("Kiwi", "Kiwi"),
+    (
+        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
+        "Cliquez sur l’étoile à côté d’un champ d’adresse pour garder l’adresse dans Mes hôtes, proposés dans chaque outil. Réglages → Notifications choisit les notifications que vous recevez.",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -7653,10 +7677,6 @@ pub const TURKISH: &[(&str, &str)] = &[
         "Kopyalarını ve nelerin değiştiğini görmek için bir cihaz seçin.",
     ),
     ("Chromecast / Google Cast", "Chromecast / Google Cast"),
-    (
-        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Tools turns desktop notifications on or off.",
-        "Adresi \"Sunucularım\"da tutmak için bir adres alanının yanındaki yıldıza tıklayın; her araçta sunulur. Ayarlar → Araçlar masaüstü bildirimlerini açar veya kapatır.",
-    ),
     ("Compare", "Karşılaştır"),
     (
         "Compares this computer's clock with time servers (NTP). A clock that is off by minutes breaks Windows logins (Kerberos), certificates and the order of log messages.",
@@ -8083,6 +8103,18 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("Notification sound", "Bildirim sesi"),
     ("Notifications play the system's sound.", "Bildirimler sistemin sesini çalar."),
     ("Open but quiet, or a firewall in between", "Açık ama sessiz ya da arada bir güvenlik duvarı"),
+    ("App icon", "Uygulama simgesi"),
+    ("Graphite", "Grafit"),
+    ("Hosts and devices", "Ana bilgisayarlar ve cihazlar"),
+    (
+        "In the app, the Dock and the task bar; the colours follow it.",
+        "Uygulamada, Dock'ta ve görev çubuğunda; renkler ona uyar.",
+    ),
+    ("Kiwi", "Kivi"),
+    (
+        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
+        "Adresi her araçta sunulan Ana bilgisayarlarım listesinde tutmak için adres alanının yanındaki yıldıza tıklayın. Ayarlar → Bildirimler hangi bildirimleri alacağınızı seçer.",
+    ),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -9665,10 +9697,6 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "Выберите устройство, чтобы увидеть его копии и изменения.",
     ),
     ("Chromecast / Google Cast", "Chromecast / Google Cast"),
-    (
-        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Tools turns desktop notifications on or off.",
-        "Нажмите звёздочку рядом с полем адреса, чтобы сохранить адрес в «Моих узлах», доступных во всех инструментах. Настройки → Инструменты включает и выключает уведомления.",
-    ),
     ("Compare", "Сравнить"),
     (
         "Compares this computer's clock with time servers (NTP). A clock that is off by minutes breaks Windows logins (Kerberos), certificates and the order of log messages.",
@@ -10092,6 +10120,18 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("Notification sound", "Звук уведомлений"),
     ("Notifications play the system's sound.", "Уведомления воспроизводят системный звук."),
     ("Open but quiet, or a firewall in between", "Открыт, но молчит, или мешает брандмауэр"),
+    ("App icon", "Значок приложения"),
+    ("Graphite", "Графит"),
+    ("Hosts and devices", "Узлы и устройства"),
+    (
+        "In the app, the Dock and the task bar; the colours follow it.",
+        "В приложении, Dock и панели задач; цвета подстраиваются под него.",
+    ),
+    ("Kiwi", "Киви"),
+    (
+        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
+        "Нажмите звёздочку рядом с полем адреса, чтобы сохранить адрес в «Моих узлах», доступных в каждом инструменте. В Настройки → Уведомления выбираются нужные уведомления.",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -11623,10 +11663,6 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Check the clock and the MTU", "فحص الساعة وMTU"),
     ("Choose a device to see its copies and what changed.", "اختر جهازًا لترى نسخه وما الذي تغيّر."),
     ("Chromecast / Google Cast", "Chromecast / Google Cast"),
-    (
-        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Tools turns desktop notifications on or off.",
-        "انقر النجمة بجانب خانة العنوان لحفظه في «أجهزتي»، المتاحة في كل أداة. الإعدادات ← الأدوات تشغّل إشعارات سطح المكتب أو توقفها.",
-    ),
     ("Compare", "مقارنة"),
     (
         "Compares this computer's clock with time servers (NTP). A clock that is off by minutes breaks Windows logins (Kerberos), certificates and the order of log messages.",
@@ -12047,6 +12083,18 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Notification sound", "صوت الإشعارات"),
     ("Notifications play the system's sound.", "تشغّل الإشعارات صوت النظام."),
     ("Open but quiet, or a firewall in between", "مفتوح لكنه صامت، أو جدار حماية بينهما"),
+    ("App icon", "أيقونة التطبيق"),
+    ("Graphite", "غرافيت"),
+    ("Hosts and devices", "الأجهزة والمضيفون"),
+    (
+        "In the app, the Dock and the task bar; the colours follow it.",
+        "في التطبيق وشريط Dock وشريط المهام؛ الألوان تتبعها.",
+    ),
+    ("Kiwi", "كيوي"),
+    (
+        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
+        "انقر النجمة بجانب حقل العنوان للاحتفاظ بالعنوان في مضيفاتي، المتاحة في كل أداة. الإعدادات ← الإشعارات تختار الإشعارات التي تصلك.",
+    ),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -13557,10 +13605,6 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Check the clock and the MTU", "检查时钟和 MTU"),
     ("Choose a device to see its copies and what changed.", "选择一台设备，查看其副本和变化。"),
     ("Chromecast / Google Cast", "Chromecast / Google Cast"),
-    (
-        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Tools turns desktop notifications on or off.",
-        "点击地址框旁的星标，将地址保存到“我的主机”，所有工具中都可选用。设置 → 工具 可开关桌面通知。",
-    ),
     ("Compare", "比较"),
     (
         "Compares this computer's clock with time servers (NTP). A clock that is off by minutes breaks Windows logins (Kerberos), certificates and the order of log messages.",
@@ -13975,4 +14019,13 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Notification sound", "通知声音"),
     ("Notifications play the system's sound.", "通知播放系统声音。"),
     ("Open but quiet, or a firewall in between", "开放但不回应，或中间有防火墙"),
+    ("App icon", "应用图标"),
+    ("Graphite", "石墨"),
+    ("Hosts and devices", "主机和设备"),
+    ("In the app, the Dock and the task bar; the colours follow it.", "用于应用内、程序坞和任务栏；颜色随之变化。"),
+    ("Kiwi", "猕猴桃绿"),
+    (
+        "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
+        "点击地址栏旁的星标，把地址保存到“我的主机”，在每个工具中都可选用。在 设置 → 通知 中选择你要接收的通知。",
+    ),
 ];

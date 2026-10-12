@@ -17,18 +17,55 @@ pub enum Accent {
     Emerald,
     Orange,
     Rose,
+    /// The kiwi green of the "Kiwi" icon.
+    Kiwi,
+    /// The grey of the "Graphite" icon.
+    Graphite,
 }
 
 impl Accent {
-    pub const ALL: [Accent; 5] = [Accent::Blue, Accent::Violet, Accent::Emerald, Accent::Orange, Accent::Rose];
+    pub const ALL: [Accent; 7] =
+        [Accent::Blue, Accent::Violet, Accent::Emerald, Accent::Orange, Accent::Rose, Accent::Kiwi, Accent::Graphite];
 
+    /// As shown in the settings.
     pub fn color(self) -> Color32 {
+        self.color_in(true)
+    }
+
+    /// For a dark or a light theme (kiwi and graphite need more contrast on
+    /// white).
+    pub fn color_in(self, dark: bool) -> Color32 {
         match self {
             Accent::Blue => Color32::from_rgb(59, 130, 246),
             Accent::Violet => Color32::from_rgb(139, 92, 246),
             Accent::Emerald => Color32::from_rgb(16, 185, 129),
             Accent::Orange => Color32::from_rgb(249, 115, 22),
             Accent::Rose => Color32::from_rgb(244, 63, 94),
+            Accent::Kiwi if dark => Color32::from_rgb(159, 239, 0),
+            Accent::Kiwi => Color32::from_rgb(77, 124, 15),
+            Accent::Graphite if dark => Color32::from_rgb(161, 161, 170),
+            Accent::Graphite => Color32::from_rgb(63, 63, 70),
+        }
+    }
+
+    /// Text on the accent (primary buttons): dark on the bright ones.
+    pub fn on_color(self, dark: bool) -> Color32 {
+        match self {
+            Accent::Kiwi | Accent::Graphite if dark => Color32::from_rgb(10, 12, 14),
+            _ => Color32::WHITE,
+        }
+    }
+
+    /// The top bar of the Midnight theme: a deep shade of the accent.
+    pub fn header(self) -> Color32 {
+        match self {
+            Accent::Blue => Color32::from_rgb(14, 40, 120),
+            Accent::Violet => Color32::from_rgb(46, 24, 112),
+            Accent::Emerald => Color32::from_rgb(6, 72, 56),
+            Accent::Orange => Color32::from_rgb(112, 44, 14),
+            Accent::Rose => Color32::from_rgb(106, 20, 46),
+            Accent::Kiwi => Color32::from_rgb(28, 44, 10),
+            Accent::Graphite => Color32::from_rgb(32, 34, 40),
         }
     }
 
@@ -39,7 +76,78 @@ impl Accent {
             Accent::Emerald => i18n::tr("Emerald"),
             Accent::Orange => i18n::tr("Orange"),
             Accent::Rose => i18n::tr("Rose"),
+            Accent::Kiwi => i18n::tr("Kiwi"),
+            Accent::Graphite => i18n::tr("Graphite"),
         }
+    }
+}
+
+/// `icon` as a texture, made once.
+pub fn icon_texture(ctx: &egui::Context, icon: AppIcon) -> egui::TextureHandle {
+    let id = egui::Id::new(("app-icon", icon as u8));
+    if let Some(t) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return t;
+    }
+    let image = match icon.image(128) {
+        Some(i) => egui::ColorImage::from_rgba_unmultiplied([i.width() as usize, i.height() as usize], i.as_raw()),
+        None => egui::ColorImage::filled([1, 1], Color32::TRANSPARENT),
+    };
+    let t = ctx.load_texture(format!("app-icon-{}", icon as u8), image, egui::TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(id, t.clone()));
+    t
+}
+
+/// The app's icon, chosen in Settings: in the app, the Dock and the task
+/// bar, each with the accent that goes with it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum AppIcon {
+    #[default]
+    Blue,
+    Violet,
+    Graphite,
+    Kiwi,
+}
+
+impl AppIcon {
+    pub const ALL: [AppIcon; 4] = [AppIcon::Blue, AppIcon::Violet, AppIcon::Graphite, AppIcon::Kiwi];
+
+    /// The icon, 512 pixels.
+    pub fn png(self) -> &'static [u8] {
+        match self {
+            AppIcon::Blue => include_bytes!("../assets/icons/blue.png"),
+            AppIcon::Violet => include_bytes!("../assets/icons/violet.png"),
+            AppIcon::Graphite => include_bytes!("../assets/icons/mono.png"),
+            AppIcon::Kiwi => include_bytes!("../assets/icons/kiwi.png"),
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            AppIcon::Blue => i18n::tr("Blue"),
+            AppIcon::Violet => i18n::tr("Violet"),
+            AppIcon::Graphite => i18n::tr("Graphite"),
+            AppIcon::Kiwi => i18n::tr("Kiwi"),
+        }
+    }
+
+    /// The accent colour that goes with it.
+    pub fn accent(self) -> Accent {
+        match self {
+            AppIcon::Blue => Accent::Blue,
+            AppIcon::Violet => Accent::Violet,
+            AppIcon::Graphite => Accent::Graphite,
+            AppIcon::Kiwi => Accent::Kiwi,
+        }
+    }
+
+    /// Its pixels, `size` wide.
+    pub fn image(self, size: u32) -> Option<image::RgbaImage> {
+        let i = image::load_from_memory(self.png()).ok()?.to_rgba8();
+        Some(if i.width() == size {
+            i
+        } else {
+            image::imageops::resize(&i, size, size, image::imageops::FilterType::Lanczos3)
+        })
     }
 }
 
@@ -55,6 +163,8 @@ pub struct Palette {
     pub text: Color32,
     pub weak: Color32,
     pub accent: Color32,
+    /// Text on the accent colour.
+    pub on_accent: Color32,
     pub success: Color32,
     pub warning: Color32,
     pub danger: Color32,
@@ -77,12 +187,13 @@ impl Palette {
                 border: Color32::from_rgb(42, 45, 52),
                 text: Color32::from_rgb(236, 238, 242),
                 weak: Color32::from_rgb(148, 153, 165),
-                accent: accent.color(),
+                accent: accent.color_in(true),
+                on_accent: accent.on_color(true),
                 success: Color32::from_rgb(34, 197, 94),
                 warning: Color32::from_rgb(245, 158, 11),
                 danger: Color32::from_rgb(239, 68, 68),
                 deep: Color32::from_rgb(167, 139, 250),
-                header: Some(Color32::from_rgb(14, 40, 120)),
+                header: Some(accent.header()),
             }
         } else if dark {
             Self {
@@ -94,7 +205,8 @@ impl Palette {
                 border: Color32::from_rgb(41, 47, 62),
                 text: Color32::from_rgb(230, 233, 239),
                 weak: Color32::from_rgb(139, 147, 167),
-                accent: accent.color(),
+                accent: accent.color_in(true),
+                on_accent: accent.on_color(true),
                 success: Color32::from_rgb(34, 197, 94),
                 warning: Color32::from_rgb(245, 158, 11),
                 danger: Color32::from_rgb(239, 68, 68),
@@ -111,7 +223,8 @@ impl Palette {
                 border: Color32::from_rgb(226, 231, 239),
                 text: Color32::from_rgb(17, 24, 39),
                 weak: Color32::from_rgb(100, 110, 128),
-                accent: accent.color(),
+                accent: accent.color_in(false),
+                on_accent: accent.on_color(false),
                 success: Color32::from_rgb(22, 163, 74),
                 warning: Color32::from_rgb(217, 119, 6),
                 danger: Color32::from_rgb(220, 38, 38),
@@ -414,7 +527,7 @@ pub fn trailing<R>(ui: &mut Ui, id: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
 pub fn primary_button(ui: &mut Ui, p: &Palette, text: &str, enabled: bool) -> Response {
     let fill = if enabled { p.accent } else { p.accent.gamma_multiply(0.4) };
     // Disabled: muted text, readable on the pale fill of the light theme.
-    let color = if enabled { Color32::WHITE } else { p.weak };
+    let color = if enabled { p.on_accent } else { p.weak };
     ui.add_enabled(
         enabled,
         egui::Button::new(semibold(text, 15.0).color(color))

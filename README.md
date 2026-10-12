@@ -120,7 +120,8 @@ set on your router.
 ### 🖥️ Modern desktop app
 The same design as [Deleted Files Recovery](https://github.com/itsmrroot/Recover-Deleted-Files):
 in **English, German, Spanish, French, Turkish, Russian, Arabic and Chinese**,
-with **Midnight** (default), dark and light themes, accent colours, interface size, a
+with **Midnight** (default), dark and light themes, **four app icons** (blue, violet, graphite and kiwi —
+the colours follow the icon you pick), accent colours, interface size, a
 Help page with step-by-step guides, and **one-click updates**. On macOS, a **native menu
 bar** (Edit, View, Go, Network, Window, Help) with the usual shortcuts; ⌘1–⌘9 (Ctrl on
 Windows and Linux) jump between pages. **Search everything with ⌘K / Ctrl+K** — every
@@ -392,7 +393,9 @@ down or a new device joins; ping history of 5 min, 30 min or 2 h.
 </table>
 
 **Settings** (saved automatically): language (system / English / Deutsch / Español / Français / Türkçe /
-Русский / العربية / 简体中文), theme (Midnight / dark / light / system), accent colour, interface size,
+Русский / العربية / 简体中文), theme (Midnight / dark / light / system), app icon (blue / violet / graphite / kiwi,
+with matching colours), accent colour, interface size, notifications (watched hosts and new devices, SSH sign-ins,
+file transfers, other services, sound),
 showing virtual adapters, finding device names and services during scans, forgetting known devices, pings per
 test, the public IP lookup and the update check.
 

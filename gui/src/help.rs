@@ -370,7 +370,7 @@ fn guides() -> Vec<Guide> {
             icon: icon::BELL,
             title: tr("My hosts and notifications"),
             steps: vec![trl(
-                "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Tools turns desktop notifications on or off.",
+                "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
             )],
         },
         Guide {

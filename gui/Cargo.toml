@@ -36,6 +36,10 @@ libc = "0.2.189"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 muda = { version = "0.19.3", default-features = false }
+# The Dock icon, when another icon is picked in Settings.
+objc2 = "0.6.5"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSData"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSApplication", "NSImage", "NSResponder"] }
 winit = { version = "0.30", default-features = false }
 
 # Installers, built by `cargo packager --release -p netmgr-gui` (see

@@ -43,6 +43,9 @@ pub struct Settings {
     pub language: crate::i18n::Language,
     pub theme: ThemeChoice,
     pub accent: Accent,
+    /// The app's icon (and, when picked, the accent that goes with it).
+    #[serde(default)]
+    pub app_icon: crate::theme::AppIcon,
     pub ui_scale: f32,
     // Start
     pub lookup_public_ip: bool,
@@ -111,6 +114,7 @@ impl Default for Settings {
             language: crate::i18n::Language::System,
             theme: ThemeChoice::Midnight,
             accent: Accent::Blue,
+            app_icon: crate::theme::AppIcon::Blue,
             ui_scale: 1.0,
             lookup_public_ip: true,
             check_updates: true,
@@ -208,6 +212,19 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
                     ui.selectable_value(&mut s.theme, choice, label);
                 }
             });
+            row(ui, p, tr("App icon"), trl("In the app, the Dock and the task bar; the colours follow it."), |ui| {
+                for i in crate::theme::AppIcon::ALL {
+                    let selected = s.app_icon == i;
+                    let tex = crate::theme::icon_texture(ui.ctx(), i);
+                    let b = egui::Button::image(egui::Image::new(&tex).fit_to_exact_size(egui::vec2(40.0, 40.0)))
+                        .selected(selected)
+                        .corner_radius(10);
+                    if ui.add(b).on_hover_text(i.name()).clicked() {
+                        s.app_icon = i;
+                        s.accent = i.accent();
+                    }
+                }
+            });
             row(ui, p, tr("Accent colour"), "", |ui| {
                 for a in Accent::ALL.iter().rev() {
                     let selected = s.accent == *a;
@@ -298,32 +315,6 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
                 if ui.add_enabled(n > 0, egui::Button::new(trf("Clear {n}", &[("n", &n)]))).clicked() {
                     s.recent_hosts.clear();
                 }
-            });            row(
-                ui,
-                p,
-                tr("Notifications"),
-                trl("A desktop notification when a watched host goes down or comes back, and when a new device joins the network."),
-                |ui| toggle(ui, &mut s.notifications),
-            );
-            row(ui, p, tr("SSH sign-ins"), trl("A notification when someone signs in to this computer over SSH."), |ui| {
-                toggle(ui, &mut s.notify_ssh)
-            });
-            row(
-                ui,
-                p,
-                tr("File transfers"),
-                trl("A notification when a device fetches or sends a file through the TFTP or HTTP server."),
-                |ui| toggle(ui, &mut s.notify_files),
-            );
-            row(
-                ui,
-                p,
-                tr("Other services"),
-                trl("A notification the first time a device uses syslog, SNMP traps, the time server, DHCP or the throughput test."),
-                |ui| toggle(ui, &mut s.notify_services),
-            );
-            row(ui, p, tr("Notification sound"), trl("Notifications play the system's sound."), |ui| {
-                toggle(ui, &mut s.notify_sound)
             });
             ui.add_space(8.0);
             ui.label(theme::semibold(tr("My hosts"), 15.0).color(p.text));
@@ -350,6 +341,41 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
             if ui.button(icon_label(icon::PLUS, "Add")).clicked() {
                 s.saved_hosts.push(SavedHost::default());
             }
+        });
+        ui.add_space(14.0);
+
+        // Everything the app may tell you about, in one place.
+        theme::card(ui, p, |ui| {
+            ui.set_width(ui.available_width());
+            theme::section_title(ui, p, icon::BELL, tr("Notifications"));
+            ui.add_space(6.0);
+            row(
+                ui,
+                p,
+                tr("Hosts and devices"),
+                trl("A desktop notification when a watched host goes down or comes back, and when a new device joins the network."),
+                |ui| toggle(ui, &mut s.notifications),
+            );
+            row(ui, p, tr("SSH sign-ins"), trl("A notification when someone signs in to this computer over SSH."), |ui| {
+                toggle(ui, &mut s.notify_ssh)
+            });
+            row(
+                ui,
+                p,
+                tr("File transfers"),
+                trl("A notification when a device fetches or sends a file through the TFTP or HTTP server."),
+                |ui| toggle(ui, &mut s.notify_files),
+            );
+            row(
+                ui,
+                p,
+                tr("Other services"),
+                trl("A notification the first time a device uses syslog, SNMP traps, the time server, DHCP or the throughput test."),
+                |ui| toggle(ui, &mut s.notify_services),
+            );
+            row(ui, p, tr("Notification sound"), trl("Notifications play the system's sound."), |ui| {
+                toggle(ui, &mut s.notify_sound)
+            });
         });
         ui.add_space(14.0);
 
