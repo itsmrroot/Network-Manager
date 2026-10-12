@@ -192,7 +192,7 @@ fn assign_ipv6(nets: &mut [Network], base: Ipv6Addr, prefix: u8) -> Result<(), P
         (first..first + nets.len() as u64).collect()
     };
     if ids.iter().any(|&id| id >= room) {
-        return Err(PlanError::Ipv6TooSmall { room: room.saturating_sub(1) });
+        return Err(PlanError::Ipv6TooSmall { room });
     }
     for (n, id) in nets.iter_mut().zip(ids) {
         n.ipv6 = Some(Ipv6Addr::from(u128::from(base) | ((id as u128) << 64)));
@@ -665,7 +665,7 @@ mod tests {
         assert_eq!(ids[0], "2001:db8:0:ab01::");
         assert_eq!(ids[5], "2001:db8:0:ab06::");
         let tight = plan_dual(&space, "2001:db8::/62", &groups(), &Options::default()).unwrap();
-        assert_eq!(tight, Err(PlanError::Ipv6TooSmall { room: 3 }));
+        assert_eq!(tight, Err(PlanError::Ipv6TooSmall { room: 4 }));
         assert!(plan_dual(&space, "2001:db8::/80", &groups(), &Options::default()).is_err());
         assert!(random_ula().starts_with("fd") && parse_ipv6(&random_ula()).is_ok());
     }

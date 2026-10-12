@@ -267,6 +267,14 @@ pub fn http(url: &str) -> Result<Vec<HttpHop>> {
     if !url.contains("://") {
         url = format!("https://{url}");
     }
+    // A port past 65535 would otherwise quietly become the default one.
+    let authority = url.split("://").nth(1).unwrap_or("").split(['/', '?', '#']).next().unwrap_or("");
+    if let Some((host, port)) = authority.rsplit_once(':')
+        && !host.ends_with(':')
+        && (!host.contains(':') || host.ends_with(']'))
+    {
+        anyhow::ensure!(port.parse::<u16>().is_ok_and(|p| p > 0), "{port} is not a port (1 to 65535)");
+    }
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .max_redirects(0)
         .http_status_as_error(false)

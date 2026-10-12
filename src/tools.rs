@@ -142,6 +142,8 @@ impl PingStats {
 /// was not found).
 pub fn ping(host: &str, count: u32, cancel: &AtomicBool, mut line: impl FnMut(&str, PingLine)) -> Result<bool> {
     ensure!(!host.trim().is_empty(), "enter an address or a name");
+    // The system's ping would take it for an option.
+    ensure!(!host.trim().starts_with('-'), "{host} is not an address or a name");
     let (prog, args) = ping_command(host, count);
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
     cmd::stream(&prog, &refs, cancel, |l| line(l, parse_ping_line(l)))
@@ -151,6 +153,8 @@ pub fn ping(host: &str, count: u32, cancel: &AtomicBool, mut line: impl FnMut(&s
 pub fn traceroute(host: &str, cancel: &AtomicBool, line: impl FnMut(&str)) -> Result<()> {
     let host = host.trim();
     ensure!(!host.is_empty(), "enter an address or a name");
+    // traceroute would take it for an option.
+    ensure!(!host.starts_with('-'), "{host} is not an address or a name");
     let v6 = host.parse::<IpAddr>().is_ok_and(|a| a.is_ipv6());
     let (prog, args): (&str, Vec<&str>) = if cfg!(windows) {
         ("tracert", vec!["-d", "-w", "1500", "-h", "30", host])

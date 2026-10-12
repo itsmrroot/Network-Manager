@@ -245,6 +245,7 @@ enum Cmd {
     },
     /// Ping several hosts at once, continuously, with loss and jitter.
     Monitor {
+        #[arg(required = true)]
         hosts: Vec<String>,
         /// Seconds between rounds.
         #[arg(long, default_value_t = 1)]
@@ -264,7 +265,7 @@ enum Cmd {
         /// Listen only on this address (one adapter's); default: every network.
         #[arg(long, default_value = "0.0.0.0")]
         listen: Ipv4Addr,
-        #[arg(long, default_value_t = 69)]
+        #[arg(long, default_value_t = 69, value_parser = clap::value_parser!(u16).range(1..))]
         port: u16,
         /// Let devices upload (configuration backups).
         #[arg(long)]
@@ -272,7 +273,7 @@ enum Cmd {
     },
     /// Receive and print syslog messages from devices.
     SyslogServer {
-        #[arg(long, default_value_t = 514)]
+        #[arg(long, default_value_t = 514, value_parser = clap::value_parser!(u16).range(1..))]
         port: u16,
         /// Listen only on this address (one adapter's); default: every network.
         #[arg(long, default_value = "0.0.0.0")]
@@ -284,7 +285,7 @@ enum Cmd {
         /// Listen only on this address (one adapter's); default: every network.
         #[arg(long, default_value = "0.0.0.0")]
         listen: Ipv4Addr,
-        #[arg(long, default_value_t = 8080)]
+        #[arg(long, default_value_t = 8080, value_parser = clap::value_parser!(u16).range(1..))]
         port: u16,
         /// Let devices upload files with PUT.
         #[arg(long)]
@@ -292,7 +293,7 @@ enum Cmd {
     },
     /// Answer time requests (NTP) with this computer's clock, for labs without internet.
     NtpServer {
-        #[arg(long, default_value_t = 123)]
+        #[arg(long, default_value_t = 123, value_parser = clap::value_parser!(u16).range(1..))]
         port: u16,
         /// Listen only on this address (one adapter's); default: every network.
         #[arg(long, default_value = "0.0.0.0")]
@@ -302,7 +303,7 @@ enum Cmd {
     },
     /// Receive and print SNMP traps and informs from devices.
     TrapServer {
-        #[arg(long, default_value_t = 162)]
+        #[arg(long, default_value_t = 162, value_parser = clap::value_parser!(u16).range(1..))]
         port: u16,
         /// Listen only on this address (one adapter's); default: every network.
         #[arg(long, default_value = "0.0.0.0")]
@@ -336,7 +337,8 @@ enum Cmd {
         lease: u32,
     },
     /// This computer's SSH server, so other devices can sign in to it:
-    /// on, off or status (macOS: Remote Login). Asks for administrator rights.
+    /// on, off or status (macOS: Remote Login). On and off ask for
+    /// administrator rights.
     SshServer {
         #[arg(default_value = "status", value_parser = ["on", "off", "status"])]
         action: String,
@@ -344,12 +346,13 @@ enum Cmd {
     /// Throughput test between two computers: "server", or a host to test to.
     Throughput {
         target: String,
-        #[arg(long, default_value_t = 10)]
+        /// How long to measure.
+        #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u64).range(1..=60))]
         seconds: u64,
         /// Measure from the server to this computer.
         #[arg(long)]
         download: bool,
-        #[arg(long, default_value_t = netmgr::servers::THROUGHPUT_PORT)]
+        #[arg(long, default_value_t = netmgr::servers::THROUGHPUT_PORT, value_parser = clap::value_parser!(u16).range(1..))]
         port: u16,
         /// As a server: listen only on this address (one adapter's);
         /// default: every network.
@@ -486,6 +489,12 @@ fn settle() {
 }
 
 fn main() {
+    // `netmgr routes | head`: end quietly when the reader goes away.
+    #[cfg(unix)]
+    // SAFETY: restoring the default action before any thread starts.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
     let cli = Cli::parse();
     if let Err(e) = run(cli) {
         if netmgr::cmd::is_cancelled(&e) {
@@ -504,7 +513,26 @@ fn print_json<T: serde::Serialize>(v: &T) -> Result<()> {
 
 fn run(cli: Cli) -> Result<()> {
     let json = cli.json;
-    match cli.command.unwrap_or(Cmd::Adapters { all: false }) {
+    let command = cli.command.unwrap_or(Cmd::Adapters { all: false });
+    // Commands that print as they go: no JSON (rather than text where JSON
+    // is expected).
+    let no_json = matches!(
+        command,
+        Cmd::Mac { .. }
+            | Cmd::Vendor { .. }
+            | Cmd::Trace { .. }
+            | Cmd::Mtr { .. }
+            | Cmd::Monitor { .. }
+            | Cmd::Backup { .. }
+            | Cmd::Throughput { .. }
+            | Cmd::TftpServer { .. }
+            | Cmd::HttpServer { .. }
+            | Cmd::NtpServer { .. }
+            | Cmd::TrapServer { .. }
+            | Cmd::DhcpServer { .. }
+    );
+    ensure!(!(json && no_json), "--json is not available for this command");
+    match command {
         Cmd::Adapters { all } => {
             let list = adapters::list(all)?;
             if json {
@@ -646,7 +674,8 @@ fn run(cli: Cli) -> Result<()> {
         }
         Cmd::Profile { command } => profile_cmd(command, json)?,
         Cmd::Ping { host, count } => {
-            let cancel = AtomicBool::new(false);
+            // Ctrl+C ends the ping, and the totals are still shown.
+            let cancel = stop_on_ctrl_c();
             let mut stats = tools::PingStats::default();
             let ok = tools::ping(&host, count, &cancel, |line, kind| {
                 if !json {
@@ -654,10 +683,22 @@ fn run(cli: Cli) -> Result<()> {
                 }
                 stats.add(kind);
             })?;
+            let stopped = cancel.load(Ordering::Relaxed);
             if json {
                 println!("{}", serde_json::to_string_pretty(&stats)?);
+            } else if stopped {
+                let ms = |v: Option<f64>| v.map_or("—".to_string(), |v| format!("{v:.1}"));
+                println!(
+                    "{} sent, {} received, {:.0} % lost; min/avg/max {}/{}/{} ms",
+                    stats.sent,
+                    stats.received,
+                    stats.loss_percent(),
+                    ms(stats.min()),
+                    ms(stats.avg()),
+                    ms(stats.max())
+                );
             }
-            ensure!(ok && stats.received > 0, "no reply from {host}");
+            ensure!((ok || stopped) && stats.received > 0, "no reply from {host}");
         }
         Cmd::Trace { host } => {
             let cancel = AtomicBool::new(false);
@@ -702,6 +743,7 @@ fn run(cli: Cli) -> Result<()> {
             ensure!(!answers.is_empty(), "no DNS server answered");
         }
         Cmd::Ports { host, ports } => {
+            ensure!(!host.trim().is_empty(), "enter an address or a name");
             let list = tools::parse_ports(ports.as_deref().unwrap_or(tools::PORT_PRESETS[0].1))?;
             let cancel = AtomicBool::new(false);
             let (ip, results) = tools::check_ports(&host, &list, Duration::from_millis(1500), &cancel, &|_| {})?;
@@ -748,6 +790,16 @@ fn run(cli: Cli) -> Result<()> {
             let groups = groups.iter().map(|g| plan::Group::parse(g)).collect::<Result<Vec<_>>>()?;
             let count: u64 = groups.iter().filter(|g| g.devices > 0).map(|g| g.count as u64).sum();
             ensure!(count <= plan::MAX_NETWORKS, "{count} networks: a plan has at most {}", plan::MAX_NETWORKS);
+            // Every network its own VLAN, and names a switch can tell apart.
+            if vlan > 0 && count > 0 {
+                let last = u64::from(vlan) + u64::from(vlan_step.max(1)) * (count - 1);
+                ensure!(last <= 4094, "the VLANs would go up to {last}, past 4094: lower --vlan or --vlan-step");
+            }
+            let mut names: Vec<String> = groups.iter().map(|g| g.name.to_lowercase()).collect();
+            names.sort();
+            if let Some(w) = names.windows(2).find(|w| w[0] == w[1]) {
+                bail!("two networks are called {}: give each its own name", w[0]);
+            }
             let opt = plan::Options { growth, first_vlan: vlan, vlan_step };
             let space = match space {
                 Some(s) => Subnet::parse(&s)?,
@@ -913,7 +965,9 @@ fn run(cli: Cli) -> Result<()> {
                         Err(e) => serde_json::json!({"server": h, "error": format!("{e:#}")}),
                     })
                     .collect();
-                return print_json(&v);
+                print_json(&v)?;
+                ensure!(results.iter().any(|(_, r)| r.is_ok()), "no time server answered");
+                return Ok(());
             }
             println!("{:<22} {:>14} {:>9} {:>8}  Reference", "Server", "This clock", "Delay", "Stratum");
             for (h, r) in &results {
@@ -932,6 +986,7 @@ fn run(cli: Cli) -> Result<()> {
             ensure!(results.iter().any(|(_, r)| r.is_ok()), "no time server answered");
         }
         Cmd::Mtu { host } => {
+            ensure!(!host.trim().is_empty(), "enter an address or a name");
             let stop = AtomicBool::new(false);
             let r = tools::path_mtu(&host, &stop, |size, fits| {
                 if !json {
@@ -977,7 +1032,18 @@ fn run(cli: Cli) -> Result<()> {
             };
             let all = netmgr::remote::load()?;
             for n in &names {
-                ensure!(all.iter().any(|s| s.name.eq_ignore_ascii_case(n)), "no saved session is called {n}");
+                let Some(s) = all.iter().find(|s| s.name.eq_ignore_ascii_case(n)) else {
+                    bail!("no saved session is called {n}")
+                };
+                // Named, so say why it is left out.
+                if s.protocol != netmgr::remote::Protocol::Ssh {
+                    eprintln!("{}: uses Telnet; backups work over SSH only", s.name);
+                } else if s.backup_command.trim().is_empty() {
+                    eprintln!(
+                        "{}: has no backup command (set one in the app: Console → SSH and Telnet → Edit)",
+                        s.name
+                    );
+                }
             }
             let list: Vec<_> = all
                 .into_iter()
@@ -1230,6 +1296,7 @@ fn run(cli: Cli) -> Result<()> {
             }
         }
         Cmd::Mtr { host, count } => {
+            ensure!(!host.trim().is_empty(), "enter an address or a name");
             let cancel = AtomicBool::new(false);
             let mut hops: Vec<(u32, Option<IpAddr>)> = Vec::new();
             eprintln!("Finding the route…");
@@ -1307,6 +1374,8 @@ fn run(cli: Cli) -> Result<()> {
             )?;
         }
         Cmd::HttpServer { folder, listen, port, allow_upload } => {
+            // A typo would otherwise serve a new, empty folder.
+            ensure!(folder.is_dir(), "the folder {} does not exist", folder.display());
             let stop = stop_on_ctrl_c();
             eprintln!("Serving {} on http://{listen}:{port}…", folder.display());
             let opts = netmgr::httpd::Options { root: folder, port, listen, allow_upload, overwrite: false };
@@ -1329,7 +1398,7 @@ fn run(cli: Cli) -> Result<()> {
         }
         Cmd::NtpServer { port, listen, stratum } => {
             let stop = stop_on_ctrl_c();
-            println!("Answering time requests on UDP port {port}…");
+            eprintln!("Answering time requests on {listen}, UDP port {port}…");
             netmgr::ntp::serve(
                 listen,
                 port,
@@ -1726,8 +1795,9 @@ fn profile_cmd(c: ProfileCmd, json: bool) -> Result<()> {
                 note: String::new(),
                 extras: Default::default(),
             };
-            println!("Saved \"{name}\": {}", p.settings.summary());
+            let summary = p.settings.summary();
             profiles::upsert(p)?;
+            println!("Saved \"{name}\": {summary}");
         }
         ProfileCmd::Apply { name, adapter } => {
             let p = profiles::find(&name)?;
