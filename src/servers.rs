@@ -462,6 +462,11 @@ fn transfer(
             let _ = std::fs::remove_file(&tmp);
             bail!("the server was stopped");
         }
+        // Old or wrong blocks arriving now and then are no progress either.
+        if progress_at.elapsed() > NO_PROGRESS {
+            let _ = std::fs::remove_file(&tmp);
+            return fail(0, "no progress: the upload was given up".into());
+        }
         let n = match sock.recv(&mut buf) {
             Ok(n) => n,
             Err(_) => {

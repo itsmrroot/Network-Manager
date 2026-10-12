@@ -144,7 +144,10 @@ fn decode(p: &str) -> String {
     let mut i = 0;
     while i < b.len() {
         if b[i] == b'%'
-            && let Some(v) = p.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok())
+            && let Some(v) = p
+                .get(i + 1..i + 3)
+                .filter(|h| h.bytes().all(|c| c.is_ascii_hexdigit()))
+                .and_then(|h| u8::from_str_radix(h, 16).ok())
         {
             out.push(v);
             i += 3;
@@ -318,7 +321,11 @@ fn parse_range(v: &str) -> Option<Range> {
     let (a, b) = r.split_once('-')?;
     let (a, b) = (a.trim(), b.trim());
     if a.is_empty() {
-        return b.parse().ok().map(Range::Last);
+        return b.bytes().all(|c| c.is_ascii_digit()).then(|| b.parse().ok()).flatten().map(Range::Last);
+    }
+    let digits = |x: &str| !x.is_empty() && x.bytes().all(|c| c.is_ascii_digit());
+    if !digits(a) || !(b.is_empty() || digits(b)) {
+        return None;
     }
     Some(Range::From(a.parse().ok()?, if b.is_empty() { None } else { Some(b.parse().ok()?) }))
 }

@@ -24,8 +24,11 @@ impl Oid {
     pub fn parse(s: &str) -> Result<Self> {
         let s = s.trim().trim_start_matches('.');
         let parts: Result<Vec<u32>, _> = s.split('.').map(str::parse).collect();
-        let parts =
-            parts.ok().filter(|p| p.len() >= 2).with_context(|| format!("\"{s}\" is not an OID like 1.3.6.1.2.1.1"))?;
+        // The first number is 0, 1 or 2; under 0 and 1 the second is below 40.
+        let parts = parts
+            .ok()
+            .filter(|p| p.len() >= 2 && p[0] <= 2 && (p[0] == 2 || p[1] < 40) && (p[0] < 2 || p[1] <= u32::MAX - 80))
+            .with_context(|| format!("\"{s}\" is not an OID like 1.3.6.1.2.1.1"))?;
         Ok(Oid(parts))
     }
 
@@ -176,8 +179,10 @@ fn int(v: i64) -> Vec<u8> {
 
 fn oid(o: &Oid) -> Vec<u8> {
     let p = &o.0;
-    let mut body = vec![(p[0] * 40 + p[1]) as u8];
-    for &n in &p[2..] {
+    let mut body = Vec::new();
+    // The first two numbers as one (40 × X + Y), coded like the others.
+    let first = p[0].saturating_mul(40).saturating_add(p[1]);
+    for &n in std::iter::once(&first).chain(&p[2..]) {
         let mut chunk = vec![(n & 0x7f) as u8];
         let mut n = n >> 7;
         while n > 0 {
@@ -570,6 +575,16 @@ pub fn interfaces(c: &Client) -> Result<Vec<Interface>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn oids_encode_exactly() {
+        assert!(Oid::parse("4294967295.1").is_err() && Oid::parse("5.1").is_err() && Oid::parse("1.40").is_err());
+        for s in ["1.3.6.1.2.1", "2.999.3", "2.222.5", "0.39"] {
+            let o = Oid::parse(s).unwrap();
+            let enc = oid(&o);
+            assert_eq!(read_oid(&enc[2..]).unwrap(), o, "{s}");
+        }
+    }
 
     #[test]
     fn oids_decode_exactly() {

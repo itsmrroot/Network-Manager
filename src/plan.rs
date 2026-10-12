@@ -141,7 +141,7 @@ fn expand(groups: &[Group], opt: &Options) -> Vec<(String, u16, u32, u64, u8)> {
             let n = needed(g.devices, opt.growth);
             let v = if opt.first_vlan == 0 || vlan > 4094 { 0 } else { vlan as u16 };
             out.push((name, v, g.devices, n, prefix_for(n)));
-            vlan += opt.vlan_step.max(1) as u32;
+            vlan = vlan.saturating_add(opt.vlan_step.max(1) as u32);
         }
     }
     out

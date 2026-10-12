@@ -159,9 +159,15 @@ impl Cache {
                 addresses
                     .sort_by_key(|a| (a.is_ipv6(), matches!(a, IpAddr::V6(v) if (v.segments()[0] & 0xffc0) == 0xfe80)));
                 // The type, in any case, after the instance name.
-                let cut = instance.len().saturating_sub(kind.len() + 1);
-                let name =
-                    if instance.to_lowercase().ends_with(&format!(".{kind}")) { &instance[..cut] } else { instance };
+                // Cut where the type starts, measured on the same text
+                // (lower case may change a name's length).
+                let suffix = format!(".{kind}");
+                let name = match instance.len().checked_sub(suffix.len()) {
+                    Some(cut) if instance.is_char_boundary(cut) && instance[cut..].eq_ignore_ascii_case(&suffix) => {
+                        &instance[..cut]
+                    }
+                    _ => instance,
+                };
                 let name = name.replace("\\032", " ").replace("\\.", ".");
                 out.push(Service {
                     name,
@@ -280,5 +286,15 @@ mod tests {
         assert_eq!(s[0].addresses, [IpAddr::V4(Ipv4Addr::new(192, 168, 1, 50))]);
         assert_eq!(s[0].details, ["ty=HP4", "pdl="]);
         assert_eq!(describe(&s[0].kind), "Printer (IPP / AirPrint)");
+    }
+
+    #[test]
+    fn odd_names_do_not_crash() {
+        // "ab.K" with the Kelvin sign, which is shorter in lower case.
+        let mut msg = vec![0, 0, 0x84, 0, 0, 0, 0, 1, 0, 0, 0, 0];
+        msg.extend(rr("k", 12, &[2, b'a', b'b', 3, 0xe2, 0x84, 0xaa, 0]));
+        let mut c = Cache::default();
+        c.read(&msg).unwrap();
+        let _ = c.services();
     }
 }

@@ -91,7 +91,7 @@ pub fn parse_lsof(text: &str) -> Vec<Connection> {
     let mut out: Vec<Connection> = Vec::new();
     let (mut pid, mut process) = (None, None);
     for line in text.lines() {
-        let (tag, value) = line.split_at(line.len().min(1));
+        let (tag, value) = line.split_at(line.chars().next().map_or(0, char::len_utf8));
         match tag {
             "p" => pid = value.parse().ok(),
             "c" => process = Some(value.to_string()),
@@ -479,6 +479,11 @@ mod imp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lsof_lines_in_any_script() {
+        let _ = parse_lsof("é\npé\ncSafari\nf9");
+    }
 
     #[test]
     fn macos_netstat() {

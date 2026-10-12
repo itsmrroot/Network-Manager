@@ -125,6 +125,7 @@ impl Config {
 
 fn hex(s: &str) -> Result<Vec<u8>> {
     let s: String = s.chars().filter(|c| !c.is_whitespace() && *c != ':').collect();
+    ensure!(s.chars().all(|c| c.is_ascii_hexdigit()), "option 43 must be hexadecimal");
     ensure!(s.len().is_multiple_of(2), "option 43 must be pairs of hexadecimal digits");
     (0..s.len())
         .step_by(2)
@@ -289,8 +290,24 @@ pub fn handle(cfg: &Config, leases: &mut Vec<Lease>, m: &Message, now: SystemTim
     // Forget offers nobody took, and old leases whose address has gone to
     // another device: the table stays at about the size of the pool, even
     // under a flood of made-up devices.
-    let live: Vec<Ipv4Addr> = leases.iter().filter(|x| x.expires > now).map(|x| x.ip).collect();
-    leases.retain(|x| x.expires > now || (x.state != "Offered" && !live.contains(&x.ip)));
+    // A device without a hardware address is not one (and declined
+    // addresses are kept under that address).
+    if m.mac == Mac([0; 6]) {
+        return None;
+    }
+    let live: std::collections::HashSet<Ipv4Addr> = leases.iter().filter(|x| x.expires > now).map(|x| x.ip).collect();
+    leases.retain(|x| x.expires > now || (x.state != "Offered" && x.state != "Declined" && !live.contains(&x.ip)));
+    // At most about twice the pool: the oldest expired entries go first.
+    let pool = (u32::from(cfg.last).saturating_sub(u32::from(cfg.first)) as usize + 1) * 2 + cfg.reservations.len();
+    while leases.len() > pool {
+        let i = leases
+            .iter()
+            .enumerate()
+            .filter(|(_, x)| x.expires <= now)
+            .min_by_key(|(_, x)| x.expires)
+            .map_or(0, |(i, _)| i);
+        leases.remove(i);
+    }
     let lease_for = |l: &Vec<Lease>, mac: Mac| l.iter().position(|x| x.mac == mac);
     let taken = |l: &Vec<Lease>, ip: Ipv4Addr, mac: Mac| {
         l.iter().any(|x| x.ip == ip && x.mac != mac && x.expires > now && x.state != "Released")
@@ -381,8 +398,10 @@ pub fn handle(cfg: &Config, leases: &mut Vec<Lease>, m: &Message, now: SystemTim
         }
         DECLINE => {
             // The address is in use by something else: keep it away.
+            // Only the address this device was given, from the pool.
             if let Some(ip) = m.requested
-                && let Some(i) = lease_for(leases, m.mac)
+                && in_pool(ip)
+                && let Some(i) = lease_for(leases, m.mac).filter(|&i| leases[i].ip == ip)
             {
                 leases[i] = Lease {
                     mac: Mac([0; 6]),
@@ -589,6 +608,33 @@ mod tests {
         }
         let pool = (u32::from(c.last) - u32::from(c.first) + 1) as usize;
         assert!(leases.len() <= pool * 2, "{} entries for a pool of {pool}", leases.len());
+    }
+
+    #[test]
+    fn declines_cannot_grow_the_table() {
+        let c = cfg();
+        let mut leases = Vec::new();
+        let now = SystemTime::now();
+        for i in 0..2000u16 {
+            let mac = [2, 0, 0, 1, (i >> 8) as u8, i as u8];
+            let d = parse(&request(DISCOVER, mac, &[])).unwrap();
+            handle(&c, &mut leases, &d, now);
+            // An address outside the pool, or another device's.
+            let decline = parse(&request(DECLINE, mac, &[(50, vec![10, 200, (i >> 8) as u8, i as u8])])).unwrap();
+            handle(&c, &mut leases, &decline, now);
+        }
+        let pool = (u32::from(c.last) - u32::from(c.first) + 1) as usize;
+        assert!(leases.len() <= pool * 2 + c.reservations.len(), "{} entries", leases.len());
+        assert!(leases.iter().all(|l| l.state != "Declined"));
+        // A device without a hardware address gets nothing.
+        let zero = parse(&request(DISCOVER, [0; 6], &[])).unwrap();
+        assert_eq!(handle(&c, &mut leases, &zero, now), None);
+    }
+
+    #[test]
+    fn option_43_must_be_hex() {
+        assert!(hex("0é0").is_err() && hex("€0").is_err());
+        assert_eq!(hex("f1:04").unwrap(), vec![0xf1, 0x04]);
     }
 
     #[test]
