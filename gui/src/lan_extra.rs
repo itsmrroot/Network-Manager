@@ -83,7 +83,10 @@ impl Bonjour {
         });
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text(tr("Filter")).desired_width(220.0));
+            crate::theme::field(
+                ui,
+                egui::TextEdit::singleline(&mut self.filter).hint_text(tr("Filter")).desired_width(220.0),
+            );
             if self.job.is_some() {
                 ui.spinner();
                 ui.label(RichText::new(tr("Listening…")).color(p.weak));
@@ -185,8 +188,10 @@ impl FreeAddresses {
             );
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                let r =
-                    ui.add(egui::TextEdit::singleline(&mut self.check).hint_text("192.168.1.50").desired_width(180.0));
+                let r = crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.check).hint_text("192.168.1.50").desired_width(180.0),
+                );
                 let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 let ip: Option<Ipv4Addr> = self.check.trim().parse().ok();
                 let busy = self.job.is_some();
@@ -468,13 +473,17 @@ impl NetMap {
             ui.add_space(6.0);
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(tr("Start at")).color(p.weak));
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.seeds)
                         .hint_text(tr("switch addresses, e.g. 10.0.0.2 10.0.0.3"))
                         .desired_width(240.0),
                 );
                 ui.label(RichText::new(tr("Community")).color(p.weak));
-                ui.add(egui::TextEdit::singleline(&mut self.community).password(true).desired_width(110.0));
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.community).password(true).desired_width(110.0),
+                );
                 let busy = self.job.is_some();
                 if theme::primary_button(ui, p, &icon_label(icon::TREE_STRUCTURE, "Read switches"), !busy).clicked() {
                     let mut seeds: Vec<IpAddr> =

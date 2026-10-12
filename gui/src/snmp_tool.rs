@@ -142,7 +142,10 @@ impl SnmpTool {
             ui.horizontal_wrapped(|ui| {
                 crate::tools::host_picker(ui, sh, &mut self.host, "snmp-host");
                 ui.label(RichText::new(tr("Community")).color(p.weak));
-                ui.add(egui::TextEdit::singleline(&mut self.community).password(true).desired_width(120.0));
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.community).password(true).desired_width(120.0),
+                );
                 ui.selectable_value(&mut self.version, Version::V2c, "v2c");
                 ui.selectable_value(&mut self.version, Version::V1, "v1");
                 let busy = self.read.is_some();
@@ -265,7 +268,10 @@ impl SnmpTool {
             theme::paragraph(ui, trl("Lists every value under an OID, as snmpwalk does."), 13.5, p.weak);
             ui.add_space(6.0);
             ui.horizontal_wrapped(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.walk_oid).hint_text("1.3.6.1.2.1.1").desired_width(240.0));
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.walk_oid).hint_text("1.3.6.1.2.1.1").desired_width(240.0),
+                );
                 egui::ComboBox::from_id_salt("walk-presets").selected_text(tr("Presets")).width(120.0).show_ui(
                     ui,
                     |ui| {
@@ -293,7 +299,8 @@ impl SnmpTool {
                     }));
                 }
                 if !self.walk_rows.is_empty() {
-                    ui.add(
+                    crate::theme::field(
+                        ui,
                         egui::TextEdit::singleline(&mut self.walk_filter).hint_text(tr("Filter")).desired_width(160.0),
                     );
                     if ui.button(icon_label(icon::COPY, "Copy")).clicked() {

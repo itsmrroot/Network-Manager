@@ -461,7 +461,10 @@ impl Servers {
                 egui::Grid::new("tftp-settings").num_columns(2).spacing([14.0, 8.0]).show(ui, |ui| {
                     ui.label(tr("Folder"));
                     ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut sh.settings.tftp_folder).desired_width(360.0));
+                        crate::theme::field(
+                            ui,
+                            egui::TextEdit::singleline(&mut sh.settings.tftp_folder).desired_width(360.0),
+                        );
                         if ui.button(icon_label(icon::FOLDER_OPEN, "Choose…")).clicked()
                             && let Some(d) = rfd::FileDialog::new().pick_folder()
                         {
@@ -632,8 +635,12 @@ impl Servers {
                                 bar = bar.animate(true);
                             }
                             ui.add(bar);
-                            let speed =
-                                t.started.map(|s| t.bytes as f64 / s.elapsed().as_secs_f64().max(0.1)).unwrap_or(0.0);
+                            // Up to the end, not until now: a finished transfer keeps its speed.
+                            let end = t.finished.unwrap_or_else(std::time::Instant::now);
+                            let speed = t
+                                .started
+                                .map(|s| t.bytes as f64 / end.duration_since(s).as_secs_f64().max(0.1))
+                                .unwrap_or(0.0);
                             ui.label(
                                 RichText::new(match &t.error {
                                     Some(e) => e.clone(),
@@ -729,7 +736,8 @@ impl Servers {
                         );
                     }
                 });
-            ui.add(
+            crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.filter)
                     .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Filter")))
                     .desired_width(180.0),
@@ -957,7 +965,7 @@ impl Servers {
                 ui.set_min_height(240.0);
                 theme::section_title(ui, p, icon::GAUGE, tr("Test to another computer"));
                 ui.horizontal(|ui| {
-                    ui.add(egui::TextEdit::singleline(&mut self.tp_host).hint_text(tr("Its address, e.g. 192.168.1.20")).desired_width(200.0));
+                    crate::theme::field(ui, egui::TextEdit::singleline(&mut self.tp_host).hint_text(tr("Its address, e.g. 192.168.1.20")).desired_width(200.0));
                     ui.add(egui::Slider::new(&mut self.tp_seconds, 3..=30).suffix(" s"));
                 });
                 ui.horizontal(|ui| {

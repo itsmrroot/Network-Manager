@@ -73,7 +73,8 @@ impl Planner {
             ui.add_space(10.0);
             egui::Grid::new("plan-options").num_columns(2).spacing([16.0, 10.0]).show(ui, |ui| {
                 ui.label(tr("Address space"));
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut input.space)
                         .hint_text(tr("Automatic (the smallest block that fits)"))
                         .desired_width(300.0),
@@ -81,7 +82,8 @@ impl Planner {
                 ui.end_row();
                 ui.label(tr("IPv6 prefix"));
                 ui.horizontal(|ui| {
-                    ui.add(
+                    crate::theme::field(
+                        ui,
                         egui::TextEdit::singleline(&mut input.ipv6)
                             .hint_text(tr("Optional, e.g. 2001:db8:abcd::/48"))
                             .desired_width(300.0),
@@ -116,7 +118,8 @@ impl Planner {
                 ui.end_row();
                 ui.label(tr("Saved plans"));
                 ui.horizontal_wrapped(|ui| {
-                    ui.add(
+                    crate::theme::field(
+                        ui,
                         egui::TextEdit::singleline(&mut self.save_name)
                             .hint_text(tr("Name, e.g. School building"))
                             .desired_width(200.0),

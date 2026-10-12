@@ -38,6 +38,9 @@ pub struct Transfer {
     pub error: Option<String>,
     #[serde(skip)]
     pub started: Option<Instant>,
+    /// When it ended: the speed is counted up to here.
+    #[serde(skip)]
+    pub finished: Option<Instant>,
 }
 
 #[derive(Debug, Clone)]
@@ -252,6 +255,7 @@ pub fn tftp_serve(
                     done: false,
                     error: None,
                     started: Some(Instant::now()),
+                    finished: None,
                 });
             }
             let update = |f: &dyn Fn(&mut Transfer)| {
@@ -268,6 +272,7 @@ pub fn tftp_serve(
             }
             update(&|t| {
                 t.done = true;
+                t.finished = Some(Instant::now());
                 t.error = result.as_ref().err().map(|e| format!("{e:#}"));
             });
         });

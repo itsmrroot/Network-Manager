@@ -187,7 +187,11 @@ pub fn resolve(host: &str, port: u16) -> Result<SocketAddr> {
 #[derive(Debug, Clone, Serialize)]
 pub struct PortResult {
     pub port: u16,
+    /// A connection was accepted (TCP) or an answer came back (UDP).
     pub open: bool,
+    /// UDP only: no answer and no refusal (open but quiet, or filtered).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub silent: bool,
     pub millis: Option<u128>,
     pub service: &'static str,
 }
@@ -252,6 +256,7 @@ pub fn check_ports(
                         r.push(PortResult {
                             port: p,
                             open,
+                            silent: false,
                             millis: open.then(|| t.elapsed().as_millis()),
                             service: crate::scan::service_name(p),
                         });
@@ -264,6 +269,125 @@ pub fn check_ports(
     let mut r = results.into_inner().unwrap_or_default();
     r.sort_by_key(|p| p.port);
     Ok((addr.ip(), r))
+}
+
+/// UDP ports people check: DNS, DHCP, TFTP, NTP, SNMP, IKE, syslog, SSDP,
+/// mDNS, IPsec NAT-T.
+pub const UDP_PRESET: &str = "53,67,69,123,161,162,500,514,1900,4500,5353";
+
+/// A request a UDP service answers, so that an open port shows itself;
+/// others get an empty line (and may stay silent).
+fn udp_probe(port: u16) -> Vec<u8> {
+    match port {
+        // DNS: the root's name servers.
+        53 | 5353 => vec![0x13, 0x37, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1],
+        // TFTP: a file that is not there; the server answers with an error.
+        69 => b"\x00\x01netmgr-port-check\x00octet\x00".to_vec(),
+        // NTP: a client's request.
+        123 => {
+            let mut p = vec![0u8; 48];
+            p[0] = 0x23;
+            p
+        }
+        // SNMP v2c, community "public": the device's name.
+        161 => vec![
+            0x30, 0x27, 0x02, 0x01, 0x01, 0x04, 0x06, b'p', b'u', b'b', b'l', b'i', b'c', 0xa0, 0x1a, 0x02, 0x02, 0x12,
+            0x34, 0x02, 0x01, 0x00, 0x02, 0x01, 0x00, 0x30, 0x0e, 0x30, 0x0c, 0x06, 0x08, 0x2b, 0x06, 0x01, 0x02, 0x01,
+            0x01, 0x05, 0x00, 0x05, 0x00,
+        ],
+        // SSDP: who is there.
+        1900 => b"M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 1\r\nST: ssdp:all\r\n\r\n"
+            .to_vec(),
+        _ => b"\r\n".to_vec(),
+    }
+}
+
+/// Checks `ports` of `host` over UDP: an answer means open; the host's
+/// "port unreachable" means closed; silence means open but quiet, or a
+/// firewall in between (UDP has no handshake to tell them apart).
+pub fn check_udp_ports(
+    host: &str,
+    ports: &[u16],
+    timeout: Duration,
+    cancel: &AtomicBool,
+    progress: &(dyn Fn(usize) + Sync),
+) -> Result<(IpAddr, Vec<PortResult>)> {
+    let addr = resolve(host, 0)?;
+    let results = Mutex::new(Vec::new());
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    std::thread::scope(|s| {
+        // Fewer at once than TCP: hosts limit their "unreachable" answers.
+        for _ in 0..16.min(ports.len()) {
+            s.spawn(|| {
+                loop {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    if i >= ports.len() || cancel.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    let p = ports[i];
+                    let t = Instant::now();
+                    let (open, silent) = udp_check(SocketAddr::new(addr.ip(), p), timeout, &udp_probe(p));
+                    if let Ok(mut r) = results.lock() {
+                        r.push(PortResult {
+                            port: p,
+                            open,
+                            silent,
+                            millis: open.then(|| t.elapsed().as_millis()),
+                            service: crate::scan::service_name(p),
+                        });
+                        progress(r.len());
+                    }
+                }
+            });
+        }
+    });
+    let mut r = results.into_inner().unwrap_or_default();
+    r.sort_by_key(|p| p.port);
+    Ok((addr.ip(), r))
+}
+
+/// (answered, silent) for one UDP port.
+fn udp_check(to: SocketAddr, timeout: Duration, probe: &[u8]) -> (bool, bool) {
+    let bind: SocketAddr = if to.is_ipv6() { "[::]:0".parse().unwrap() } else { "0.0.0.0:0".parse().unwrap() };
+    // TFTP answers from a new port of its own: listened for from any port
+    // of that host first (a connected socket would not take it).
+    if probe.starts_with(&[0, 1])
+        && let Ok(s) = std::net::UdpSocket::bind(bind)
+        && s.set_read_timeout(Some(timeout)).is_ok()
+        && s.send_to(probe, to).is_ok()
+    {
+        let mut buf = [0u8; 1500];
+        let until = Instant::now() + timeout;
+        while Instant::now() < until {
+            match s.recv_from(&mut buf) {
+                Ok((_, from)) if from.ip() == to.ip() => return (true, false),
+                Ok(_) => {}
+                Err(_) => break,
+            }
+        }
+    }
+    let Ok(s) = std::net::UdpSocket::bind(bind) else { return (false, true) };
+    // Connected: the system then reports "port unreachable" to this socket.
+    if s.connect(to).is_err() || s.set_read_timeout(Some(timeout)).is_err() {
+        return (false, true);
+    }
+    let mut buf = [0u8; 1500];
+    // Twice: the first datagram may be lost.
+    for _ in 0..2 {
+        if s.send(probe).is_err() {
+            return (false, false);
+        }
+        match s.recv(&mut buf) {
+            Ok(_) => return (true, false),
+            Err(e)
+                if matches!(e.kind(), std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::ConnectionReset) =>
+            {
+                return (false, false);
+            }
+            Err(_) => {}
+        }
+    }
+    (false, true)
 }
 
 /// Sends a Wake-on-LAN "magic packet" for `mac`: to the whole network and,
@@ -352,6 +476,38 @@ mod tests {
         let (_, r) =
             check_ports("127.0.0.1", &[port], Duration::from_secs(1), &AtomicBool::new(false), &|_| {}).unwrap();
         assert!(r[0].open);
+    }
+
+    #[test]
+    fn udp_ports_answer_refuse_or_stay_silent() {
+        use std::sync::Arc;
+        // The app's own TFTP server answers the probe (with "not found").
+        let dir = crate::cmd::private_dir("netmgr-test-udp").unwrap();
+        let port = std::net::UdpSocket::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let stop = Arc::new(AtomicBool::new(false));
+        let opts = crate::servers::TftpOptions {
+            root: dir.clone(),
+            port,
+            listen: std::net::Ipv4Addr::LOCALHOST,
+            allow_upload: false,
+            overwrite: false,
+        };
+        let s2 = stop.clone();
+        let t = std::thread::spawn(move || crate::servers::tftp_serve(opts, Default::default(), s2, Arc::new(|_| {})));
+        std::thread::sleep(Duration::from_millis(300));
+        let free = std::net::UdpSocket::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let at = |p: u16| SocketAddr::from(([127, 0, 0, 1], p));
+        let (answered, _) = udp_check(at(port), Duration::from_millis(500), &udp_probe(69));
+        // Nothing there: refused (or at worst silent where "unreachable" is filtered).
+        let (closed_open, _) = udp_check(at(free), Duration::from_millis(500), &udp_probe(69));
+        // A service that does not answer what it is sent: silent.
+        let (quiet, silent) = udp_check(at(port), Duration::from_millis(300), b"\r\n");
+        stop.store(true, Ordering::Relaxed);
+        let _ = t.join();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(answered, "the TFTP server did not answer");
+        assert!(!closed_open);
+        assert!(!quiet && silent);
     }
 }
 

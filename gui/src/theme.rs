@@ -579,6 +579,33 @@ fn wrap_rtl(ui: &Ui, text: &str, width: f32, size: f32, color: Color32) -> Vec<S
 
 pub use crate::i18n::icon_label;
 
+/// A text field: a little taller than egui's own, with the right-click menu
+/// every text field has elsewhere (cut, copy, paste).
+pub fn field(ui: &mut Ui, edit: egui::TextEdit<'_>) -> Response {
+    let r = ui.add(edit.margin(Margin::symmetric(9, 8)));
+    edit_menu(&r);
+    r
+}
+
+/// Cut, Copy and Paste on right-click, for `r` (a text field).
+pub fn edit_menu(r: &Response) {
+    r.context_menu(|ui| {
+        let id = r.id;
+        for (label, command) in [
+            (i18n::tr("Cut"), egui::ViewportCommand::RequestCut),
+            (i18n::tr("Copy"), egui::ViewportCommand::RequestCopy),
+            (i18n::tr("Paste"), egui::ViewportCommand::RequestPaste),
+        ] {
+            if ui.button(label).clicked() {
+                // The field gets the keyboard back, then the command.
+                ui.ctx().memory_mut(|m| m.request_focus(id));
+                ui.ctx().send_viewport_cmd(command);
+                ui.close();
+            }
+        }
+    });
+}
+
 /// A label/value row in a details grid, with a copy button for the value.
 /// Returns true when the value was copied.
 pub fn info_row(ui: &mut Ui, p: &Palette, label: &str, value: &str, copy: bool) -> bool {

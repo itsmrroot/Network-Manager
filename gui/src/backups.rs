@@ -74,7 +74,8 @@ impl Backups {
             ui.add_space(8.0);
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(tr("Password")).color(p.weak));
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.password)
                         .password(true)
                         .hint_text(tr("if the devices ask; not stored"))

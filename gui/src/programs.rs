@@ -173,7 +173,10 @@ impl Programs {
                     self.totals.clear();
                     self.since = Some(Instant::now());
                 }
-                ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text(tr("Filter")).desired_width(180.0));
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.filter).hint_text(tr("Filter")).desired_width(180.0),
+                );
                 if let Some(since) = self.since {
                     // Rounded up: "the last 1 min" during the first minute, never 0.
                     let m = since.elapsed().as_secs().div_ceil(60).max(1);

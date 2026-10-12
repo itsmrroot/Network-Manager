@@ -94,6 +94,8 @@ pub struct Tools {
     port_job: Option<Job<(IpAddr, Vec<PortResult>)>>,
     port_results: Option<(IpAddr, Vec<PortResult>)>,
     show_closed: bool,
+    /// Ports: UDP instead of TCP.
+    udp: bool,
     subnet: String,
     split: u8,
     wol_mac: String,
@@ -126,6 +128,7 @@ impl Default for Tools {
             port_job: None,
             port_results: None,
             show_closed: false,
+            udp: false,
             subnet: String::new(),
             split: 0,
             wol_mac: String::new(),
@@ -356,7 +359,8 @@ impl Tools {
             .unwrap_or_default();
         let mut start = false;
         ui.horizontal(|ui| {
-            let r = ui.add(
+            let r = crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.dns_name)
                     .hint_text(tr("Name, e.g. example.com (or an IP for PTR)"))
                     .desired_width(280.0),
@@ -512,11 +516,19 @@ impl Tools {
                 start = true;
             }
         });
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(tr("Ports")).color(p.weak));
-            ui.add(
+            crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.ports).hint_text("22, 80, 443, 8000-8100").desired_width(360.0),
             );
+            // TFTP, DNS, NTP, SNMP and syslog are UDP: a TCP check misses them.
+            if ui.selectable_label(!self.udp, "TCP").clicked() {
+                self.udp = false;
+            }
+            if ui.selectable_label(self.udp, "UDP").clicked() {
+                self.udp = true;
+            }
             egui::ComboBox::from_id_salt("port-presets").selected_text(tr("Presets")).width(110.0).show_ui(ui, |ui| {
                 for (name, list) in nt::PORT_PRESETS {
                     if ui.selectable_label(false, tr_dyn(name)).clicked() {
@@ -526,6 +538,10 @@ impl Tools {
                 if ui.selectable_label(false, tr("First 1024")).clicked() {
                     self.ports = "1-1024".into();
                 }
+                if ui.selectable_label(false, tr("Network services (UDP)")).clicked() {
+                    self.ports = nt::UDP_PRESET.into();
+                    self.udp = true;
+                }
             });
         });
         if start && self.port_job.is_none() && !self.host.trim().is_empty() {
@@ -534,9 +550,11 @@ impl Tools {
                     sh.settings.remember_host(&self.host);
                     let host = self.host.trim().to_string();
                     let total = list.len();
+                    let udp = self.udp;
                     self.port_results = None;
                     self.port_job = Some(Job::spawn(ui.ctx(), move |progress, cancel| {
-                        nt::check_ports(&host, &list, Duration::from_millis(1200), cancel, &|n| {
+                        let check = if udp { nt::check_udp_ports } else { nt::check_ports };
+                        check(&host, &list, Duration::from_millis(1200), cancel, &|n| {
                             progress.set(n as f32 / total as f32, "")
                         })
                     }));
@@ -554,9 +572,15 @@ impl Tools {
             let Some((ip, results)) = &self.port_results else {
                 theme::paragraph(
                     ui,
-                    trl(
-                        "Checks which services of a device or server accept connections (TCP). Only check devices you own or may test.",
-                    ),
+                    if self.udp {
+                        trl(
+                            "Checks UDP services (TFTP, DNS, NTP, SNMP, syslog): an answer means open, \"port unreachable\" means closed, and no answer means open but quiet, or a firewall in between. Only check devices you own or may test.",
+                        )
+                    } else {
+                        trl(
+                            "Checks which services of a device or server accept connections (TCP). Only check devices you own or may test.",
+                        )
+                    },
                     14.0,
                     p.weak,
                 );
@@ -581,10 +605,13 @@ impl Tools {
             ui.add_space(6.0);
             egui::ScrollArea::vertical().max_height(ui.available_height() - 10.0).show(ui, |ui| {
                 egui::Grid::new("ports").num_columns(4).spacing([24.0, 6.0]).striped(true).show(ui, |ui| {
-                    for r in results.iter().filter(|r| r.open || self.show_closed) {
+                    for r in results.iter().filter(|r| r.open || r.silent || self.show_closed) {
                         ui.label(RichText::new(r.port.to_string()).monospace().color(p.text));
                         if r.open {
                             theme::pill(ui, p, tr("Open"), p.success);
+                        } else if r.silent {
+                            theme::pill(ui, p, tr("No answer"), p.warning)
+                                .on_hover_text(tr("Open but quiet, or a firewall in between"));
                         } else {
                             theme::pill(ui, p, tr("Closed"), p.weak);
                         }
@@ -608,7 +635,8 @@ impl Tools {
             self.subnet = format!("{ip}/{prefix}");
         }
         ui.horizontal(|ui| {
-            ui.add(
+            crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.subnet)
                     .hint_text(tr("192.168.1.10/24 or 10.0.0.5 255.255.0.0"))
                     .desired_width(320.0),
@@ -714,12 +742,14 @@ impl Tools {
             ui.add_space(10.0);
             egui::Grid::new("wol").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
                 ui.label(tr("MAC address"));
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.wol_mac).hint_text("AA:BB:CC:DD:EE:FF").desired_width(220.0),
                 );
                 ui.end_row();
                 ui.label(tr("Send to"));
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.wol_ip)
                         .hint_text(tr("optional: broadcast or host IP"))
                         .desired_width(220.0),
@@ -741,7 +771,8 @@ impl Tools {
     }
 
     fn mac_tab(&mut self, ui: &mut Ui, p: &Palette) {
-        ui.add(
+        crate::theme::field(
+            ui,
             egui::TextEdit::singleline(&mut self.lookup)
                 .hint_text(tr("A MAC address, e.g. B8:27:EB:12:34:56"))
                 .desired_width(320.0),
@@ -848,7 +879,7 @@ fn console(ui: &mut Ui, p: &Palette, lines: &[String], running: bool, empty: &st
 /// hosts and recent ones, and a star to add the address to the list.
 /// Returns true when Enter was pressed.
 pub fn host_input(ui: &mut Ui, sh: &mut Shared, host: &mut String, id: &str, hint: &str) -> bool {
-    let r = ui.add(egui::TextEdit::singleline(host).hint_text(hint).desired_width(260.0));
+    let r = crate::theme::field(ui, egui::TextEdit::singleline(host).hint_text(hint).desired_width(260.0));
     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
     let mut picks: Vec<(String, String)> = Vec::new();
     for h in &sh.settings.saved_hosts {

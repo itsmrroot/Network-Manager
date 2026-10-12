@@ -284,7 +284,8 @@ impl Devices {
             View::Services => return self.bonjour.ui(ui, p, sh),
         }
 
-        ui.add(
+        crate::theme::field(
+            ui,
             egui::TextEdit::singleline(&mut self.search)
                 .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Search by name, address or maker")))
                 .desired_width(320.0),
@@ -469,7 +470,8 @@ impl Devices {
                 ui.add_space(8.0);
                 ui.label(RichText::new(tr("Your name for it")).color(p.weak).size(13.0));
                 ui.horizontal(|ui| {
-                    let r = ui.add(
+                    let r = crate::theme::field(
+                        ui,
                         egui::TextEdit::singleline(&mut self.label)
                             .hint_text(tr("e.g. Anna's laptop"))
                             .desired_width(180.0),

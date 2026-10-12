@@ -295,7 +295,8 @@ impl Capture {
         let shown = self.shown.2.clone();
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(icon::FUNNEL).color(p.weak));
-            ui.add(
+            crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.filter)
                     .hint_text(tr("Filter: dns, 443, 192.168.1.20, arp …"))
                     .desired_width(300.0),

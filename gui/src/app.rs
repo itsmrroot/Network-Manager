@@ -746,6 +746,7 @@ impl eframe::App for App {
         self.refresh(&ctx);
         // What others did meanwhile: noted, and notified as chosen.
         self.servers.watch(&self.shared);
+        crate::notify::set_sound(self.shared.settings.notify_sound);
         let events = self.shared.activity.take_pending();
         self.notifier.handle(events, &self.shared.settings);
         if self.updater.poll(&ctx) {

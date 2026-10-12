@@ -206,7 +206,10 @@ impl Profiles {
             ui.add_space(10.0);
             egui::Grid::new("profile-fields").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
                 ui.label(tr("Name"));
-                ui.add(egui::TextEdit::singleline(&mut ed.name).hint_text(tr("e.g. Office")).desired_width(260.0));
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut ed.name).hint_text(tr("e.g. Office")).desired_width(260.0),
+                );
                 ui.end_row();
                 ui.label(tr("Adapter"));
                 egui::ComboBox::from_id_salt("profile-adapter")
@@ -219,7 +222,10 @@ impl Profiles {
                     });
                 ui.end_row();
                 ui.label(tr("Note"));
-                ui.add(egui::TextEdit::singleline(&mut ed.note).hint_text(tr("optional")).desired_width(260.0));
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut ed.note).hint_text(tr("optional")).desired_width(260.0),
+                );
                 ui.end_row();
             });
             ui.add_space(10.0);
@@ -351,14 +357,16 @@ fn extras_ui(ui: &mut Ui, p: &Palette, x: &mut netmgr::extras::Extras, printers:
                 match x.proxy {
                     ProxyMode::Manual => {
                         ui.label("");
-                        ui.add(
+                        crate::theme::field(
+                            ui,
                             egui::TextEdit::singleline(&mut x.proxy_server)
                                 .hint_text(tr("proxy.example.com:8080"))
                                 .desired_width(260.0),
                         );
                         ui.end_row();
                         ui.label(tr("Go direct to"));
-                        ui.add(
+                        crate::theme::field(
+                            ui,
                             egui::TextEdit::singleline(&mut x.proxy_bypass)
                                 .hint_text(tr("e.g. *.local, 10.*, intranet.example.com"))
                                 .desired_width(260.0),
@@ -367,7 +375,8 @@ fn extras_ui(ui: &mut Ui, p: &Palette, x: &mut netmgr::extras::Extras, printers:
                     }
                     ProxyMode::Script => {
                         ui.label("");
-                        ui.add(
+                        crate::theme::field(
+                            ui,
                             egui::TextEdit::singleline(&mut x.proxy_script)
                                 .hint_text("http://wpad.example.com/proxy.pac")
                                 .desired_width(260.0),
@@ -392,9 +401,13 @@ fn extras_ui(ui: &mut Ui, p: &Palette, x: &mut netmgr::extras::Extras, printers:
             for (i, d) in x.drives.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     if cfg!(windows) {
-                        ui.add(egui::TextEdit::singleline(&mut d.letter).hint_text("Z:").desired_width(40.0));
+                        crate::theme::field(
+                            ui,
+                            egui::TextEdit::singleline(&mut d.letter).hint_text("Z:").desired_width(40.0),
+                        );
                     }
-                    ui.add(
+                    crate::theme::field(
+                        ui,
                         egui::TextEdit::singleline(&mut d.path)
                             .hint_text(if cfg!(windows) { "\\\\server\\share" } else { "smb://server/share" })
                             .desired_width(300.0),

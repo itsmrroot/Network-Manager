@@ -107,7 +107,8 @@ impl Inspect {
     pub fn web_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         let mut go = false;
         ui.horizontal(|ui| {
-            let r = ui.add(
+            let r = crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.web_target)
                     .hint_text("example.com, https://example.com/path or host:8443")
                     .desired_width(340.0),
@@ -288,7 +289,8 @@ impl Inspect {
     pub fn whois_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         let mut go = false;
         ui.horizontal(|ui| {
-            let r = ui.add(
+            let r = crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.whois_query)
                     .hint_text("example.com, 8.8.8.8 or AS13335")
                     .desired_width(300.0),
@@ -368,7 +370,8 @@ impl Inspect {
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.listening_only, true, tr("Listening ports"));
             ui.selectable_value(&mut self.listening_only, false, tr("All connections"));
-            ui.add(
+            crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.conn_filter)
                     .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Filter by program, port or address")))
                     .desired_width(260.0),
@@ -475,13 +478,15 @@ impl Inspect {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
                 ui.label(RichText::new(tr("Add a route")).color(p.text));
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.route_net)
                         .hint_text(tr("network, e.g. 10.20.0.0/16"))
                         .desired_width(180.0),
                 );
                 ui.label(RichText::new(tr("via")).color(p.weak));
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.route_gw)
                         .hint_text(tr("gateway, e.g. 192.168.1.254"))
                         .desired_width(170.0),
@@ -608,8 +613,12 @@ impl Inspect {
             );
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                ui.add(egui::TextEdit::singleline(&mut self.host_ip).hint_text(tr("IP address")).desired_width(150.0));
-                ui.add(
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.host_ip).hint_text(tr("IP address")).desired_width(150.0),
+                );
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.host_name)
                         .hint_text(tr("name(s), e.g. nas nas.lab"))
                         .desired_width(240.0),

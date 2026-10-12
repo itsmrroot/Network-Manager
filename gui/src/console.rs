@@ -195,10 +195,11 @@ impl Console {
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal_wrapped(|ui| {
-                let r = ui.add(
+                let r = crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.host)
                         .hint_text(tr("user@192.168.1.1 or a name"))
-                        .desired_width(240.0),
+                        .desired_width(340.0),
                 );
                 let enter = r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
                 ui.selectable_value(&mut self.telnet, false, "SSH");
@@ -263,7 +264,10 @@ impl Console {
                     }
                 });
             });
-            ui.add(egui::TextEdit::singleline(&mut self.search).hint_text(tr("Search")).desired_width(f32::INFINITY));
+            crate::theme::field(
+                ui,
+                egui::TextEdit::singleline(&mut self.search).hint_text(tr("Search")).desired_width(f32::INFINITY),
+            );
             ui.add_space(6.0);
             if sh.settings.sessions.is_empty() {
                 theme::paragraph(
@@ -444,13 +448,17 @@ impl Console {
             .show(ctx, |ui| {
                 egui::Grid::new("session-edit").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
                     ui.label(tr("Name"));
-                    ui.add(
+                    crate::theme::field(
+                        ui,
                         egui::TextEdit::singleline(&mut s.name).hint_text(tr("e.g. Core switch")).desired_width(240.0),
                     );
                     ui.end_row();
                     ui.label(tr("Group"));
                     ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut s.group).hint_text(tr("optional")).desired_width(160.0));
+                        crate::theme::field(
+                            ui,
+                            egui::TextEdit::singleline(&mut s.group).hint_text(tr("optional")).desired_width(160.0),
+                        );
                         let mut groups: Vec<String> =
                             sh.settings.sessions.iter().map(|x| x.group.clone()).filter(|g| !g.is_empty()).collect();
                         groups.sort();
@@ -473,7 +481,10 @@ impl Console {
                     });
                     ui.end_row();
                     ui.label(tr("Address"));
-                    ui.add(egui::TextEdit::singleline(&mut s.host).hint_text("192.168.1.1").desired_width(240.0));
+                    crate::theme::field(
+                        ui,
+                        egui::TextEdit::singleline(&mut s.host).hint_text("192.168.1.1").desired_width(240.0),
+                    );
                     ui.end_row();
                     ui.label(tr("Port"));
                     ui.horizontal(|ui| {
@@ -485,11 +496,15 @@ impl Console {
                     ui.end_row();
                     if s.protocol == Protocol::Ssh {
                         ui.label(tr("User"));
-                        ui.add(egui::TextEdit::singleline(&mut s.user).hint_text("admin").desired_width(240.0));
+                        crate::theme::field(
+                            ui,
+                            egui::TextEdit::singleline(&mut s.user).hint_text("admin").desired_width(240.0),
+                        );
                         ui.end_row();
                         ui.label(tr("Backup"));
                         ui.horizontal(|ui| {
-                            ui.add(
+                            crate::theme::field(
+                                ui,
                                 egui::TextEdit::singleline(&mut s.backup_command)
                                     .hint_text(tr("command that prints the configuration"))
                                     .desired_width(200.0),

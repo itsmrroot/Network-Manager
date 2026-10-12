@@ -42,7 +42,8 @@ impl TimeTool {
             );
             ui.add_space(8.0);
             ui.horizontal_wrapped(|ui| {
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.extra)
                         .hint_text(tr("Also ask, e.g. your domain controller or router"))
                         .desired_width(300.0),

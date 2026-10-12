@@ -110,7 +110,10 @@ impl HttpTab {
                 egui::Grid::new("http-settings").num_columns(2).spacing([14.0, 8.0]).show(ui, |ui| {
                     ui.label(tr("Folder"));
                     ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut sh.settings.tftp_folder).desired_width(360.0));
+                        crate::theme::field(
+                            ui,
+                            egui::TextEdit::singleline(&mut sh.settings.tftp_folder).desired_width(360.0),
+                        );
                         if ui.button(icon_label(icon::FOLDER_OPEN, "Choose…")).clicked()
                             && let Some(d) = rfd::FileDialog::new().pick_folder()
                         {
@@ -344,7 +347,10 @@ impl TrapTab {
                     }))
                 });
                 ui.add_space(12.0);
-                ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text(tr("Filter")).desired_width(180.0));
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.filter).hint_text(tr("Filter")).desired_width(180.0),
+                );
                 if ui.button(icon_label(icon::TRASH, "Clear")).clicked()
                     && let Ok(mut t) = self.traps.lock()
                 {
@@ -760,19 +766,19 @@ impl DhcpTab {
                     ui.end_row();
                     ui.label(tr("Addresses"));
                     ui.horizontal(|ui| {
-                        ui.add(egui::TextEdit::singleline(&mut self.first).desired_width(130.0));
+                        crate::theme::field(ui, egui::TextEdit::singleline(&mut self.first).desired_width(130.0));
                         ui.label("–");
-                        ui.add(egui::TextEdit::singleline(&mut self.last).desired_width(130.0));
+                        crate::theme::field(ui, egui::TextEdit::singleline(&mut self.last).desired_width(130.0));
                     });
                     ui.end_row();
                     ui.label(tr("Router (gateway)"));
-                    ui.add(egui::TextEdit::singleline(&mut self.router).hint_text(tr("optional")).desired_width(180.0));
+                    crate::theme::field(ui, egui::TextEdit::singleline(&mut self.router).hint_text(tr("optional")).desired_width(180.0));
                     ui.end_row();
                     ui.label(tr("DNS servers"));
-                    ui.add(egui::TextEdit::singleline(&mut self.dns).hint_text(tr("optional, e.g. 1.1.1.1, 9.9.9.9")).desired_width(280.0));
+                    crate::theme::field(ui, egui::TextEdit::singleline(&mut self.dns).hint_text(tr("optional, e.g. 1.1.1.1, 9.9.9.9")).desired_width(280.0));
                     ui.end_row();
                     ui.label(tr("Domain"));
-                    ui.add(egui::TextEdit::singleline(&mut self.domain).hint_text(tr("optional, e.g. lab.local")).desired_width(180.0));
+                    crate::theme::field(ui, egui::TextEdit::singleline(&mut self.domain).hint_text(tr("optional, e.g. lab.local")).desired_width(180.0));
                     ui.end_row();
                     ui.label(tr("Lease"));
                     ui.add(egui::DragValue::new(&mut self.lease_hours).range(1..=168).suffix(" h"));
@@ -791,7 +797,7 @@ impl DhcpTab {
                         egui::Grid::new("dhcp-ztp").num_columns(2).spacing([14.0, 8.0]).show(ui, |ui| {
                             ui.label(tr("TFTP server (66)"));
                             ui.horizontal(|ui| {
-                                ui.add(egui::TextEdit::singleline(&mut self.tftp).hint_text(tr("optional")).desired_width(180.0));
+                                crate::theme::field(ui, egui::TextEdit::singleline(&mut self.tftp).hint_text(tr("optional")).desired_width(180.0));
                                 if ui.small_button(tr("This computer")).clicked()
                                     && let Some((ip, _)) = sh.adapters.iter().find(|a| a.id == self.adapter).and_then(|a| a.main_ipv4())
                                 {
@@ -800,13 +806,13 @@ impl DhcpTab {
                             });
                             ui.end_row();
                             ui.label(tr("Boot file (67)"));
-                            ui.add(egui::TextEdit::singleline(&mut self.bootfile).hint_text("network-confg").desired_width(220.0));
+                            crate::theme::field(ui, egui::TextEdit::singleline(&mut self.bootfile).hint_text("network-confg").desired_width(220.0));
                             ui.end_row();
                             ui.label(tr("TFTP servers (150)"));
-                            ui.add(egui::TextEdit::singleline(&mut self.opt150).hint_text(tr("optional, Cisco")).desired_width(220.0));
+                            crate::theme::field(ui, egui::TextEdit::singleline(&mut self.opt150).hint_text(tr("optional, Cisco")).desired_width(220.0));
                             ui.end_row();
                             ui.label(tr("Vendor options (43)"));
-                            ui.add(egui::TextEdit::singleline(&mut self.opt43).hint_text(tr("hex, e.g. f1040a090001")).desired_width(220.0));
+                            crate::theme::field(ui, egui::TextEdit::singleline(&mut self.opt43).hint_text(tr("hex, e.g. f1040a090001")).desired_width(220.0));
                             ui.end_row();
                         });
                     });
@@ -815,9 +821,9 @@ impl DhcpTab {
                         let mut remove = None;
                         egui::Grid::new("dhcp-res").num_columns(4).spacing([10.0, 6.0]).show(ui, |ui| {
                             for (i, r) in self.reservations.iter_mut().enumerate() {
-                                ui.add(egui::TextEdit::singleline(&mut r.mac).hint_text(tr("MAC address")).desired_width(150.0));
-                                ui.add(egui::TextEdit::singleline(&mut r.ip).hint_text(tr("IP address")).desired_width(130.0));
-                                ui.add(egui::TextEdit::singleline(&mut r.name).hint_text(tr("Name")).desired_width(130.0));
+                                crate::theme::field(ui, egui::TextEdit::singleline(&mut r.mac).hint_text(tr("MAC address")).desired_width(150.0));
+                                crate::theme::field(ui, egui::TextEdit::singleline(&mut r.ip).hint_text(tr("IP address")).desired_width(130.0));
+                                crate::theme::field(ui, egui::TextEdit::singleline(&mut r.name).hint_text(tr("Name")).desired_width(130.0));
                                 if ui.small_button(icon::TRASH).on_hover_text(tr("Delete")).clicked() {
                                     remove = Some(i);
                                 }

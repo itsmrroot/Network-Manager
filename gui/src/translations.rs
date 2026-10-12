@@ -2024,6 +2024,14 @@ pub const GERMAN: &[(&str, &str)] = &[
         "{service} uses UDP: a TCP port check does not see it. To check it from another computer:",
         "{service} nutzt UDP: Eine TCP-Portprüfung sieht es nicht. So prüfen Sie es von einem anderen Computer:",
     ),
+    (
+        "Checks UDP services (TFTP, DNS, NTP, SNMP, syslog): an answer means open, \"port unreachable\" means closed, and no answer means open but quiet, or a firewall in between. Only check devices you own or may test.",
+        "Prüft UDP-Dienste (TFTP, DNS, NTP, SNMP, Syslog): Eine Antwort heißt offen, „Port nicht erreichbar“ heißt geschlossen, und keine Antwort heißt offen, aber still – oder eine Firewall dazwischen. Prüfen Sie nur Geräte, die Ihnen gehören oder die Sie testen dürfen.",
+    ),
+    ("Network services (UDP)", "Netzwerkdienste (UDP)"),
+    ("Notification sound", "Ton bei Mitteilungen"),
+    ("Notifications play the system's sound.", "Mitteilungen spielen den Ton des Systems."),
+    ("Open but quiet, or a firewall in between", "Offen, aber still – oder eine Firewall dazwischen"),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4031,6 +4039,14 @@ pub const SPANISH: &[(&str, &str)] = &[
         "{service} uses UDP: a TCP port check does not see it. To check it from another computer:",
         "{service} usa UDP: una comprobación de puertos TCP no lo ve. Para comprobarlo desde otro equipo:",
     ),
+    (
+        "Checks UDP services (TFTP, DNS, NTP, SNMP, syslog): an answer means open, \"port unreachable\" means closed, and no answer means open but quiet, or a firewall in between. Only check devices you own or may test.",
+        "Comprueba servicios UDP (TFTP, DNS, NTP, SNMP, syslog): una respuesta significa abierto, «puerto inalcanzable» significa cerrado y sin respuesta significa abierto pero en silencio, o un cortafuegos en medio. Comprueba solo dispositivos tuyos o que puedas probar.",
+    ),
+    ("Network services (UDP)", "Servicios de red (UDP)"),
+    ("Notification sound", "Sonido de las notificaciones"),
+    ("Notifications play the system's sound.", "Las notificaciones reproducen el sonido del sistema."),
+    ("Open but quiet, or a firewall in between", "Abierto pero en silencio, o un cortafuegos en medio"),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -6059,6 +6075,14 @@ pub const FRENCH: &[(&str, &str)] = &[
         "{service} uses UDP: a TCP port check does not see it. To check it from another computer:",
         "{service} utilise UDP : une vérification de ports TCP ne le voit pas. Pour le vérifier depuis un autre ordinateur :",
     ),
+    (
+        "Checks UDP services (TFTP, DNS, NTP, SNMP, syslog): an answer means open, \"port unreachable\" means closed, and no answer means open but quiet, or a firewall in between. Only check devices you own or may test.",
+        "Vérifie les services UDP (TFTP, DNS, NTP, SNMP, syslog) : une réponse signifie ouvert, « port injoignable » signifie fermé, et sans réponse signifie ouvert mais silencieux, ou un pare-feu entre les deux. Ne vérifiez que des appareils à vous ou que vous pouvez tester.",
+    ),
+    ("Network services (UDP)", "Services réseau (UDP)"),
+    ("Notification sound", "Son des notifications"),
+    ("Notifications play the system's sound.", "Les notifications jouent le son du système."),
+    ("Open but quiet, or a firewall in between", "Ouvert mais silencieux, ou un pare-feu entre les deux"),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -8051,6 +8075,14 @@ pub const TURKISH: &[(&str, &str)] = &[
         "{service} uses UDP: a TCP port check does not see it. To check it from another computer:",
         "{service} UDP kullanır: TCP port taraması onu görmez. Başka bir bilgisayardan denetlemek için:",
     ),
+    (
+        "Checks UDP services (TFTP, DNS, NTP, SNMP, syslog): an answer means open, \"port unreachable\" means closed, and no answer means open but quiet, or a firewall in between. Only check devices you own or may test.",
+        "UDP hizmetlerini denetler (TFTP, DNS, NTP, SNMP, syslog): yanıt açık, \"port ulaşılamaz\" kapalı, yanıt yoksa açık ama sessiz ya da arada bir güvenlik duvarı demektir. Yalnızca size ait veya test etmenize izin verilen cihazları denetleyin.",
+    ),
+    ("Network services (UDP)", "Ağ hizmetleri (UDP)"),
+    ("Notification sound", "Bildirim sesi"),
+    ("Notifications play the system's sound.", "Bildirimler sistemin sesini çalar."),
+    ("Open but quiet, or a firewall in between", "Açık ama sessiz ya da arada bir güvenlik duvarı"),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -10052,6 +10084,14 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "{service} uses UDP: a TCP port check does not see it. To check it from another computer:",
         "{service} использует UDP: проверка TCP-портов его не видит. Проверить с другого компьютера:",
     ),
+    (
+        "Checks UDP services (TFTP, DNS, NTP, SNMP, syslog): an answer means open, \"port unreachable\" means closed, and no answer means open but quiet, or a firewall in between. Only check devices you own or may test.",
+        "Проверяет UDP-службы (TFTP, DNS, NTP, SNMP, syslog): ответ — порт открыт, «порт недоступен» — закрыт, нет ответа — открыт, но молчит, или мешает брандмауэр. Проверяйте только свои устройства или те, что вам разрешено проверять.",
+    ),
+    ("Network services (UDP)", "Сетевые службы (UDP)"),
+    ("Notification sound", "Звук уведомлений"),
+    ("Notifications play the system's sound.", "Уведомления воспроизводят системный звук."),
+    ("Open but quiet, or a firewall in between", "Открыт, но молчит, или мешает брандмауэр"),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -11999,6 +12039,14 @@ pub const ARABIC: &[(&str, &str)] = &[
         "{service} uses UDP: a TCP port check does not see it. To check it from another computer:",
         "{service} يستخدم UDP: فحص منافذ TCP لا يراه. للتحقق منه من كمبيوتر آخر:",
     ),
+    (
+        "Checks UDP services (TFTP, DNS, NTP, SNMP, syslog): an answer means open, \"port unreachable\" means closed, and no answer means open but quiet, or a firewall in between. Only check devices you own or may test.",
+        "يفحص خدمات UDP (TFTP وDNS وNTP وSNMP وsyslog): الرد يعني مفتوح، و«المنفذ غير قابل للوصول» يعني مغلق، وعدم الرد يعني مفتوح لكنه صامت أو جدار حماية بينهما. افحص فقط الأجهزة التي تملكها أو يُسمح لك باختبارها.",
+    ),
+    ("Network services (UDP)", "خدمات الشبكة (UDP)"),
+    ("Notification sound", "صوت الإشعارات"),
+    ("Notifications play the system's sound.", "تشغّل الإشعارات صوت النظام."),
+    ("Open but quiet, or a firewall in between", "مفتوح لكنه صامت، أو جدار حماية بينهما"),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -13919,4 +13967,12 @@ pub const CHINESE: &[(&str, &str)] = &[
         "{service} uses UDP: a TCP port check does not see it. To check it from another computer:",
         "{service} 使用 UDP：TCP 端口检查看不到它。从另一台电脑检查：",
     ),
+    (
+        "Checks UDP services (TFTP, DNS, NTP, SNMP, syslog): an answer means open, \"port unreachable\" means closed, and no answer means open but quiet, or a firewall in between. Only check devices you own or may test.",
+        "检查 UDP 服务（TFTP、DNS、NTP、SNMP、syslog）：有回应表示开放，“端口不可达”表示关闭，没有回应表示开放但不回应，或中间有防火墙。只检查你拥有或被允许测试的设备。",
+    ),
+    ("Network services (UDP)", "网络服务（UDP）"),
+    ("Notification sound", "通知声音"),
+    ("Notifications play the system's sound.", "通知播放系统声音。"),
+    ("Open but quiet, or a firewall in between", "开放但不回应，或中间有防火墙"),
 ];

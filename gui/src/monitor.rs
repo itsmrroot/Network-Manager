@@ -350,7 +350,8 @@ impl Monitor {
         let mut add = None;
         let mut add_all: Vec<String> = Vec::new();
         ui.horizontal_wrapped(|ui| {
-            let r = ui.add(
+            let r = crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.input)
                     .hint_text(tr("Address or name to watch"))
                     .desired_width(260.0),
@@ -675,7 +676,8 @@ impl Monitor {
     fn path_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         let mut start = false;
         ui.horizontal(|ui| {
-            let r = ui.add(
+            let r = crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.path_input)
                     .hint_text(tr("Address or name, e.g. google.com"))
                     .desired_width(280.0),

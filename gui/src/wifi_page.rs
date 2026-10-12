@@ -335,7 +335,8 @@ impl WifiPage {
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.search)
                         .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Search networks")))
                         .desired_width(240.0),

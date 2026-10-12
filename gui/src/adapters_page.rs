@@ -396,8 +396,7 @@ impl AdaptersPage {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut ed.save_profile, tr("Also save as a profile"));
                 if ed.save_profile {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut ed.profile_name)
+                    crate::theme::field(ui, egui::TextEdit::singleline(&mut ed.profile_name)
                             .hint_text(tr("Name, e.g. Office"))
                             .desired_width(180.0),
                     );
@@ -494,7 +493,7 @@ impl AdaptersPage {
             ui.add_space(10.0);
             ui.label(RichText::new(tr("New address")).color(p.weak).size(13.0));
             ui.horizontal(|ui| {
-                let field = ui.add(egui::TextEdit::singleline(&mut ed.value).font(egui::TextStyle::Monospace).desired_width(200.0));
+                let field = crate::theme::field(ui, egui::TextEdit::singleline(&mut ed.value).font(egui::TextStyle::Monospace).desired_width(200.0));
                 if field.changed() {
                     ed.error = None;
                 }
@@ -516,7 +515,7 @@ impl AdaptersPage {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(tr("Look like a device from")).color(p.weak).size(13.0));
-                ui.add(egui::TextEdit::singleline(&mut ed.vendor).hint_text(tr("maker, e.g. Intel")).desired_width(160.0));
+                crate::theme::field(ui, egui::TextEdit::singleline(&mut ed.vendor).hint_text(tr("maker, e.g. Intel")).desired_width(160.0));
             });
             let matches = mac::vendor_prefixes(&ed.vendor, 6);
             if !matches.is_empty() {
@@ -669,10 +668,14 @@ impl IpForm {
             ui.add_space(6.0);
             egui::Grid::new("ip-fields").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
                 ui.label(tr("Address"));
-                ui.add(egui::TextEdit::singleline(&mut self.address).hint_text("192.168.1.50").desired_width(220.0));
+                crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.address).hint_text("192.168.1.50").desired_width(220.0),
+                );
                 ui.end_row();
                 ui.label(tr("Subnet"));
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.subnet)
                         .hint_text(tr("255.255.255.0 or 24"))
                         .desired_width(220.0),
@@ -680,7 +683,8 @@ impl IpForm {
                 ui.end_row();
                 ui.label(tr("Gateway"));
                 ui.horizontal(|ui| {
-                    ui.add(
+                    crate::theme::field(
+                        ui,
                         egui::TextEdit::singleline(&mut self.gateway)
                             .hint_text(tr("192.168.1.1 (optional)"))
                             .desired_width(220.0),
@@ -722,12 +726,14 @@ impl IpForm {
         }
         if !self.dns_auto {
             ui.horizontal(|ui| {
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.dns1)
                         .hint_text(tr("Preferred, e.g. 1.1.1.1"))
                         .desired_width(200.0),
                 );
-                ui.add(
+                crate::theme::field(
+                    ui,
                     egui::TextEdit::singleline(&mut self.dns2)
                         .hint_text(tr("Alternate (optional)"))
                         .desired_width(200.0),

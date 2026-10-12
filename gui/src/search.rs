@@ -324,7 +324,8 @@ impl Search {
         let mut chosen = None;
         let modal = egui::Modal::new(egui::Id::new("search")).show(ctx, |ui| {
             ui.set_width(520.0);
-            let r = ui.add(
+            let r = crate::theme::field(
+                ui,
                 egui::TextEdit::singleline(&mut self.query)
                     .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Search pages, tools and actions")))
                     .desired_width(f32::INFINITY)

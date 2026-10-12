@@ -83,6 +83,9 @@ pub struct Settings {
     pub notify_files: bool,
     #[serde(default = "yes")]
     pub notify_services: bool,
+    /// Notifications play the system's sound.
+    #[serde(default = "yes")]
+    pub notify_sound: bool,
     /// The DHCP server's last settings, and the adapter it served.
     pub dhcp_server: Option<netmgr::dhcpd::Config>,
     pub dhcp_adapter: String,
@@ -128,6 +131,7 @@ impl Default for Settings {
             notify_ssh: true,
             notify_files: true,
             notify_services: true,
+            notify_sound: true,
             dhcp_server: None,
             dhcp_adapter: String::new(),
             simple_mode: false,
@@ -318,6 +322,9 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
                 trl("A notification the first time a device uses syslog, SNMP traps, the time server, DHCP or the throughput test."),
                 |ui| toggle(ui, &mut s.notify_services),
             );
+            row(ui, p, tr("Notification sound"), trl("Notifications play the system's sound."), |ui| {
+                toggle(ui, &mut s.notify_sound)
+            });
             ui.add_space(8.0);
             ui.label(theme::semibold(tr("My hosts"), 15.0).color(p.text));
             ui.label(
@@ -329,8 +336,8 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
             let mut remove = None;
             egui::Grid::new("my-hosts").num_columns(3).spacing([10.0, 6.0]).show(ui, |ui| {
                 for (i, h) in s.saved_hosts.iter_mut().enumerate() {
-                    ui.add(egui::TextEdit::singleline(&mut h.name).hint_text(tr("Name")).desired_width(200.0));
-                    ui.add(egui::TextEdit::singleline(&mut h.address).hint_text(tr("Address")).desired_width(200.0));
+                    crate::theme::field(ui, egui::TextEdit::singleline(&mut h.name).hint_text(tr("Name")).desired_width(200.0));
+                    crate::theme::field(ui, egui::TextEdit::singleline(&mut h.address).hint_text(tr("Address")).desired_width(200.0));
                     if ui.small_button(icon::TRASH).on_hover_text(tr("Delete")).clicked() {
                         remove = Some(i);
                     }
