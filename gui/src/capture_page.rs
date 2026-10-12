@@ -36,6 +36,9 @@ pub struct Capture {
     packets: Vec<(Frame, Summary)>,
     first_time: f64,
     filter: String,
+    /// The packets the filter shows: (filter, packets looked at, indices),
+    /// brought up to date as packets arrive instead of every frame.
+    shown: (String, usize, std::rc::Rc<Vec<usize>>),
     selected: Option<usize>,
     /// The last capture file, kept until the next one starts.
     last_file: Option<PathBuf>,
@@ -52,6 +55,7 @@ impl Default for Capture {
             packets: Vec::new(),
             first_time: 0.0,
             filter: String::new(),
+            shown: Default::default(),
             selected: None,
             last_file: None,
         }
@@ -83,6 +87,7 @@ impl Capture {
         let out = dir.join("capture.pcap");
         let stop = dir.join("stop");
         self.packets.clear();
+        self.shown = Default::default();
         self.selected = None;
         let seconds = self.seconds;
         let (o, s) = (out.clone(), stop.clone());
@@ -249,6 +254,7 @@ impl Capture {
             Ok((link, frames)) => {
                 self.link = link;
                 self.first_time = frames.first().map_or(0.0, |f| f.time);
+                self.shown = Default::default();
                 self.packets = frames
                     .into_iter()
                     .take(MAX_PACKETS)
@@ -276,9 +282,17 @@ impl Capture {
     }
 
     fn packets_ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
-        let shown: Vec<usize> = (0..self.packets.len())
-            .filter(|&i| self.filter.trim().is_empty() || self.packets[i].1.matches(&self.filter))
-            .collect();
+        let filter = self.filter.trim().to_string();
+        if self.shown.0 != filter || self.shown.1 > self.packets.len() {
+            self.shown = (filter.clone(), 0, Default::default());
+        }
+        if self.shown.1 < self.packets.len() {
+            let more =
+                (self.shown.1..self.packets.len()).filter(|&i| filter.is_empty() || self.packets[i].1.matches(&filter));
+            std::rc::Rc::make_mut(&mut self.shown.2).extend(more);
+            self.shown.1 = self.packets.len();
+        }
+        let shown = self.shown.2.clone();
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(icon::FUNNEL).color(p.weak));
             ui.add(
@@ -307,6 +321,7 @@ impl Capture {
                 }
                 if ui.button(icon_label(icon::BROOM, "Clear")).clicked() {
                     self.packets.clear();
+                    self.shown = Default::default();
                     self.selected = None;
                 }
             }

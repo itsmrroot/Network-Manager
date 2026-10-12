@@ -365,7 +365,12 @@ fn leading_row<R>(ui: &mut Ui, wrap: bool, add: impl FnOnce(&mut Ui) -> R) -> R 
 }
 
 pub fn section_title(ui: &mut Ui, p: &Palette, icon: &str, title: &str) {
-    leading_row(ui, false, |ui| {
+    // In a row with buttons, only as wide as it is (not under the buttons).
+    let in_row = ui.layout().is_horizontal();
+    let row = |ui: &mut Ui, add: &dyn Fn(&mut Ui)| {
+        if in_row { ui.horizontal(|ui| add(ui)).inner } else { leading_row(ui, false, |ui| add(ui)) }
+    };
+    row(ui, &|ui: &mut Ui| {
         ui.label(RichText::new(icon).size(18.0).color(p.accent));
         ui.label(semibold(title, 16.5).color(p.text));
     });
@@ -516,6 +521,41 @@ pub fn paragraph(ui: &mut Ui, text: &str, size: f32, color: Color32) {
         return;
     }
     let width = ui.available_width();
+    // Breaking the text into lines measures every word: done once per text
+    // and width, not every frame.
+    type Key = (String, u32, u32);
+    thread_local! {
+        static LINES: std::cell::RefCell<std::collections::HashMap<Key, Vec<String>>> = Default::default();
+    }
+    let key = (text.to_string(), width.round() as u32, (size * 10.0) as u32);
+    let cached = LINES.with(|c| c.borrow().get(&key).cloned());
+    let lines = match cached {
+        Some(lines) => lines,
+        None => {
+            let lines = wrap_rtl(ui, text, width, size, color);
+            LINES.with(|c| {
+                let mut c = c.borrow_mut();
+                if c.len() > 512 {
+                    c.clear();
+                }
+                c.insert(key, lines.clone());
+            });
+            lines
+        }
+    };
+    let centered = ui.layout().is_vertical() && ui.layout().horizontal_align() == egui::Align::Center;
+    // Lines of right-to-left text end at the right edge.
+    let align = if centered { egui::Align::Center } else { egui::Align::Max };
+    ui.with_layout(egui::Layout::top_down(align), |ui| {
+        ui.spacing_mut().item_spacing.y = 2.0;
+        for line in lines {
+            ui.label(RichText::new(i18n::visual(&line)).size(size).color(color));
+        }
+    });
+}
+
+/// Right-to-left `text` broken into lines of at most `width`.
+fn wrap_rtl(ui: &Ui, text: &str, width: f32, size: f32, color: Color32) -> Vec<String> {
     let font = FontId::proportional(size);
     let measure = |ui: &Ui, s: &str| {
         let shown = i18n::visual(s).into_owned();
@@ -534,15 +574,7 @@ pub fn paragraph(ui: &mut Ui, text: &str, size: f32, color: Color32) {
         }
         lines.push(line);
     }
-    let centered = ui.layout().is_vertical() && ui.layout().horizontal_align() == egui::Align::Center;
-    // Lines of right-to-left text end at the right edge.
-    let align = if centered { egui::Align::Center } else { egui::Align::Max };
-    ui.with_layout(egui::Layout::top_down(align), |ui| {
-        ui.spacing_mut().item_spacing.y = 2.0;
-        for line in lines {
-            ui.label(RichText::new(i18n::visual(&line)).size(size).color(color));
-        }
-    });
+    lines
 }
 
 pub use crate::i18n::icon_label;

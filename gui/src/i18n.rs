@@ -348,25 +348,49 @@ pub fn trl(en: &'static str) -> &'static str {
 
 /// Like [`trl`], with `{name}` placeholders filled in.
 pub fn trlf(en: &'static str, args: &[(&str, &dyn Display)]) -> String {
-    let mut s = lookup(en).to_string();
+    fill(lookup(en), args)
+}
+
+/// `template` with each `{name}` replaced by its value. In right-to-left
+/// text each value, with a unit right after it ("-48 dBm", "6 ms", "0 %"),
+/// is isolated (FSI … PDI) so that reordering keeps it whole; [`visual`]
+/// drops the marks.
+fn fill(template: &str, args: &[(&str, &dyn Display)]) -> String {
+    let rtl = needs_reordering(template);
+    let mut s = template.to_string();
     for (name, value) in args {
-        s = s.replace(&format!("{{{name}}}"), &value.to_string());
+        let v = if rtl { format!("\u{2068}{value}\u{2069}") } else { value.to_string() };
+        s = s.replace(&format!("{{{name}}}"), &v);
     }
-    s
+    if !rtl {
+        return s;
+    }
+    // Move each end mark past a unit that follows (" dBm", " %").
+    let chars: Vec<char> = s.chars().collect();
+    let mut out = String::with_capacity(s.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\u{2069}' && chars.get(i + 1) == Some(&' ') {
+            let unit: String =
+                chars[i + 2..].iter().take_while(|c| c.is_ascii_alphabetic() || **c == '%' || **c == '/').collect();
+            let after = chars.get(i + 2 + unit.chars().count());
+            if !unit.is_empty() && unit.len() <= 8 && after.is_none_or(|c| !c.is_ascii_alphanumeric()) {
+                out.push(' ');
+                out.push_str(&unit);
+                out.push('\u{2069}');
+                i += 2 + unit.chars().count();
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
 }
 
 /// A label with `{name}` placeholders, translated and ready to display.
 pub fn trf(en: &'static str, args: &[(&str, &dyn Display)]) -> String {
-    let template = lookup(en);
-    if !needs_reordering(template) {
-        return trlf(en, args);
-    }
-    // In right-to-left text each value stays whole ("5 GHz", not "GHz 5"):
-    // isolated (FSI … PDI) for the reordering, which then drops the marks.
-    let mut s = template.to_string();
-    for (name, value) in args {
-        s = s.replace(&format!("{{{name}}}"), &format!("\u{2068}{value}\u{2069}"));
-    }
+    let s = fill(lookup(en), args);
     match visual(&s) {
         Cow::Borrowed(_) => s,
         Cow::Owned(v) => v,
@@ -557,6 +581,16 @@ mod tests {
         // "Channel 36 (5 GHz)": on screen "(5 GHz) 36 القناة", never "(GHz 5)".
         let shown = egui_draws(&visual("القناة \u{2068}36\u{2069} (\u{2068}5 GHz\u{2069})"));
         assert!(shown.contains("5 GHz") && !shown.contains('\u{2068}') && !shown.contains('\u{2069}'), "{shown}");
+    }
+
+    #[test]
+    fn units_stay_with_their_numbers() {
+        let s = fill("الإشارة {rssi} dBm (الضجيج {noise} dBm)", &[("rssi", &-48), ("noise", &-94)]);
+        assert!(s.contains("\u{2068}-48 dBm\u{2069}") && s.contains("\u{2068}-94 dBm\u{2069}"), "{s:?}");
+        let shown = egui_draws(&visual(&s));
+        assert!(shown.contains("-48 dBm") && shown.contains("-94 dBm"), "{shown}");
+        // Left-to-right text is left alone.
+        assert_eq!(fill("{n} ms", &[("n", &5)]), "5 ms");
     }
 
     #[test]

@@ -461,7 +461,7 @@ impl App {
         let r = ui
             .add(
                 egui::Button::new(
-                    RichText::new(format!("● {}", text.trim_end_matches('.'))).color(p.success).size(13.0),
+                    RichText::new(format!("● {}", text.trim_end_matches(['.', '。']))).color(p.success).size(13.0),
                 )
                 .fill(p.success.gamma_multiply(0.15))
                 .corner_radius(8),
@@ -570,10 +570,19 @@ impl App {
             (icon::INFO, tr("About"), Page::About, None),
         ];
         // Scrolls on small windows, above the "Powered by" footer.
-        let height = (ui.available_height() - 86.0).max(120.0);
+        // Room above the footer, as tall as it was last time.
+        let footer_id = egui::Id::new("sidebar-footer");
+        let footer: f32 = ui.data(|d| d.get_temp(footer_id)).unwrap_or(110.0);
+        let height = (ui.available_height() - footer - 8.0).max(120.0);
         // Simple mode hides the pages for network engineers (unless one of
         // them is running something).
         let simple = self.shared.settings.simple_mode;
+        // Rows a little lower when the window is short, so that all fit
+        // (a server notice in the sidebar takes room too).
+        // Per row: its height, 2 points of space and egui's own spacing;
+        // plus the separator before Settings.
+        let gap = 2.0 + ui.spacing().item_spacing.y;
+        let row_h = ((height - 16.0 - 2.0 * gap) / items.len() as f32 - gap).clamp(28.0, 36.0);
         egui::ScrollArea::vertical().id_salt("nav").max_height(height).show(ui, |ui| {
             for (i, (glyph, label, target, badge)) in items.into_iter().enumerate() {
                 let engineer = matches!(target, Page::SwitchPort | Page::Monitor | Page::Servers | Page::Console);
@@ -585,7 +594,7 @@ impl App {
                     ui.separator();
                     ui.add_space(4.0);
                 }
-                if nav_item(ui, p, glyph, label, self.page == target, badge.as_deref()).clicked() {
+                if nav_item(ui, p, glyph, label, self.page == target, badge.as_deref(), row_h).clicked() {
                     self.page = target;
                 }
             }
@@ -612,6 +621,8 @@ impl App {
             }
             ui.add_space(4.0);
             ui.separator();
+            let used = ui.min_rect().height();
+            ui.data_mut(|d| d.insert_temp(footer_id, used));
         });
     }
 
@@ -772,8 +783,16 @@ impl eframe::App for App {
     }
 }
 
-fn nav_item(ui: &mut Ui, p: &Palette, glyph: &str, label: &str, active: bool, badge: Option<&str>) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 36.0), Sense::click());
+fn nav_item(
+    ui: &mut Ui,
+    p: &Palette,
+    glyph: &str,
+    label: &str,
+    active: bool,
+    badge: Option<&str>,
+    height: f32,
+) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::click());
     let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
