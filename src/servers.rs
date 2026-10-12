@@ -209,6 +209,10 @@ fn error_packet(code: u16, msg: &str) -> Vec<u8> {
     p
 }
 
+/// The file the port check asks for: answered "not found" without being
+/// shown as a transfer.
+pub const PORT_CHECK_FILE: &str = "netmgr-port-check";
+
 /// Runs a TFTP server until `stop` is set. `log` gets a line per event.
 pub fn tftp_serve(
     opts: TftpOptions,
@@ -227,6 +231,10 @@ pub fn tftp_serve(
     while !stop.load(Ordering::Relaxed) {
         let Ok((n, peer)) = sock.recv_from(&mut buf) else { continue };
         let Some((op, file, mode, options)) = parse_request(&buf[..n]) else { continue };
+        if file == PORT_CHECK_FILE {
+            let _ = sock.send_to(&error_packet(1, "file not found"), peer);
+            continue;
+        }
         let Some(slot) = slots.take(peer.ip()) else {
             // Told at once, instead of left waiting.
             let _ = sock.send_to(&error_packet(0, "the server is busy: try again in a moment"), peer);
@@ -1137,6 +1145,35 @@ mod tests {
         assert_eq!(m.text, "sshd: Login failed");
         let m = parse_syslog(b"no priority", ip);
         assert_eq!(m.severity, 5);
+    }
+
+    /// The port check gets its answer, and no transfer appears.
+    #[test]
+    fn port_check_is_not_a_transfer() {
+        let dir = std::env::temp_dir().join(format!("netmgr-tftp-check-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let port = UdpSocket::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let stop = Arc::new(AtomicBool::new(false));
+        let opts =
+            TftpOptions { root: dir.clone(), port, listen: Ipv4Addr::LOCALHOST, allow_upload: false, overwrite: false };
+        let transfers: Transfers = Default::default();
+        let (s, t) = (stop.clone(), transfers.clone());
+        let server = std::thread::spawn(move || tftp_serve(opts, t, s, Arc::new(|_| {})));
+        let c = UdpSocket::bind("127.0.0.1:0").unwrap();
+        c.set_read_timeout(Some(Duration::from_millis(500))).unwrap();
+        let probe = [&b"\x00\x01"[..], PORT_CHECK_FILE.as_bytes(), b"\x00octet\x00"].concat();
+        let mut buf = [0u8; 600];
+        let n = (0..10)
+            .find_map(|_| {
+                c.send_to(&probe, ("127.0.0.1", port)).unwrap();
+                c.recv_from(&mut buf).ok().map(|(n, _)| n)
+            })
+            .expect("no answer from the TFTP server");
+        assert_eq!(&buf[..4], &[0, 5, 0, 1], "{:?}", &buf[..n]);
+        assert!(transfers.lock().unwrap().is_empty());
+        stop.store(true, Ordering::Relaxed);
+        server.join().unwrap().unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A real transfer through the server, both ways, with options.

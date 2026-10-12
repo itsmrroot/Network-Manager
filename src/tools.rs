@@ -285,7 +285,7 @@ fn udp_probe(port: u16) -> Vec<u8> {
         // DNS: the root's name servers.
         53 | 5353 => vec![0x13, 0x37, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1],
         // TFTP: a file that is not there; the server answers with an error.
-        69 => b"\x00\x01netmgr-port-check\x00octet\x00".to_vec(),
+        69 => [&b"\x00\x01"[..], crate::servers::PORT_CHECK_FILE.as_bytes(), b"\x00octet\x00"].concat(),
         // NTP: a client's request.
         123 => {
             let mut p = vec![0u8; 48];
