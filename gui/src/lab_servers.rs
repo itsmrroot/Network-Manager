@@ -146,6 +146,17 @@ impl HttpTab {
                             netmgr::httpd::Options { root, port, listen, allow_upload: upload, overwrite },
                             stop,
                             Arc::new(move |e| {
+                                crate::logstore::record(
+                                    "HTTP",
+                                    &format!(
+                                        "{} {} {} {} {}",
+                                        e.from,
+                                        e.method,
+                                        e.path,
+                                        e.status,
+                                        netmgr::adapters::format_bytes(e.bytes)
+                                    ),
+                                );
                                 // A file fetched or sent (not folder pages or errors).
                                 let size = netmgr::adapters::format_bytes(e.bytes);
                                 let (who, file) = (e.from.to_string(), e.path.clone());
@@ -331,6 +342,13 @@ impl TrapTab {
                             port,
                             stop,
                             Arc::new(move |t| {
+                                let name = if t.name.is_empty() { t.oid.to_string() } else { t.name.to_string() };
+                                let values: Vec<String> =
+                                    t.varbinds.iter().map(|(o, v)| format!("{o} = {v}")).collect();
+                                crate::logstore::record(
+                                    "SNMP traps",
+                                    &format!("{} {} {name} {}", t.from, t.kind, values.join("; ")),
+                                );
                                 activity.first_use(
                                     "traps",
                                     t.from,
@@ -524,6 +542,7 @@ impl NtpTab {
                             stratum,
                             stop,
                             Arc::new(move |ip| {
+                                crate::logstore::record("NTP", &format!("{ip} asked for the time"));
                                 activity.first_use(
                                     "ntp",
                                     ip,
@@ -873,6 +892,7 @@ impl DhcpTab {
                                     leases,
                                     stop,
                                     Arc::new(move |l| {
+                                        crate::logstore::record("DHCP", &l);
                                         // An address given out.
                                         if l.contains("→ ACK") {
                                             activity.add(

@@ -137,6 +137,10 @@ pub struct App {
     applied: Option<(theme::Accent, f32, settings::ThemeChoice)>,
     /// The icon shown in the Dock or task bar.
     icon_shown: Option<theme::AppIcon>,
+    /// Closing waits for an answer: save this session's server logs?
+    ask_save_logs: bool,
+    /// The answer was given: closing may go ahead.
+    close_ok: bool,
     language: Option<i18n::Lang>,
     page: Page,
     menu: menu::MenuBar,
@@ -226,6 +230,8 @@ impl App {
             notifier: Default::default(),
             applied: None,
             icon_shown: None,
+            ask_save_logs: false,
+            close_ok: false,
             language: Some(lang),
             page: Page::Overview,
             menu: Default::default(),
@@ -356,6 +362,11 @@ impl App {
         }
         if self.icon_shown != Some(s.app_icon) {
             show_icon(ctx, s.app_icon);
+            // Also when the app is closed (and again after an update put
+            // the app's own icon back). The blue one is the app's own.
+            if self.icon_shown.is_some() || s.app_icon != theme::AppIcon::Blue {
+                crate::appicon::keep(s.app_icon);
+            }
             self.logo = theme::icon_texture(ctx, s.app_icon);
             self.icon_shown = Some(s.app_icon);
         }
@@ -746,8 +757,17 @@ impl eframe::App for App {
         // What others did meanwhile: noted, and notified as chosen.
         self.servers.watch(&self.shared);
         crate::notify::set_sound(self.shared.settings.notify_sound);
+        crate::logstore::configure(self.shared.settings.keep_logs, &self.shared.settings.logs_folder());
         let events = self.shared.activity.take_pending();
         self.notifier.handle(events, &self.shared.settings);
+        // Server logs that are in no file (not kept): ask before they go.
+        if ctx.input(|i| i.viewport().close_requested()) && !self.close_ok && crate::logstore::unsaved() > 0 {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.ask_save_logs = true;
+        }
+        if self.ask_save_logs {
+            self.save_logs_dialog(&ctx);
+        }
         if self.updater.poll(&ctx) {
             // The installer takes over and starts the new version.
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -852,6 +872,63 @@ fn nav_item(
     resp
 }
 
+impl App {
+    /// "Save the server logs?" before closing.
+    fn save_logs_dialog(&mut self, ctx: &egui::Context) {
+        let n = crate::logstore::unsaved();
+        let mut answer = None;
+        egui::Modal::new(egui::Id::new("save-logs")).show(ctx, |ui| {
+            ui.set_width(460.0);
+            ui.label(theme::semibold(tr("Save the server logs?"), 18.0));
+            ui.add_space(6.0);
+            theme::paragraph(
+                ui,
+                &i18n::trlf(
+                    "This session's {n} log lines are in no file (Servers → Logs → Keep server logs is off) and are lost when the app closes.",
+                    &[("n", &n)],
+                ),
+                14.0,
+                ui.visuals().weak_text_color(),
+            );
+            ui.add_space(12.0);
+            ui.horizontal(|ui| {
+                if ui.button(theme::icon_label(icon::FLOPPY_DISK, "Save…")).clicked() {
+                    answer = Some(1);
+                }
+                if ui.button(tr("Don't save")).clicked() {
+                    answer = Some(2);
+                }
+                if ui.button(tr("Cancel")).clicked() {
+                    answer = Some(0);
+                }
+            });
+        });
+        match answer {
+            Some(1) => {
+                let saved = rfd::FileDialog::new()
+                    .set_file_name(format!("server-logs-{}.log", chrono::Local::now().format("%Y-%m-%d")))
+                    .save_file()
+                    .is_some_and(|path| crate::logstore::save_unsaved(&path).is_ok());
+                if saved {
+                    self.close_now(ctx);
+                }
+            }
+            Some(2) => {
+                crate::logstore::discard_unsaved();
+                self.close_now(ctx);
+            }
+            Some(_) => self.ask_save_logs = false,
+            None => {}
+        }
+    }
+
+    fn close_now(&mut self, ctx: &egui::Context) {
+        self.ask_save_logs = false;
+        self.close_ok = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+}
+
 /// `icon` in the task bar (Windows, Linux) or the Dock (macOS).
 fn show_icon(ctx: &egui::Context, icon: theme::AppIcon) {
     let Some(i) = icon.image(256) else { return };
@@ -936,7 +1013,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 28] = [
+        let pages: [(Page, &str, u32); 29] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -964,6 +1041,7 @@ impl App {
             (Page::Servers, "25-traps", 40),
             (Page::Servers, "27-ssh", 30),
             (Page::Servers, "28-activity", 30),
+            (Page::Servers, "29-logs", 30),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_LIGHT: the light theme instead.
@@ -1083,6 +1161,23 @@ impl App {
             }
             if name == "27-ssh" {
                 self.servers.show("ssh");
+            }
+            if name == "29-logs" && t.frames == 1 {
+                // Sample lines, in a folder of the tour's own.
+                self.shared.settings.logs_dir = t.dir.join("logs").display().to_string();
+                crate::logstore::configure(true, &self.shared.settings.logs_folder());
+                for (server, line) in [
+                    ("TFTP", "10.0.0.2:51234 downloads c2960x-universalk9.bin (octet)"),
+                    ("TFTP", "10.0.0.2:51234 c2960x-universalk9.bin: done, 26.4 MB"),
+                    ("Syslog", "10.0.0.3 Warning %LINEPROTO-5-UPDOWN: Line protocol on Gi1/0/7, changed state to down"),
+                    ("SNMP traps", "10.0.0.3 v2c linkDown ifIndex.10107 = 10107"),
+                    ("DHCP", "REQUEST from 00:1e:bd:12:34:56 (Switch) → ACK 192.168.1.100"),
+                    ("HTTP", "10.0.0.4 GET /images/c9300.bin 200 512.0 MB"),
+                    ("NTP", "10.0.0.2 asked for the time"),
+                ] {
+                    crate::logstore::record(server, line);
+                }
+                self.servers.open_tab("logs");
             }
             if name == "28-activity" && t.frames == 1 {
                 use crate::activity::Kind;

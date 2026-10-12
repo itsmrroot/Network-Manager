@@ -60,6 +60,11 @@ jobs:
           token: ${{ secrets.RELEASES_TOKEN }}
           target_commitish: main
           files: ${{ env.ASSET }}
+      # And to this (private) repository, with notes from its history.
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET }}
+          generate_release_notes: true
 
       # Installers (configured in gui/Cargo.toml). They run after the archive is
       # published, so a failing installer never holds back the plain download.
@@ -109,4 +114,8 @@ jobs:
           repository: itsmrroot/Network-Manager-releases
           token: ${{ secrets.RELEASES_TOKEN }}
           target_commitish: main
+          files: installers/*
+      - if: matrix.installer
+        uses: softprops/action-gh-release@v2
+        with:
           files: installers/*

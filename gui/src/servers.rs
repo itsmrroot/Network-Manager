@@ -13,7 +13,7 @@ use egui_phosphor::regular as icon;
 use netmgr::servers::{self as ns, Direction, SyslogMessage, Transfers};
 
 use crate::app::Shared;
-use crate::i18n::{tr, tr_dyn, trf, trl, trlf, with_icon};
+use crate::i18n::{tr, tr_dyn, trf, trl, trlf, trn, with_icon};
 use crate::jobs::{self, Job};
 use crate::theme::{self, Palette, icon_label};
 
@@ -29,6 +29,7 @@ enum Tab {
     Ssh,
     Throughput,
     Activity,
+    Logs,
 }
 
 /// A running server: its stop switch, its log, and the error it ended with.
@@ -61,6 +62,10 @@ pub struct Servers {
     tab: Tab,
     /// TFTP transfers already noted in the activity log.
     reported: std::collections::HashSet<u64>,
+    /// Servers → Logs: what is shown, and when it was read.
+    logs_filter: crate::logstore::Filter,
+    logs: Vec<crate::logstore::Record>,
+    logs_read: Option<(crate::logstore::Filter, PathBuf, u64, std::time::Instant)>,
     tftp_port: u16,
     tftp_upload: bool,
     tftp_overwrite: bool,
@@ -118,6 +123,9 @@ impl Default for Servers {
             ntp: Default::default(),
             ssh: Default::default(),
             reported: Default::default(),
+            logs_filter: Default::default(),
+            logs: Vec::new(),
+            logs_read: None,
             syslog_file: Default::default(),
         }
     }
@@ -283,12 +291,179 @@ impl Servers {
             "time" => Tab::Time,
             "ssh" => Tab::Ssh,
             "activity" => Tab::Activity,
+            "logs" => Tab::Logs,
             "throughput" => Tab::Throughput,
             _ => Tab::Tftp,
         };
     }
 
     /// Servers running now (not the throughput test as a client).
+    /// Servers → Logs: every server's log, kept by day, with filters.
+    fn logs_tab(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
+        use crate::logstore::{self, Period};
+        let dir = sh.settings.logs_folder();
+        theme::card(ui, p, |ui| {
+            ui.set_width(ui.available_width());
+            theme::paragraph(
+                ui,
+                trl("What the servers log, by day, in files: still there after the app is closed or restarted."),
+                14.0,
+                p.weak,
+            );
+            ui.add_space(6.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.checkbox(&mut sh.settings.keep_logs, tr("Keep server logs"));
+                ui.label(RichText::new(dir.display().to_string()).monospace().color(p.weak).size(12.5));
+                if ui.button(icon_label(icon::FOLDER_SIMPLE, "Choose…")).clicked()
+                    && let Some(d) = rfd::FileDialog::new().set_directory(&dir).pick_folder()
+                {
+                    sh.settings.logs_dir = d.display().to_string();
+                }
+                if ui.button(icon_label(icon::FOLDER_OPEN, "Open folder")).clicked() {
+                    let _ = std::fs::create_dir_all(&dir);
+                    crate::app::open_path(&dir.display().to_string());
+                }
+            });
+            if !sh.settings.keep_logs {
+                ui.add_space(6.0);
+                theme::notice(
+                    ui,
+                    p,
+                    p.warning,
+                    icon::WARNING,
+                    &trlf(
+                        "Logs are not kept: this session's {n} lines are only in memory, and the app offers to save them when it closes.",
+                        &[("n", &logstore::unsaved())],
+                    ),
+                );
+            }
+        });
+        ui.add_space(10.0);
+        let name = |s: &str| match s {
+            "SNMP traps" => tr("SNMP traps").to_string(),
+            "Throughput" => tr("Throughput test").to_string(),
+            other => other.to_string(),
+        };
+        let period_name = |p: Period| match p {
+            Period::Today => tr("Today").to_string(),
+            Period::Yesterday => tr("Yesterday").to_string(),
+            Period::ThisWeek => tr("This week").to_string(),
+            Period::ThisMonth => tr("This month").to_string(),
+            Period::LastMonth => tr("Last month").to_string(),
+            Period::All => tr("Everything").to_string(),
+            Period::Day(d) => d.format("%Y-%m-%d").to_string(),
+        };
+        let mut save = false;
+        let mut save_as = false;
+        ui.horizontal_wrapped(|ui| {
+            let f = &mut self.logs_filter;
+            let shown = f.server.as_deref().map_or_else(|| tr("All servers").to_string(), name);
+            egui::ComboBox::from_id_salt("logs-server").selected_text(shown).width(150.0).show_ui(ui, |ui| {
+                ui.selectable_value(&mut f.server, None, tr("All servers"));
+                for s in logstore::SERVERS {
+                    ui.selectable_value(&mut f.server, Some(s.to_string()), name(s));
+                }
+            });
+            theme::fit(ui, 160.0);
+            egui::ComboBox::from_id_salt("logs-period")
+                .selected_text(period_name(f.period))
+                .width(150.0)
+                .height(400.0)
+                .show_ui(ui, |ui| {
+                    for p in [
+                        Period::Today,
+                        Period::Yesterday,
+                        Period::ThisWeek,
+                        Period::ThisMonth,
+                        Period::LastMonth,
+                        Period::All,
+                    ] {
+                        ui.selectable_value(&mut f.period, p, period_name(p));
+                    }
+                    ui.separator();
+                    for d in logstore::days(&dir).into_iter().take(90) {
+                        ui.selectable_value(&mut f.period, Period::Day(d), period_name(Period::Day(d)));
+                    }
+                });
+            theme::field(
+                ui,
+                egui::TextEdit::singleline(&mut f.text)
+                    .hint_text(with_icon(icon::MAGNIFYING_GLASS, tr("Filter")))
+                    .desired_width(220.0),
+            );
+            theme::trailing(ui, "logs", |ui| {
+                save_as = ui.button(icon_label(icon::FLOPPY_DISK, "Save as…")).clicked();
+                save = ui.button(icon_label(icon::FLOPPY_DISK, "Save")).clicked();
+            });
+        });
+        // Read again when the filter or the folder changes, and every few
+        // seconds while servers write.
+        let written = logstore::written();
+        let stale = match &self.logs_read {
+            None => true,
+            Some((f, d, w, at)) => {
+                *f != self.logs_filter
+                    || *d != dir
+                    || (*w != written && at.elapsed() > std::time::Duration::from_secs(2))
+            }
+        };
+        if stale {
+            self.logs = logstore::search(&dir, &self.logs_filter, 5000);
+            self.logs_read = Some((self.logs_filter.clone(), dir.clone(), written, std::time::Instant::now()));
+        }
+        if written != self.logs_read.as_ref().map_or(0, |r| r.2) {
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs(2));
+        }
+        // Oldest first in the file, as logs are read.
+        let mut ordered = self.logs.clone();
+        ordered.reverse();
+        if save {
+            let _ = std::fs::create_dir_all(&dir);
+            let file = dir.join(format!("export-{}.log", chrono::Local::now().format("%Y-%m-%d-%H%M%S")));
+            match logstore::write(&file, &ordered) {
+                Ok(()) => sh.toast(trf("Saved to {file}.", &[("file", &file.display())])),
+                Err(e) => sh.fail(trl("The file could not be saved."), &e.into()),
+            }
+        }
+        if save_as
+            && let Some(file) = rfd::FileDialog::new().set_directory(&dir).set_file_name("server-logs.log").save_file()
+        {
+            match logstore::write(&file, &ordered) {
+                Ok(()) => sh.toast(trf("Saved to {file}.", &[("file", &file.display())])),
+                Err(e) => sh.fail(trl("The file could not be saved."), &e.into()),
+            }
+        }
+        ui.add_space(10.0);
+        theme::card(ui, p, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new(trn(self.logs.len() as u64, "1 line", "{n} lines")).color(p.weak).size(12.5));
+            if self.logs.is_empty() {
+                ui.label(RichText::new(tr("Nothing yet.")).color(p.weak));
+                return;
+            }
+            let row_h = 22.0;
+            egui::ScrollArea::vertical().id_salt("logs-list").auto_shrink([false, true]).show_rows(
+                ui,
+                row_h,
+                self.logs.len(),
+                |ui, range| {
+                    for r in &self.logs[range] {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(r.when.format("%Y-%m-%d %H:%M:%S").to_string())
+                                    .monospace()
+                                    .color(p.weak)
+                                    .size(12.5),
+                            );
+                            ui.label(RichText::new(name(&r.server)).color(p.accent).size(12.5));
+                            ui.add(egui::Label::new(RichText::new(&r.text).color(p.text).size(13.0)).truncate());
+                        });
+                    }
+                },
+            );
+        });
+    }
+
     /// Notes finished TFTP transfers in the activity log (every frame,
     /// whatever page is shown).
     pub fn watch(&mut self, sh: &Shared) {
@@ -414,6 +589,7 @@ impl Servers {
                 (Tab::Ssh, icon::TERMINAL_WINDOW, "SSH"),
                 (Tab::Throughput, icon::GAUGE, &tp),
                 (Tab::Activity, icon::BELL, &activity),
+                (Tab::Logs, icon::NOTEBOOK, tr("Logs")),
             ],
         );
         ui.add_space(10.0);
@@ -435,6 +611,7 @@ impl Servers {
             }
             Tab::Throughput => self.throughput_tab(ui, p, sh),
             Tab::Activity => activity_tab(ui, p, sh),
+            Tab::Logs => self.logs_tab(ui, p, sh),
         }
     }
 
@@ -512,6 +689,7 @@ impl Servers {
                             transfers,
                             stop,
                             Arc::new(move |l| {
+                                crate::logstore::record("TFTP", &l);
                                 if let Ok(mut v) = log.lock() {
                                     push_log(&mut v, format!("{}  {l}", chrono::Local::now().format("%H:%M:%S")));
                                 }
@@ -690,6 +868,10 @@ impl Servers {
                         port,
                         stop,
                         Arc::new(move |m| {
+                            crate::logstore::record(
+                                "Syslog",
+                                &format!("{} {} {}", m.from, ns::SEVERITIES[m.severity as usize % 8], m.text),
+                            );
                             activity.first_use(
                                 "syslog",
                                 m.from,
@@ -948,6 +1130,7 @@ impl Servers {
                                         trlf("{address} ran a throughput test", &[("address", &peer.ip())]),
                                     );
                                 }
+                                crate::logstore::record("Throughput", &l);
                                 if let Ok(mut v) = log.lock() {
                                     push_log(&mut v, format!("{}  {l}", chrono::Local::now().format("%H:%M:%S")));
                                 }

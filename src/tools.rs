@@ -187,6 +187,8 @@ pub fn resolve(host: &str, port: u16) -> Result<SocketAddr> {
 #[derive(Debug, Clone, Serialize)]
 pub struct PortResult {
     pub port: u16,
+    /// "TCP" or "UDP".
+    pub proto: &'static str,
     /// A connection was accepted (TCP) or an answer came back (UDP).
     pub open: bool,
     /// UDP only: no answer and no refusal (open but quiet, or filtered).
@@ -198,7 +200,7 @@ pub struct PortResult {
 
 /// Port lists people pick from.
 pub const PORT_PRESETS: &[(&str, &str)] = &[
-    ("Common", "21,22,23,25,53,80,110,143,443,445,587,993,995,3306,3389,5432,5900,8080,8443"),
+    ("Common", "21,22,23,25,53,69,80,110,123,143,161,443,445,514,587,993,995,3306,3389,5432,5900,8080,8443"),
     ("Web", "80,443,8000,8008,8080,8443,8888"),
     ("Remote access", "22,23,3389,5900,5938"),
     ("Mail", "25,110,143,465,587,993,995"),
@@ -255,6 +257,7 @@ pub fn check_ports(
                     if let Ok(mut r) = results.lock() {
                         r.push(PortResult {
                             port: p,
+                            proto: "TCP",
                             open,
                             silent: false,
                             millis: open.then(|| t.elapsed().as_millis()),
@@ -330,6 +333,7 @@ pub fn check_udp_ports(
                     if let Ok(mut r) = results.lock() {
                         r.push(PortResult {
                             port: p,
+                            proto: "UDP",
                             open,
                             silent,
                             millis: open.then(|| t.elapsed().as_millis()),

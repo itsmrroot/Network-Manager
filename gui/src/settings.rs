@@ -89,6 +89,12 @@ pub struct Settings {
     /// Notifications play the system's sound.
     #[serde(default = "yes")]
     pub notify_sound: bool,
+    /// The servers' logs are kept in files (Servers → Logs).
+    #[serde(default = "yes")]
+    pub keep_logs: bool,
+    /// Where; empty: Documents/Network Manager/Logs.
+    #[serde(default)]
+    pub logs_dir: String,
     /// The DHCP server's last settings, and the adapter it served.
     pub dhcp_server: Option<netmgr::dhcpd::Config>,
     pub dhcp_adapter: String,
@@ -136,6 +142,8 @@ impl Default for Settings {
             notify_files: true,
             notify_services: true,
             notify_sound: true,
+            keep_logs: true,
+            logs_dir: String::new(),
             dhcp_server: None,
             dhcp_adapter: String::new(),
             simple_mode: false,
@@ -148,6 +156,15 @@ impl Default for Settings {
 }
 
 impl Settings {
+    /// The folder of the servers' logs.
+    pub fn logs_folder(&self) -> std::path::PathBuf {
+        if self.logs_dir.trim().is_empty() {
+            crate::logstore::default_dir()
+        } else {
+            std::path::PathBuf::from(self.logs_dir.trim())
+        }
+    }
+
     /// Remembers a host typed into a tool.
     pub fn remember_host(&mut self, host: &str) {
         let host = host.trim();

@@ -94,7 +94,8 @@ pub struct Tools {
     port_job: Option<Job<(IpAddr, Vec<PortResult>)>>,
     port_results: Option<(IpAddr, Vec<PortResult>)>,
     show_closed: bool,
-    /// Ports: UDP instead of TCP.
+    /// Ports: which protocols to check (one or both).
+    tcp: bool,
     udp: bool,
     subnet: String,
     split: u8,
@@ -128,7 +129,8 @@ impl Default for Tools {
             port_job: None,
             port_results: None,
             show_closed: false,
-            udp: false,
+            tcp: true,
+            udp: true,
             subnet: String::new(),
             split: 0,
             wol_mac: String::new(),
@@ -523,11 +525,12 @@ impl Tools {
                 egui::TextEdit::singleline(&mut self.ports).hint_text("22, 80, 443, 8000-8100").desired_width(360.0),
             );
             // TFTP, DNS, NTP, SNMP and syslog are UDP: a TCP check misses them.
-            if ui.selectable_label(!self.udp, "TCP").clicked() {
-                self.udp = false;
+            // Either or both; never neither.
+            if ui.selectable_label(self.tcp, "TCP").clicked() {
+                self.tcp = !self.tcp || !self.udp;
             }
             if ui.selectable_label(self.udp, "UDP").clicked() {
-                self.udp = true;
+                self.udp = !self.udp || !self.tcp;
             }
             egui::ComboBox::from_id_salt("port-presets").selected_text(tr("Presets")).width(110.0).show_ui(ui, |ui| {
                 for (name, list) in nt::PORT_PRESETS {
@@ -541,6 +544,7 @@ impl Tools {
                 if ui.selectable_label(false, tr("Network services (UDP)")).clicked() {
                     self.ports = nt::UDP_PRESET.into();
                     self.udp = true;
+                    self.tcp = false;
                 }
             });
         });
@@ -550,13 +554,31 @@ impl Tools {
                     sh.settings.remember_host(&self.host);
                     let host = self.host.trim().to_string();
                     let total = list.len();
-                    let udp = self.udp;
+                    let (tcp, udp) = (self.tcp, self.udp);
+                    let total = total * (usize::from(tcp) + usize::from(udp));
                     self.port_results = None;
                     self.port_job = Some(Job::spawn(ui.ctx(), move |progress, cancel| {
-                        let check = if udp { nt::check_udp_ports } else { nt::check_ports };
-                        check(&host, &list, Duration::from_millis(1200), cancel, &|n| {
-                            progress.set(n as f32 / total as f32, "")
-                        })
+                        let wait = Duration::from_millis(1200);
+                        let mut done = 0;
+                        let mut ip = None;
+                        let mut all = Vec::new();
+                        if tcp {
+                            let (a, r) = nt::check_ports(&host, &list, wait, cancel, &|n| {
+                                progress.set(n as f32 / total as f32, "")
+                            })?;
+                            done = r.len();
+                            ip = Some(a);
+                            all.extend(r);
+                        }
+                        if udp {
+                            let (a, r) = nt::check_udp_ports(&host, &list, wait, cancel, &|n| {
+                                progress.set((done + n) as f32 / total as f32, "")
+                            })?;
+                            ip = Some(a);
+                            all.extend(r);
+                        }
+                        all.sort_by_key(|r| (r.port, r.proto));
+                        Ok((ip.unwrap_or(std::net::IpAddr::from([0, 0, 0, 0])), all))
                     }));
                 }
                 Err(e) => sh.error = Some(format!("{e:#}")),
@@ -572,7 +594,7 @@ impl Tools {
             let Some((ip, results)) = &self.port_results else {
                 theme::paragraph(
                     ui,
-                    if self.udp {
+                    if self.udp && !self.tcp {
                         trl(
                             "Checks UDP services (TFTP, DNS, NTP, SNMP, syslog): an answer means open, \"port unreachable\" means closed, and no answer means open but quiet, or a firewall in between. Only check devices you own or may test.",
                         )
@@ -605,8 +627,11 @@ impl Tools {
             ui.add_space(6.0);
             egui::ScrollArea::vertical().max_height(ui.available_height() - 10.0).show(ui, |ui| {
                 egui::Grid::new("ports").num_columns(4).spacing([24.0, 6.0]).striped(true).show(ui, |ui| {
-                    for r in results.iter().filter(|r| r.open || r.silent || self.show_closed) {
-                        ui.label(RichText::new(r.port.to_string()).monospace().color(p.text));
+                    // Silent UDP ports only where a UDP service is usual (TFTP, DNS…),
+                    // else every TCP port would also list a "No answer".
+                    let usual_udp = |port: u16| nt::UDP_PRESET.split(',').any(|p| p == port.to_string());
+                    for r in results.iter().filter(|r| r.open || (r.silent && usual_udp(r.port)) || self.show_closed) {
+                        ui.label(RichText::new(format!("{} {}", r.port, r.proto)).monospace().color(p.text));
                         if r.open {
                             theme::pill(ui, p, tr("Open"), p.success);
                         } else if r.silent {

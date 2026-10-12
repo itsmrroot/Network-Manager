@@ -113,6 +113,9 @@ enum Cmd {
         /// Check UDP ports (TFTP 69, DNS 53, NTP 123, SNMP 161…) instead of TCP.
         #[arg(long)]
         udp: bool,
+        /// Check both TCP and UDP.
+        #[arg(long, conflicts_with = "udp")]
+        both: bool,
     },
     /// Subnet calculator: 192.168.1.10/24 or "192.168.1.10 255.255.255.0".
     Subnet {
@@ -745,20 +748,31 @@ fn run(cli: Cli) -> Result<()> {
             }
             ensure!(!answers.is_empty(), "no DNS server answered");
         }
-        Cmd::Ports { host, ports, udp } => {
+        Cmd::Ports { host, ports, udp, both } => {
             ensure!(!host.trim().is_empty(), "enter an address or a name");
             let default = if udp { tools::UDP_PRESET } else { tools::PORT_PRESETS[0].1 };
             let list = tools::parse_ports(ports.as_deref().unwrap_or(default))?;
             let cancel = AtomicBool::new(false);
-            let (ip, results) = if udp {
-                tools::check_udp_ports(&host, &list, Duration::from_millis(1500), &cancel, &|_| {})?
+            let wait = Duration::from_millis(1500);
+            let (ip, mut results) = if udp {
+                tools::check_udp_ports(&host, &list, wait, &cancel, &|_| {})?
             } else {
-                tools::check_ports(&host, &list, Duration::from_millis(1500), &cancel, &|_| {})?
+                tools::check_ports(&host, &list, wait, &cancel, &|_| {})?
             };
+            if both {
+                results.extend(tools::check_udp_ports(&host, &list, wait, &cancel, &|_| {})?.1);
+                results.sort_by_key(|r| (r.port, r.proto));
+            }
             if json {
                 return print_json(&results);
             }
-            let proto = if udp { "UDP" } else { "TCP" };
+            let proto = if both {
+                "TCP and UDP"
+            } else if udp {
+                "UDP"
+            } else {
+                "TCP"
+            };
             println!(
                 "{host} ({ip}): {} of {} {proto} ports open",
                 results.iter().filter(|r| r.open).count(),
@@ -766,7 +780,7 @@ fn run(cli: Cli) -> Result<()> {
             );
             for r in results.iter().filter(|r| r.open || r.silent) {
                 let state = if r.open { "open" } else { "no answer (open or filtered)" };
-                println!("  {:>5}  {state:<28} {}", r.port, r.service);
+                println!("  {:>5}/{:<3}  {state:<28} {}", r.port, r.proto.to_lowercase(), r.service);
             }
         }
         Cmd::Subnet { cidr, split } => {

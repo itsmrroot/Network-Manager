@@ -2040,6 +2040,32 @@ pub const GERMAN: &[(&str, &str)] = &[
         "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
         "Klicken Sie auf den Stern neben einem Adressfeld, um die Adresse unter „Meine Hosts“ zu behalten, angeboten in jedem Werkzeug. Unter Einstellungen → Mitteilungen wählen Sie, welche Mitteilungen Sie erhalten.",
     ),
+    ("1 line", "1 Zeile"),
+    ("All servers", "Alle Server"),
+    ("Don't save", "Nicht sichern"),
+    ("Everything", "Alles"),
+    ("Keep server logs", "Serverprotokolle behalten"),
+    ("Last month", "Letzter Monat"),
+    ("Logs", "Protokolle"),
+    (
+        "Logs are not kept: this session's {n} lines are only in memory, and the app offers to save them when it closes.",
+        "Protokolle werden nicht behalten: Die {n} Zeilen dieser Sitzung sind nur im Speicher, und die App bietet beim Schließen an, sie zu sichern.",
+    ),
+    ("Save as…", "Sichern unter …"),
+    ("Save the server logs?", "Serverprotokolle sichern?"),
+    ("This month", "Dieser Monat"),
+    (
+        "This session's {n} log lines are in no file (Servers → Logs → Keep server logs is off) and are lost when the app closes.",
+        "Die {n} Protokollzeilen dieser Sitzung sind in keiner Datei (Server → Protokolle → Serverprotokolle behalten ist aus) und gehen beim Schließen der App verloren.",
+    ),
+    ("This week", "Diese Woche"),
+    ("Today", "Heute"),
+    (
+        "What the servers log, by day, in files: still there after the app is closed or restarted.",
+        "Was die Server protokollieren, nach Tagen in Dateien: auch nach dem Schließen oder Neustart der App noch da.",
+    ),
+    ("Yesterday", "Gestern"),
+    ("{n} lines", "{n} Zeilen"),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4063,6 +4089,32 @@ pub const SPANISH: &[(&str, &str)] = &[
         "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
         "Haz clic en la estrella junto a un campo de dirección para guardarla en Mis hosts, disponible en todas las herramientas. En Ajustes → Notificaciones eliges qué notificaciones recibes.",
     ),
+    ("1 line", "1 línea"),
+    ("All servers", "Todos los servidores"),
+    ("Don't save", "No guardar"),
+    ("Everything", "Todo"),
+    ("Keep server logs", "Conservar los registros de los servidores"),
+    ("Last month", "Mes pasado"),
+    ("Logs", "Registros"),
+    (
+        "Logs are not kept: this session's {n} lines are only in memory, and the app offers to save them when it closes.",
+        "Los registros no se conservan: las {n} líneas de esta sesión solo están en memoria, y la app ofrece guardarlas al cerrarse.",
+    ),
+    ("Save as…", "Guardar como…"),
+    ("Save the server logs?", "¿Guardar los registros de los servidores?"),
+    ("This month", "Este mes"),
+    (
+        "This session's {n} log lines are in no file (Servers → Logs → Keep server logs is off) and are lost when the app closes.",
+        "Las {n} líneas de registro de esta sesión no están en ningún archivo (Servidores → Registros → Conservar los registros está desactivado) y se pierden al cerrar la app.",
+    ),
+    ("This week", "Esta semana"),
+    ("Today", "Hoy"),
+    (
+        "What the servers log, by day, in files: still there after the app is closed or restarted.",
+        "Lo que registran los servidores, por días, en archivos: sigue ahí después de cerrar o reiniciar la app.",
+    ),
+    ("Yesterday", "Ayer"),
+    ("{n} lines", "{n} líneas"),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -6107,6 +6159,32 @@ pub const FRENCH: &[(&str, &str)] = &[
         "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
         "Cliquez sur l’étoile à côté d’un champ d’adresse pour garder l’adresse dans Mes hôtes, proposés dans chaque outil. Réglages → Notifications choisit les notifications que vous recevez.",
     ),
+    ("1 line", "1 ligne"),
+    ("All servers", "Tous les serveurs"),
+    ("Don't save", "Ne pas enregistrer"),
+    ("Everything", "Tout"),
+    ("Keep server logs", "Garder les journaux des serveurs"),
+    ("Last month", "Le mois dernier"),
+    ("Logs", "Journaux"),
+    (
+        "Logs are not kept: this session's {n} lines are only in memory, and the app offers to save them when it closes.",
+        "Les journaux ne sont pas gardés : les {n} lignes de cette session ne sont qu’en mémoire, et l’app propose de les enregistrer à la fermeture.",
+    ),
+    ("Save as…", "Enregistrer sous…"),
+    ("Save the server logs?", "Enregistrer les journaux des serveurs ?"),
+    ("This month", "Ce mois-ci"),
+    (
+        "This session's {n} log lines are in no file (Servers → Logs → Keep server logs is off) and are lost when the app closes.",
+        "Les {n} lignes de journal de cette session ne sont dans aucun fichier (Serveurs → Journaux → Garder les journaux est désactivé) et sont perdues à la fermeture de l’app.",
+    ),
+    ("This week", "Cette semaine"),
+    ("Today", "Aujourd’hui"),
+    (
+        "What the servers log, by day, in files: still there after the app is closed or restarted.",
+        "Ce que les serveurs journalisent, par jour, dans des fichiers : toujours là après la fermeture ou le redémarrage de l’app.",
+    ),
+    ("Yesterday", "Hier"),
+    ("{n} lines", "{n} lignes"),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -8115,6 +8193,32 @@ pub const TURKISH: &[(&str, &str)] = &[
         "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
         "Adresi her araçta sunulan Ana bilgisayarlarım listesinde tutmak için adres alanının yanındaki yıldıza tıklayın. Ayarlar → Bildirimler hangi bildirimleri alacağınızı seçer.",
     ),
+    ("1 line", "1 satır"),
+    ("All servers", "Tüm sunucular"),
+    ("Don't save", "Kaydetme"),
+    ("Everything", "Tümü"),
+    ("Keep server logs", "Sunucu günlüklerini sakla"),
+    ("Last month", "Geçen ay"),
+    ("Logs", "Günlükler"),
+    (
+        "Logs are not kept: this session's {n} lines are only in memory, and the app offers to save them when it closes.",
+        "Günlükler saklanmıyor: bu oturumun {n} satırı yalnızca bellekte; uygulama kapanırken kaydetmeyi önerir.",
+    ),
+    ("Save as…", "Farklı kaydet…"),
+    ("Save the server logs?", "Sunucu günlükleri kaydedilsin mi?"),
+    ("This month", "Bu ay"),
+    (
+        "This session's {n} log lines are in no file (Servers → Logs → Keep server logs is off) and are lost when the app closes.",
+        "Bu oturumun {n} günlük satırı hiçbir dosyada değil (Sunucular → Günlükler → Sunucu günlüklerini sakla kapalı) ve uygulama kapanınca kaybolur.",
+    ),
+    ("This week", "Bu hafta"),
+    ("Today", "Bugün"),
+    (
+        "What the servers log, by day, in files: still there after the app is closed or restarted.",
+        "Sunucuların kaydettikleri, günlere göre dosyalarda: uygulama kapatılıp yeniden başlatılsa da kalır.",
+    ),
+    ("Yesterday", "Dün"),
+    ("{n} lines", "{n} satır"),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -10132,6 +10236,32 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
         "Нажмите звёздочку рядом с полем адреса, чтобы сохранить адрес в «Моих узлах», доступных в каждом инструменте. В Настройки → Уведомления выбираются нужные уведомления.",
     ),
+    ("1 line", "1 строка"),
+    ("All servers", "Все серверы"),
+    ("Don't save", "Не сохранять"),
+    ("Everything", "Всё"),
+    ("Keep server logs", "Хранить журналы серверов"),
+    ("Last month", "Прошлый месяц"),
+    ("Logs", "Журналы"),
+    (
+        "Logs are not kept: this session's {n} lines are only in memory, and the app offers to save them when it closes.",
+        "Журналы не хранятся: {n} строк этого сеанса есть только в памяти, и приложение предложит сохранить их при закрытии.",
+    ),
+    ("Save as…", "Сохранить как…"),
+    ("Save the server logs?", "Сохранить журналы серверов?"),
+    ("This month", "Этот месяц"),
+    (
+        "This session's {n} log lines are in no file (Servers → Logs → Keep server logs is off) and are lost when the app closes.",
+        "{n} строк журнала этого сеанса нет ни в одном файле (Серверы → Журналы → Хранить журналы выключено), они пропадут при закрытии приложения.",
+    ),
+    ("This week", "Эта неделя"),
+    ("Today", "Сегодня"),
+    (
+        "What the servers log, by day, in files: still there after the app is closed or restarted.",
+        "Записи серверов по дням в файлах: сохраняются после закрытия или перезапуска приложения.",
+    ),
+    ("Yesterday", "Вчера"),
+    ("{n} lines", "Строк: {n}"),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -12095,6 +12225,32 @@ pub const ARABIC: &[(&str, &str)] = &[
         "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
         "انقر النجمة بجانب حقل العنوان للاحتفاظ بالعنوان في مضيفاتي، المتاحة في كل أداة. الإعدادات ← الإشعارات تختار الإشعارات التي تصلك.",
     ),
+    ("1 line", "سطر واحد"),
+    ("All servers", "كل الخوادم"),
+    ("Don't save", "عدم الحفظ"),
+    ("Everything", "الكل"),
+    ("Keep server logs", "الاحتفاظ بسجلات الخوادم"),
+    ("Last month", "الشهر الماضي"),
+    ("Logs", "السجلات"),
+    (
+        "Logs are not kept: this session's {n} lines are only in memory, and the app offers to save them when it closes.",
+        "لا يتم الاحتفاظ بالسجلات: أسطر هذه الجلسة ({n}) في الذاكرة فقط، ويعرض التطبيق حفظها عند الإغلاق.",
+    ),
+    ("Save as…", "حفظ باسم…"),
+    ("Save the server logs?", "حفظ سجلات الخوادم؟"),
+    ("This month", "هذا الشهر"),
+    (
+        "This session's {n} log lines are in no file (Servers → Logs → Keep server logs is off) and are lost when the app closes.",
+        "أسطر السجل في هذه الجلسة ({n}) ليست في أي ملف (الخوادم ← السجلات ← الاحتفاظ بسجلات الخوادم معطّل) وستضيع عند إغلاق التطبيق.",
+    ),
+    ("This week", "هذا الأسبوع"),
+    ("Today", "اليوم"),
+    (
+        "What the servers log, by day, in files: still there after the app is closed or restarted.",
+        "ما تسجله الخوادم، يومًا بيوم، في ملفات: يبقى بعد إغلاق التطبيق أو إعادة تشغيله.",
+    ),
+    ("Yesterday", "أمس"),
+    ("{n} lines", "{n} سطر"),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -14028,4 +14184,30 @@ pub const CHINESE: &[(&str, &str)] = &[
         "Click the star next to an address field to keep the address in My hosts, offered in every tool. Settings → Notifications chooses which desktop notifications you get.",
         "点击地址栏旁的星标，把地址保存到“我的主机”，在每个工具中都可选用。在 设置 → 通知 中选择你要接收的通知。",
     ),
+    ("1 line", "1 行"),
+    ("All servers", "所有服务器"),
+    ("Don't save", "不保存"),
+    ("Everything", "全部"),
+    ("Keep server logs", "保留服务器日志"),
+    ("Last month", "上个月"),
+    ("Logs", "日志"),
+    (
+        "Logs are not kept: this session's {n} lines are only in memory, and the app offers to save them when it closes.",
+        "日志未保留：本次会话的 {n} 行仅在内存中，应用关闭时会询问是否保存。",
+    ),
+    ("Save as…", "另存为…"),
+    ("Save the server logs?", "保存服务器日志？"),
+    ("This month", "本月"),
+    (
+        "This session's {n} log lines are in no file (Servers → Logs → Keep server logs is off) and are lost when the app closes.",
+        "本次会话的 {n} 行日志不在任何文件中（服务器 → 日志 → 保留服务器日志 已关闭），应用关闭后将丢失。",
+    ),
+    ("This week", "本周"),
+    ("Today", "今天"),
+    (
+        "What the servers log, by day, in files: still there after the app is closed or restarted.",
+        "服务器记录的内容，按天保存在文件中：关闭或重启应用后仍然保留。",
+    ),
+    ("Yesterday", "昨天"),
+    ("{n} lines", "{n} 行"),
 ];
