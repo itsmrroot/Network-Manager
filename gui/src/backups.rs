@@ -302,7 +302,7 @@ impl Backups {
             }
         });
         ui.add_space(10.0);
-        let height = ui.available_height();
+        let height = ui.available_height().max(360.0);
         ui.horizontal_top(|ui| {
             ui.allocate_ui_with_layout(egui::vec2(230.0, height), egui::Layout::top_down(egui::Align::Min), |ui| {
                 theme::card(ui, p, |ui| {
@@ -385,7 +385,7 @@ impl Backups {
                 ui.label(RichText::new(tr("No differences.")).color(p.weak));
                 return;
             }
-            egui::ScrollArea::both().id_salt("diff").auto_shrink(false).show(ui, |ui| {
+            egui::ScrollArea::both().id_salt("diff").auto_shrink(false).min_scrolled_height(260.0).show(ui, |ui| {
                 for l in &self.diff {
                     let (prefix, text, color, bg) = match l {
                         Line::Same(t) => (" ", t.as_str(), p.weak, None),

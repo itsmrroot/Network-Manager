@@ -461,6 +461,18 @@ Needs Ubuntu 22.04, Debian 12, Fedora 36, Mint 21 or newer. Settings are changed
 (`nmcli`) when it is installed — as on almost every desktop distribution — and with `ip` otherwise. The system
 asks for your password when NetworkManager does not allow your user.
 
+> [!WARNING]
+> **Installed the `.deb` of version 0.9.0 or older?** Its package was wrongly named `network-manager`, the name
+> of the system's own NetworkManager, so installing it removed NetworkManager and the network stopped working.
+> Version 0.9.1 fixes the name and replaces the old package. To repair the system:
+>
+> 1. Get online for a moment: plug in a cable and run `sudo dhclient eth0` (or `sudo dhcpcd eth0`;
+>    `ip link` shows the adapter's name).
+> 2. See what was removed: `grep -B2 -A4 'netmgr-linux' /var/log/apt/history.log` (the `Remove:` line).
+> 3. Install 0.9.1, then put NetworkManager back:
+>    `sudo apt install ./netmgr-linux-x86_64.deb && sudo apt install network-manager network-manager-gnome`,
+>    plus anything else on the `Remove:` line (on Kali, also `kali-desktop-xfce` or your desktop's package).
+
 <details>
 <summary><b>Command line only, or portable (no installation)</b></summary>
 

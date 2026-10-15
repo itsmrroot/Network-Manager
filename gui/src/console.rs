@@ -41,6 +41,9 @@ pub struct Console {
     /// The session being edited: its place in the list (`None`: a new one).
     editing: Option<(Option<usize>, Saved)>,
     ports: Vec<PortInfo>,
+    /// The serial ports are listed when the page is first shown: on Windows
+    /// listing them can take seconds, which must not delay the app's start.
+    ports_read: bool,
     session: Option<Session>,
     screen: Screen,
     focused: bool,
@@ -61,7 +64,8 @@ impl Default for Console {
             size: (24, 80),
             search: String::new(),
             editing: None,
-            ports: nc::ports(),
+            ports: Vec::new(),
+            ports_read: false,
             session: None,
             screen: Screen::default(),
             focused: false,
@@ -120,6 +124,10 @@ impl Console {
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         self.poll(&ui.ctx().clone(), sh);
+        if !self.ports_read {
+            self.ports_read = true;
+            self.ports = nc::ports();
+        }
         if self.connected() {
             ui.ctx().request_repaint_after(Duration::from_millis(50));
         }
@@ -148,8 +156,12 @@ impl Console {
                 self.terminal(ui, p, sh);
             }
             View::Remote => self.remote_ui(ui, p, sh),
-            View::Backups => self.backups.ui(ui, p, sh),
-            View::Push => self.push.ui(ui, p, sh),
+            View::Backups => {
+                egui::ScrollArea::vertical().id_salt("backups-view").show(ui, |ui| self.backups.ui(ui, p, sh));
+            }
+            View::Push => {
+                egui::ScrollArea::vertical().id_salt("push-view").show(ui, |ui| self.push.ui(ui, p, sh));
+            }
         }
         self.edit_window(ui.ctx(), p, sh);
     }

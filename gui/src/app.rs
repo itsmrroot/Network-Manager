@@ -450,7 +450,9 @@ impl App {
         let (monitor, inner) = ctx.input(|i| (i.viewport().monitor_size, i.viewport().inner_rect));
         let (Some(monitor), Some(inner)) = (monitor, inner) else { return };
         self.fitted = true;
-        let max = egui::vec2(monitor.x * 0.94, monitor.y * 0.88);
+        // Room around it: the window opens as a window, not over the whole
+        // screen. (eframe itself brings a window back from a missing screen.)
+        let max = egui::vec2(monitor.x * 0.86, monitor.y * 0.84);
         let size = inner.size();
         if size.x <= max.x && size.y <= max.y {
             return;
@@ -513,6 +515,15 @@ impl App {
                 ui.label(manager);
             }
             ui.with_layout(inner, |ui| {
+                // macOS has Settings in its menu bar; elsewhere it sits here.
+                if !cfg!(target_os = "macos") {
+                    let gear = egui::Button::new(RichText::new(icon::GEAR_SIX).size(18.0).color(white)).frame(false);
+                    let shortcut = format!("{} (Ctrl+,)", tr("Settings"));
+                    if ui.add(gear).on_hover_text(shortcut).clicked() {
+                        self.page = Page::Settings;
+                    }
+                    ui.add_space(6.0);
+                }
                 if self.updater.available().is_some() {
                     self.updater.button(ui, p);
                 } else {

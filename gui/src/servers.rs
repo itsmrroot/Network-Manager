@@ -603,7 +603,9 @@ impl Servers {
                 egui::ScrollArea::vertical().id_salt("http-tab").show(ui, |ui| self.http.ui(ui, p, sh));
             }
             Tab::Syslog => self.syslog_tab(ui, p, sh),
-            Tab::Traps => self.traps.ui(ui, p, sh),
+            Tab::Traps => {
+                egui::ScrollArea::vertical().id_salt("traps-tab").show(ui, |ui| self.traps.ui(ui, p, sh));
+            }
             Tab::Dhcp => {
                 egui::ScrollArea::vertical().id_salt("dhcp-tab").show(ui, |ui| self.dhcp.ui(ui, p, sh));
             }
@@ -613,7 +615,9 @@ impl Servers {
             Tab::Ssh => {
                 egui::ScrollArea::vertical().id_salt("ssh-tab").show(ui, |ui| self.ssh.ui(ui, p, sh));
             }
-            Tab::Throughput => self.throughput_tab(ui, p, sh),
+            Tab::Throughput => {
+                egui::ScrollArea::vertical().id_salt("throughput-tab").show(ui, |ui| self.throughput_tab(ui, p, sh));
+            }
             Tab::Activity => activity_tab(ui, p, sh),
             Tab::Logs => self.logs_tab(ui, p, sh),
         }
@@ -1002,7 +1006,8 @@ impl Servers {
                 ui.label(RichText::new(text).color(p.weak));
                 return;
             }
-            let table_height = ui.available_height() - 10.0;
+            // Never squeezed to nothing on a small screen.
+            let table_height = (ui.available_height() - 10.0).max(180.0);
             TableBuilder::new(ui)
                 .striped(true)
                 .cell_layout(Layout::left_to_right(Align::Center))

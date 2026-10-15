@@ -11,7 +11,7 @@ build = "build.rs"
 [dependencies]
 anyhow = "1.0.104"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
-eframe = { version = "0.36.2", default-features = false, features = ["default_fonts", "wgpu", "persistence", "accesskit", "wayland", "x11", "links"] }
+eframe = { version = "0.36.2", default-features = false, features = ["default_fonts", "wgpu", "glow", "persistence", "accesskit", "wayland", "x11", "links"] }
 egui-phosphor = "0.14.0"
 egui_extras = "0.36.2"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
@@ -81,6 +81,9 @@ languages = ["English", "German", "Spanish", "French", "Turkish", "Russian", "Ar
 display-language-selector = true
 
 [package.metadata.packager.deb]
+# Never the default ("network-manager", from the product name): that is the
+# name of the system's own NetworkManager, which the package would replace.
+package-name = "netmgr"
 # wgpu draws with Vulkan or OpenGL; pkexec asks for the password for
 # changes NetworkManager (nmcli, used when installed) does not allow the user.
 depends = ["libc6", "libgl1 | libvulkan1", "libxkbcommon0", "pkexec | policykit-1"]

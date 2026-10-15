@@ -689,6 +689,11 @@ mod imp {
 
     pub fn set_enabled(a: &Adapter, on: bool) -> Result<()> {
         if cmd::exists("nmcli") {
+            // Wi-Fi: the radio, as the system menu does; a disconnected
+            // device would look the same as one without a network.
+            if a.kind == Kind::WiFi && nmcli(&["radio", "wifi", if on { "on" } else { "off" }]).is_ok() {
+                return Ok(());
+            }
             let verb = if on { "connect" } else { "disconnect" };
             if nmcli(&["device", verb, &a.device]).is_ok() {
                 return Ok(());

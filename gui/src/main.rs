@@ -53,7 +53,37 @@ fn icon() -> egui::IconData {
         .unwrap_or_default()
 }
 
+/// Where start-up failures and crashes are written, to send with a report.
+fn problem_log() -> std::path::PathBuf {
+    let dir = netmgr::profiles::config_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join("problems.log")
+}
+
+/// Adds a dated line to the problem log (kept small).
+fn note_problem(what: &str) {
+    use std::io::Write;
+    let path = problem_log();
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() > 256 * 1024) {
+        let _ = std::fs::remove_file(&path);
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(
+            f,
+            "{} v{} {}: {what}",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+            env!("CARGO_PKG_VERSION"),
+            std::env::consts::OS
+        );
+    }
+}
+
 fn main() -> eframe::Result {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        note_problem(&format!("crash: {info}"));
+        default_hook(info);
+    }));
     // Changed only by the development tour.
     #[allow(unused_mut)]
     let mut viewport = egui::ViewportBuilder::default()
@@ -73,10 +103,12 @@ fn main() -> eframe::Result {
         viewport = viewport.with_inner_size([w, h]).with_min_inner_size([w, h]);
         persist_window = false;
     }
+    let glow = use_glow();
     let options = eframe::NativeOptions {
         viewport,
         persist_window,
-        renderer: eframe::Renderer::Wgpu,
+        renderer: if glow { eframe::Renderer::Glow } else { eframe::Renderer::Wgpu },
+        wgpu_options: wgpu_options(),
         centered: true,
         // The app's own menu bar (menu.rs) replaces winit's default one,
         // which would otherwise be put back after launch.
@@ -87,5 +119,52 @@ fn main() -> eframe::Result {
         })),
         ..Default::default()
     };
-    eframe::run_native("Network Manager", options, Box::new(|cc| Ok(Box::new(app::App::new(cc)))))
+    let result = eframe::run_native("Network Manager", options, Box::new(|cc| Ok(Box::new(app::App::new(cc)))));
+    if let Err(e) = &result {
+        note_problem(&format!("{} could not start: {e}", if glow { "OpenGL" } else { "wgpu" }));
+    }
+    if result.is_err() && !glow {
+        // The graphics driver refused wgpu: start again with OpenGL, and
+        // keep using it (a second window loop is not allowed in one process).
+        let _ = std::fs::write(glow_marker(), "wgpu could not start\n");
+        if let Ok(exe) = std::env::current_exe()
+            && std::process::Command::new(exe).args(std::env::args_os().skip(1)).spawn().is_ok()
+        {
+            return Ok(());
+        }
+    }
+    result
+}
+
+/// Where the app notes that this computer needs OpenGL.
+fn glow_marker() -> std::path::PathBuf {
+    let dir = netmgr::profiles::config_dir();
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join("use-opengl")
+}
+
+/// OpenGL instead of wgpu: after wgpu failed here, or when asked
+/// (NETMGR_RENDERER=glow).
+fn use_glow() -> bool {
+    match std::env::var("NETMGR_RENDERER").as_deref() {
+        Ok("glow") => true,
+        Ok("wgpu") => false,
+        _ => glow_marker().exists(),
+    }
+}
+
+/// The built-in graphics chip rather than waking a separate one (laptops
+/// with two often fail or start slowly), and on Windows DirectX 12 rather
+/// than Vulkan, whose AMD and Intel drivers are the least reliable.
+fn wgpu_options() -> eframe::egui_wgpu::WgpuConfiguration {
+    use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup};
+    use eframe::wgpu;
+    let mut config = WgpuConfiguration::default();
+    if let WgpuSetup::CreateNew(setup) = &mut config.wgpu_setup {
+        setup.power_preference = wgpu::PowerPreference::from_env().unwrap_or(wgpu::PowerPreference::LowPower);
+        if cfg!(windows) && wgpu::Backends::from_env().is_none() {
+            setup.instance_descriptor.backends = wgpu::Backends::DX12;
+        }
+    }
+    config
 }

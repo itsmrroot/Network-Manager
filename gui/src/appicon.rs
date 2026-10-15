@@ -100,12 +100,15 @@ fn ico(png: &[u8]) -> Vec<u8> {
 fn linux(icon: AppIcon) {
     let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else { return };
     let dir = home.join(".local/share/icons/hicolor/256x256/apps");
-    let file = dir.join("netmgr.png");
-    if icon == AppIcon::Blue {
-        let _ = std::fs::remove_file(&file);
-    } else if let Some(i) = icon.image(256) {
-        let _ = std::fs::create_dir_all(&dir);
-        let _ = i.save(&file);
+    // The .deb names the icon after the program, the .rpm after the package.
+    for name in ["netmgr.png", "netmgr-gui.png"] {
+        let file = dir.join(name);
+        if icon == AppIcon::Blue {
+            let _ = std::fs::remove_file(&file);
+        } else if let Some(i) = icon.image(256) {
+            let _ = std::fs::create_dir_all(&dir);
+            let _ = i.save(&file);
+        }
     }
     // Menus notice the change sooner.
     let _ = netmgr::cmd::output(

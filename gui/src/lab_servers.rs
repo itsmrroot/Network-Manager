@@ -478,33 +478,36 @@ impl TrapTab {
                 );
                 return;
             }
-            egui::ScrollArea::vertical().id_salt("traps").auto_shrink(false).show(ui, |ui| {
-                for t in &list {
-                    let when: chrono::DateTime<chrono::Local> = t.received.into();
-                    let color = match t.name {
-                        "linkDown" | "authenticationFailure" | "bgpBackwardTransition" => p.danger,
-                        "linkUp" | "bgpEstablished" => p.success,
-                        "coldStart" | "warmStart" | "topologyChange" | "newRoot" => p.warning,
-                        _ => p.accent,
-                    };
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(when.format("%H:%M:%S").to_string()).monospace().color(p.weak));
-                        ui.label(RichText::new(t.from.to_string()).monospace().color(p.text));
-                        ui.label(
-                            theme::semibold(
-                                if t.name.is_empty() { t.oid.to_string() } else { t.name.to_string() },
-                                14.0,
-                            )
-                            .color(color),
-                        );
-                        ui.label(RichText::new(t.kind).size(12.0).color(p.weak));
-                    });
-                    for (o, v) in t.varbinds.iter().take(8) {
-                        ui.label(RichText::new(format!("      {o} = {v}")).monospace().size(12.0).color(p.weak));
+            egui::ScrollArea::vertical().id_salt("traps").auto_shrink(false).min_scrolled_height(240.0).show(
+                ui,
+                |ui| {
+                    for t in &list {
+                        let when: chrono::DateTime<chrono::Local> = t.received.into();
+                        let color = match t.name {
+                            "linkDown" | "authenticationFailure" | "bgpBackwardTransition" => p.danger,
+                            "linkUp" | "bgpEstablished" => p.success,
+                            "coldStart" | "warmStart" | "topologyChange" | "newRoot" => p.warning,
+                            _ => p.accent,
+                        };
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(when.format("%H:%M:%S").to_string()).monospace().color(p.weak));
+                            ui.label(RichText::new(t.from.to_string()).monospace().color(p.text));
+                            ui.label(
+                                theme::semibold(
+                                    if t.name.is_empty() { t.oid.to_string() } else { t.name.to_string() },
+                                    14.0,
+                                )
+                                .color(color),
+                            );
+                            ui.label(RichText::new(t.kind).size(12.0).color(p.weak));
+                        });
+                        for (o, v) in t.varbinds.iter().take(8) {
+                            ui.label(RichText::new(format!("      {o} = {v}")).monospace().size(12.0).color(p.weak));
+                        }
+                        ui.add_space(4.0);
                     }
-                    ui.add_space(4.0);
-                }
-            });
+                },
+            );
         });
     }
 

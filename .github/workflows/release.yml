@@ -103,7 +103,15 @@ jobs:
             linux)
               $pack -f deb,appimage
               cargo generate-rpm -p gui --target ${{ matrix.target }} -o "$GITHUB_WORKSPACE/$pkg"
-              cp "$pkg"/*.deb "installers/$base.deb"
+              # Before 0.9.1 the package was wrongly called "network-manager",
+              # the name of the system's NetworkManager: replace those. The
+              # real NetworkManager is version 1.x, so it is never touched.
+              deb=$(mktemp -d)
+              dpkg-deb -R "$pkg"/*.deb "$deb"
+              grep -q '^Package: netmgr$' "$deb/DEBIAN/control"
+              printf 'Conflicts: network-manager (<< 0.9.1)\nReplaces: network-manager (<< 0.9.1)\n' >> "$deb/DEBIAN/control"
+              dpkg-deb --root-owner-group -b "$deb" "installers/$base.deb"
+              dpkg-deb -f "installers/$base.deb" Package Conflicts Replaces
               cp "$pkg"/*.AppImage "installers/$base.AppImage"
               cp "$pkg"/*.rpm "installers/$base.rpm" ;;
           esac

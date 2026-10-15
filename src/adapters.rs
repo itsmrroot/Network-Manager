@@ -148,6 +148,10 @@ struct Extra {
     services: Vec<(String, String, String, bool)>,
     /// Linux: (device, type, state, connection).
     nm_devices: Vec<(String, String, String, String)>,
+    /// macOS: the Wi-Fi devices whose radio is off.
+    wifi_off: Vec<String>,
+    /// Linux: NetworkManager's Wi-Fi radio is off.
+    wifi_radio_off: bool,
 }
 
 impl Extra {
@@ -157,6 +161,15 @@ impl Extra {
             && let Ok(text) = cmd::run("networksetup", &["-listnetworkserviceorder"])
         {
             e.services = parse_service_order(&text);
+            // Wi-Fi turned off keeps its service: only its power says so.
+            for (device, port, ..) in &e.services {
+                if (port == "Wi-Fi" || port == "AirPort")
+                    && cmd::run("networksetup", &["-getairportpower", device])
+                        .is_ok_and(|t| t.trim_end().ends_with("Off"))
+                {
+                    e.wifi_off.push(device.clone());
+                }
+            }
         }
         if cfg!(target_os = "linux")
             && let Ok(text) = cmd::run("nmcli", &["-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"])
@@ -168,6 +181,8 @@ impl Extra {
                     (f.len() >= 4).then(|| (f[0].clone(), f[1].clone(), f[2].clone(), f[3].clone()))
                 })
                 .collect();
+            e.wifi_radio_off =
+                cmd::run("nmcli", &["radio", "wifi"]).is_ok_and(|t| t.trim().eq_ignore_ascii_case("disabled"));
         }
         e
     }
@@ -263,6 +278,7 @@ fn from_netdev(i: netdev::Interface, extra: &Extra) -> Adapter {
         disabled = !enabled;
         if port == "Wi-Fi" || port == "AirPort" {
             kind = Kind::WiFi;
+            disabled |= extra.wifi_off.contains(&i.name);
         } else if kind == Kind::Other && (port.contains("Ethernet") || port.contains("LAN")) {
             kind = Kind::Ethernet;
         }
@@ -298,6 +314,9 @@ fn from_netdev(i: netdev::Interface, extra: &Extra) -> Adapter {
             // "unavailable" is also a port without a cable, or Wi-Fi with the
             // radio off: turned off only when the interface is down too.
             disabled = (state == "unavailable" || state == "unmanaged") && !i.is_up();
+            if kind == Kind::WiFi && extra.wifi_radio_off {
+                disabled = true;
+            }
         }
     }
 

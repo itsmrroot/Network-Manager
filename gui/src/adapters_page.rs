@@ -31,6 +31,9 @@ pub struct AdaptersPage {
     /// The adapter and the settings it had before the last change.
     undo: Option<(Adapter, IpSettings)>,
     permanent: Option<Job<(String, Option<Mac>)>>,
+    /// Adapters turned off here: some systems report them like adapters
+    /// without a network, and they must still offer "Turn on".
+    turned_off: std::collections::HashSet<String>,
 }
 
 pub fn kind_icon(k: Kind) -> &'static str {
@@ -259,8 +262,18 @@ impl AdaptersPage {
                     }
                 });
                 ui.add_enabled_ui(!busy, |ui| {
-                    let (label, on) = if a.disabled { (tr("Turn on"), true) } else { (tr("Turn off"), false) };
+                    // Back on by other means: connected again.
+                    if a.up && a.main_ipv4().is_some_and(|(ip, _)| !ip.is_link_local()) {
+                        self.turned_off.remove(&a.id);
+                    }
+                    let off = a.disabled || self.turned_off.contains(&a.id);
+                    let (label, on) = if off { (tr("Turn on"), true) } else { (tr("Turn off"), false) };
                     if theme::secondary_button(ui, &icon_label(icon::POWER, label)).clicked() {
+                        if on {
+                            self.turned_off.remove(&a.id);
+                        } else {
+                            self.turned_off.insert(a.id.clone());
+                        }
                         let a = a.clone();
                         self.job = Some(Job::spawn(ui.ctx(), move |_, _| {
                             config::set_enabled(&a, on)?;
