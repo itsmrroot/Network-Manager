@@ -1110,6 +1110,7 @@ dependencies = [
  "egui-wgpu",
  "egui-winit",
  "egui_glow",
+ "glow",
  "glutin",
  "glutin-winit",
  "image",
@@ -2490,7 +2491,7 @@ dependencies = [
 
 [[package]]
 name = "netmgr"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "aes",
  "anyhow",
@@ -2519,7 +2520,7 @@ dependencies = [
 
 [[package]]
 name = "netmgr-gui"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "anyhow",
  "chrono",
