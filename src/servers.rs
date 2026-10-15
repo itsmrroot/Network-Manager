@@ -1163,10 +1163,16 @@ mod tests {
         c.set_read_timeout(Some(Duration::from_millis(500))).unwrap();
         let probe = [&b"\x00\x01"[..], PORT_CHECK_FILE.as_bytes(), b"\x00octet\x00"].concat();
         let mut buf = [0u8; 600];
-        let n = (0..10)
+        // While the server starts, Windows reports the closed port at once
+        // (connection reset) instead of waiting: pause between tries.
+        let n = (0..20)
             .find_map(|_| {
                 c.send_to(&probe, ("127.0.0.1", port)).unwrap();
-                c.recv_from(&mut buf).ok().map(|(n, _)| n)
+                let got = c.recv_from(&mut buf).ok().map(|(n, _)| n);
+                if got.is_none() {
+                    std::thread::sleep(Duration::from_millis(200));
+                }
+                got
             })
             .expect("no answer from the TFTP server");
         assert_eq!(&buf[..4], &[0, 5, 0, 1], "{:?}", &buf[..n]);
