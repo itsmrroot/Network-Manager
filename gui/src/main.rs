@@ -79,17 +79,32 @@ fn note_problem(what: &str) {
     }
 }
 
-/// Messages of the app and its libraries on the terminal, when started
-/// with RUST_LOG=error|warn|info|debug|trace (for troubleshooting).
-struct Stderr(log::LevelFilter);
+/// Messages of the app and its libraries, when started with
+/// RUST_LOG=error|warn|info|debug|trace (for troubleshooting): on the
+/// terminal and in debug.log next to problems.log (Windows shows no
+/// terminal for the app).
+struct Logger(log::LevelFilter, std::sync::Mutex<Option<std::fs::File>>);
 
-impl log::Log for Stderr {
+impl log::Log for Logger {
     fn enabled(&self, m: &log::Metadata) -> bool {
         m.level() <= self.0
     }
     fn log(&self, r: &log::Record) {
         if self.enabled(r.metadata()) {
-            eprintln!("{} {:<5} {}: {}", chrono::Local::now().format("%H:%M:%S%.3f"), r.level(), r.target(), r.args());
+            let line = format!(
+                "{} {:<5} {}: {}",
+                chrono::Local::now().format("%H:%M:%S%.3f"),
+                r.level(),
+                r.target(),
+                r.args()
+            );
+            eprintln!("{line}");
+            if let Ok(mut f) = self.1.lock()
+                && let Some(f) = f.as_mut()
+            {
+                use std::io::Write;
+                let _ = writeln!(f, "{line}");
+            }
         }
     }
     fn flush(&self) {}
@@ -97,7 +112,9 @@ impl log::Log for Stderr {
 
 fn main() -> eframe::Result {
     if let Some(level) = std::env::var("RUST_LOG").ok().and_then(|l| l.parse::<log::LevelFilter>().ok()) {
-        let _ = log::set_boxed_logger(Box::new(Stderr(level))).map(|()| log::set_max_level(level));
+        let file = std::fs::File::create(problem_log().with_file_name("debug.log")).ok();
+        let _ = log::set_boxed_logger(Box::new(Logger(level, std::sync::Mutex::new(file))))
+            .map(|()| log::set_max_level(level));
     }
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
