@@ -338,6 +338,22 @@ impl WifiPage {
     }
 
     fn saved_card(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
+        // macOS does not tell the security of saved networks: it is taken
+        // from the networks in range (and the one connected).
+        if cfg!(target_os = "macos") && self.nearby.is_none() && self.nearby_job.is_none() {
+            self.nearby_job = Some(Job::spawn(ui.ctx(), |_, _| wifi::nearby()));
+        }
+        let mut seen: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        for n in self.nearby.iter().flatten() {
+            if let (Some(ssid), Some(sec)) = (&n.ssid, &n.security) {
+                seen.insert(ssid.clone(), sec.clone());
+            }
+        }
+        for c in &sh.wifi {
+            if let (Some(ssid), Some(sec)) = (&c.ssid, &c.security) {
+                seen.insert(ssid.clone(), sec.clone());
+            }
+        }
         // A QR code opened before its password was read gets it now.
         if let Some((ssid, _, None)) = &self.qr
             && let Some(n) = self.saved.iter().flatten().find(|n| &n.ssid == ssid && n.password.is_some()).cloned()
@@ -438,7 +454,16 @@ impl WifiPage {
                             });
                         });
                         row.col(|ui| {
-                            ui.label(RichText::new(n.security.as_deref().unwrap_or("—")).color(p.weak).size(13.5));
+                            match n.security.as_deref().or_else(|| seen.get(&n.ssid).map(String::as_str)) {
+                                Some(sec) => {
+                                    ui.label(RichText::new(sec).color(p.weak).size(13.5));
+                                }
+                                None => {
+                                    ui.label(RichText::new("—").color(p.weak).size(13.5)).on_hover_text(tr(
+                                        "Shown when the network is in range: the system does not tell it for saved networks.",
+                                    ));
+                                }
+                            }
                         });
                         row.col(|ui| {
                             let visible = self.show_all || self.revealed.contains(&n.ssid);

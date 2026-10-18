@@ -437,7 +437,12 @@ fn tiles(ui: &mut Ui, p: &Palette, sh: &mut Shared) {
         .unwrap_or_default();
     let dns: Vec<String> = a
         .as_ref()
-        .map(|a| a.dns.iter().filter(|d| !is_link_local(d)).map(IpAddr::to_string).collect())
+        .map(|a| {
+            // Link-local servers (the router's fe80:: address) only when
+            // there is nothing else to show.
+            let usual: Vec<String> = a.dns.iter().filter(|d| !is_link_local(d)).map(IpAddr::to_string).collect();
+            if usual.is_empty() { a.dns.iter().map(IpAddr::to_string).collect() } else { usual }
+        })
         .unwrap_or_default();
     let dns_sub = match a.as_ref().and_then(|a| a.dhcp) {
         Some(true) => tr("From the router (automatic)"),

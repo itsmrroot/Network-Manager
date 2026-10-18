@@ -107,8 +107,46 @@ pub fn list(all: bool) -> Result<Vec<Adapter>> {
     out.retain(|a| all || (a.physical && a.kind != Kind::Loopback));
     #[cfg(windows)]
     windows_disabled(&mut out, all);
+    #[cfg(target_os = "macos")]
+    for a in out.iter_mut().filter(|a| a.up && a.physical) {
+        mac_lease(a);
+    }
     out.sort_by_key(|a| (!a.default, !a.up, a.kind != Kind::Ethernet && a.kind != Kind::WiFi, a.name.to_lowercase()));
     Ok(out)
+}
+
+/// macOS: the network service can say "manual" while the adapter runs on
+/// DHCP (Wi-Fi settings can be kept per network): the lease it holds is
+/// what counts. It also gives the router's IPv4 DNS servers, which the
+/// system may leave out in favour of IPv6 ones.
+#[cfg(target_os = "macos")]
+fn mac_lease(a: &mut Adapter) {
+    let Some((ip, _)) = a.main_ipv4() else { return };
+    let Ok(text) = cmd::run("ipconfig", &["getpacket", &a.device]) else { return };
+    let (leased, dns) = parse_lease(&text);
+    if leased != Some(ip) {
+        return;
+    }
+    a.dhcp = Some(true);
+    for d in dns {
+        if !a.dns.contains(&IpAddr::V4(d)) {
+            a.dns.push(IpAddr::V4(d));
+        }
+    }
+}
+
+/// `ipconfig getpacket`: the address leased (yiaddr) and the DNS servers.
+pub fn parse_lease(text: &str) -> (Option<Ipv4Addr>, Vec<Ipv4Addr>) {
+    let mut leased = None;
+    let mut dns = Vec::new();
+    for line in text.lines().map(str::trim) {
+        if let Some(v) = line.strip_prefix("yiaddr = ") {
+            leased = v.trim().parse().ok();
+        } else if let Some(v) = line.strip_prefix("domain_name_server (ip_mult): ") {
+            dns = v.trim_matches(['{', '}']).split(',').filter_map(|d| d.trim().parse().ok()).collect();
+        }
+    }
+    (leased, dns)
 }
 
 /// The adapter called `name` (its name, device or id).
@@ -490,6 +528,11 @@ mod tests {
 
     #[test]
     fn mac_services() {
+        let (ip, dns) = parse_lease(
+            "op = BOOTREPLY\nyiaddr = 192.168.8.71\nserver_identifier (ip): 192.168.8.1\ndomain_name_server (ip_mult): {192.168.8.1, 1.1.1.1}\n",
+        );
+        assert_eq!(ip, Some(Ipv4Addr::new(192, 168, 8, 71)));
+        assert_eq!(dns, vec![Ipv4Addr::new(192, 168, 8, 1), Ipv4Addr::new(1, 1, 1, 1)]);
         let text = "An asterisk (*) denotes that a network service is disabled.\n\
                     (1) USB 10/100/1000 LAN\n(Hardware Port: USB 10/100/1000 LAN, Device: en7)\n\n\
                     (*) Thunderbolt Bridge\n(Hardware Port: Thunderbolt Bridge, Device: bridge0)\n\n\

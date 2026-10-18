@@ -2213,6 +2213,10 @@ pub const GERMAN: &[(&str, &str)] = &[
         "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
         "{name} verwendet noch die manuelle Adresse {address}, aber der Router antwortet nicht: Die Adresse wurde wohl für ein anderes Netzwerk festgelegt. Hier automatische Einstellungen (DHCP) verwenden?",
     ),
+    (
+        "Shown when the network is in range: the system does not tell it for saved networks.",
+        "Wird angezeigt, wenn das Netzwerk in Reichweite ist: Das System nennt es für gespeicherte Netzwerke nicht.",
+    ),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4402,6 +4406,10 @@ pub const SPANISH: &[(&str, &str)] = &[
     (
         "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
         "{name} sigue usando la dirección manual {address}, pero el router no responde: probablemente se configuró para otra red. ¿Usar aquí la configuración automática (DHCP)?",
+    ),
+    (
+        "Shown when the network is in range: the system does not tell it for saved networks.",
+        "Se muestra cuando la red está al alcance: el sistema no lo indica para las redes guardadas.",
     ),
 ];
 
@@ -6614,6 +6622,10 @@ pub const FRENCH: &[(&str, &str)] = &[
         "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
         "{name} utilise encore l'adresse manuelle {address}, mais le routeur ne répond pas : l'adresse a sans doute été définie pour un autre réseau. Utiliser ici les réglages automatiques (DHCP) ?",
     ),
+    (
+        "Shown when the network is in range: the system does not tell it for saved networks.",
+        "Affiché quand le réseau est à portée : le système ne l'indique pas pour les réseaux enregistrés.",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -8785,6 +8797,10 @@ pub const TURKISH: &[(&str, &str)] = &[
     (
         "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
         "{name} hâlâ {address} manuel adresini kullanıyor, ancak yönlendirici yanıt vermiyor: adres büyük olasılıkla başka bir ağ için ayarlanmış. Burada otomatik ayarlar (DHCP) kullanılsın mı?",
+    ),
+    (
+        "Shown when the network is in range: the system does not tell it for saved networks.",
+        "Ağ menzildeyken gösterilir: sistem bunu kayıtlı ağlar için bildirmez.",
     ),
 ];
 
@@ -10973,6 +10989,10 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
         "{name} всё ещё использует ручной адрес {address}, но роутер не отвечает: вероятно, адрес задан для другой сети. Использовать здесь автоматические настройки (DHCP)?",
     ),
+    (
+        "Shown when the network is in range: the system does not tell it for saved networks.",
+        "Показывается, когда сеть в зоне действия: для сохранённых сетей система этого не сообщает.",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -13097,6 +13117,10 @@ pub const ARABIC: &[(&str, &str)] = &[
         "You are back on {network}, where the manual address ({summary}) worked. Use it again?",
         "عدت إلى {network}، حيث كان العنوان اليدوي ({summary}) يعمل. هل تريد استخدامه مجددًا؟",
     ),
+    (
+        "Shown when the network is in range: the system does not tell it for saved networks.",
+        "يظهر عندما تكون الشبكة في النطاق: لا يذكره النظام للشبكات المحفوظة.",
+    ),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -15184,5 +15208,9 @@ pub const CHINESE: &[(&str, &str)] = &[
     (
         "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
         "{name} 仍在使用手动地址 {address}，但路由器没有响应：该地址可能是为其他网络设置的。要在此使用自动设置（DHCP）吗？",
+    ),
+    (
+        "Shown when the network is in range: the system does not tell it for saved networks.",
+        "网络在范围内时显示：系统不会为已保存的网络提供此信息。",
     ),
 ];
