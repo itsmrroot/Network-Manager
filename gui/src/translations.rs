@@ -2196,6 +2196,23 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("{n} points", "{n} Punkte"),
     ("−67 dBm or better is enough for calls and video.", "−67 dBm oder besser reicht für Anrufe und Video."),
     ("1 command rejected", "1 Befehl abgelehnt"),
+    ("Back on the network of your manual address", "Zurück im Netzwerk Ihrer manuellen Adresse"),
+    ("Keep as it is", "So lassen"),
+    (
+        "On Wi-Fi, a manual address stays when you join another network. When it does not work there, the app offers automatic settings, and the manual address again when you are back.",
+        "Im WLAN bleibt eine manuelle Adresse, wenn Sie einem anderen Netzwerk beitreten. Funktioniert sie dort nicht, bietet die App automatische Einstellungen an – und die manuelle Adresse wieder, wenn Sie zurück sind.",
+    ),
+    ("This Wi-Fi network needs automatic settings", "Dieses WLAN braucht automatische Einstellungen"),
+    (
+        "You are back on {network}, where the manual address ({summary}) worked. Use it again?",
+        "Sie sind wieder in {network}, wo die manuelle Adresse ({summary}) funktioniert hat. Wieder verwenden?",
+    ),
+    ("Use automatic settings", "Automatische Einstellungen verwenden"),
+    ("Use the manual address", "Manuelle Adresse verwenden"),
+    (
+        "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
+        "{name} verwendet noch die manuelle Adresse {address}, aber der Router antwortet nicht: Die Adresse wurde wohl für ein anderes Netzwerk festgelegt. Hier automatische Einstellungen (DHCP) verwenden?",
+    ),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4369,6 +4386,23 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("{n} points", "{n} puntos"),
     ("−67 dBm or better is enough for calls and video.", "−67 dBm o mejor basta para llamadas y vídeo."),
     ("1 command rejected", "1 comando rechazado"),
+    ("Back on the network of your manual address", "De vuelta en la red de su dirección manual"),
+    ("Keep as it is", "Dejar como está"),
+    (
+        "On Wi-Fi, a manual address stays when you join another network. When it does not work there, the app offers automatic settings, and the manual address again when you are back.",
+        "En Wi-Fi, una dirección manual se mantiene al conectarse a otra red. Si allí no funciona, la app ofrece la configuración automática, y de nuevo la dirección manual cuando vuelva.",
+    ),
+    ("This Wi-Fi network needs automatic settings", "Esta red Wi-Fi necesita configuración automática"),
+    (
+        "You are back on {network}, where the manual address ({summary}) worked. Use it again?",
+        "Ha vuelto a {network}, donde funcionaba la dirección manual ({summary}). ¿Usarla de nuevo?",
+    ),
+    ("Use automatic settings", "Usar configuración automática"),
+    ("Use the manual address", "Usar la dirección manual"),
+    (
+        "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
+        "{name} sigue usando la dirección manual {address}, pero el router no responde: probablemente se configuró para otra red. ¿Usar aquí la configuración automática (DHCP)?",
+    ),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -6563,6 +6597,23 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("{n} points", "{n} points"),
     ("−67 dBm or better is enough for calls and video.", "−67 dBm ou mieux suffit pour les appels et la vidéo."),
     ("1 command rejected", "1 commande refusée"),
+    ("Back on the network of your manual address", "De retour sur le réseau de votre adresse manuelle"),
+    ("Keep as it is", "Garder tel quel"),
+    (
+        "On Wi-Fi, a manual address stays when you join another network. When it does not work there, the app offers automatic settings, and the manual address again when you are back.",
+        "En Wi-Fi, une adresse manuelle reste en place quand vous rejoignez un autre réseau. Si elle n'y fonctionne pas, l'app propose les réglages automatiques, puis de nouveau l'adresse manuelle à votre retour.",
+    ),
+    ("This Wi-Fi network needs automatic settings", "Ce réseau Wi-Fi a besoin de réglages automatiques"),
+    (
+        "You are back on {network}, where the manual address ({summary}) worked. Use it again?",
+        "Vous êtes de retour sur {network}, où l'adresse manuelle ({summary}) fonctionnait. La réutiliser ?",
+    ),
+    ("Use automatic settings", "Utiliser les réglages automatiques"),
+    ("Use the manual address", "Utiliser l'adresse manuelle"),
+    (
+        "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
+        "{name} utilise encore l'adresse manuelle {address}, mais le routeur ne répond pas : l'adresse a sans doute été définie pour un autre réseau. Utiliser ici les réglages automatiques (DHCP) ?",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -8718,6 +8769,23 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("{n} points", "{n} nokta"),
     ("−67 dBm or better is enough for calls and video.", "−67 dBm veya daha iyisi aramalar ve video için yeterlidir."),
     ("1 command rejected", "1 komut reddedildi"),
+    ("Back on the network of your manual address", "Manuel adresinizin ağına geri döndünüz"),
+    ("Keep as it is", "Olduğu gibi bırak"),
+    (
+        "On Wi-Fi, a manual address stays when you join another network. When it does not work there, the app offers automatic settings, and the manual address again when you are back.",
+        "Wi-Fi'de manuel adres, başka bir ağa katıldığınızda da kalır. Orada çalışmazsa uygulama otomatik ayarları, geri döndüğünüzde de yeniden manuel adresi önerir.",
+    ),
+    ("This Wi-Fi network needs automatic settings", "Bu Wi-Fi ağı otomatik ayar gerektiriyor"),
+    (
+        "You are back on {network}, where the manual address ({summary}) worked. Use it again?",
+        "Manuel adresin ({summary}) çalıştığı {network} ağına geri döndünüz. Yeniden kullanılsın mı?",
+    ),
+    ("Use automatic settings", "Otomatik ayarları kullan"),
+    ("Use the manual address", "Manuel adresi kullan"),
+    (
+        "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
+        "{name} hâlâ {address} manuel adresini kullanıyor, ancak yönlendirici yanıt vermiyor: adres büyük olasılıkla başka bir ağ için ayarlanmış. Burada otomatik ayarlar (DHCP) kullanılsın mı?",
+    ),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -10888,6 +10956,23 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("{n} points", "Точек: {n}"),
     ("−67 dBm or better is enough for calls and video.", "−67 dBm и лучше достаточно для звонков и видео."),
     ("1 command rejected", "Отклонена 1 команда"),
+    ("Back on the network of your manual address", "Снова в сети, где работал ваш ручной адрес"),
+    ("Keep as it is", "Оставить как есть"),
+    (
+        "On Wi-Fi, a manual address stays when you join another network. When it does not work there, the app offers automatic settings, and the manual address again when you are back.",
+        "В Wi-Fi ручной адрес сохраняется при подключении к другой сети. Если там он не работает, приложение предложит автоматические настройки, а по возвращении — снова ручной адрес.",
+    ),
+    ("This Wi-Fi network needs automatic settings", "Этой сети Wi-Fi нужны автоматические настройки"),
+    (
+        "You are back on {network}, where the manual address ({summary}) worked. Use it again?",
+        "Вы снова в сети {network}, где работал ручной адрес ({summary}). Использовать его снова?",
+    ),
+    ("Use automatic settings", "Использовать автоматические настройки"),
+    ("Use the manual address", "Использовать ручной адрес"),
+    (
+        "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
+        "{name} всё ещё использует ручной адрес {address}, но роутер не отвечает: вероятно, адрес задан для другой сети. Использовать здесь автоматические настройки (DHCP)?",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -12995,6 +13080,23 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("{n} points", "{n} نقطة"),
     ("−67 dBm or better is enough for calls and video.", "يكفي −67 dBm أو أفضل للمكالمات والفيديو."),
     ("1 command rejected", "رُفض أمر واحد"),
+    ("Back on the network of your manual address", "عدت إلى شبكة عنوانك اليدوي"),
+    ("Keep as it is", "اتركه كما هو"),
+    (
+        "On Wi-Fi, a manual address stays when you join another network. When it does not work there, the app offers automatic settings, and the manual address again when you are back.",
+        "في Wi-Fi يبقى العنوان اليدوي عند الانضمام إلى شبكة أخرى. وإذا لم يعمل هناك يعرض التطبيق الإعدادات التلقائية، ثم العنوان اليدوي مجددًا عند عودتك.",
+    ),
+    ("This Wi-Fi network needs automatic settings", "شبكة Wi-Fi هذه تحتاج إلى إعدادات تلقائية"),
+    ("Use automatic settings", "استخدام الإعدادات التلقائية"),
+    ("Use the manual address", "استخدام العنوان اليدوي"),
+    (
+        "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
+        "لا يزال {name} يستخدم العنوان اليدوي {address}، لكن الراوتر لا يرد: ربما ضُبط العنوان لشبكة أخرى. هل تريد استخدام الإعدادات التلقائية (DHCP) هنا؟",
+    ),
+    (
+        "You are back on {network}, where the manual address ({summary}) worked. Use it again?",
+        "عدت إلى {network}، حيث كان العنوان اليدوي ({summary}) يعمل. هل تريد استخدامه مجددًا؟",
+    ),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -15066,4 +15168,21 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("{n} points", "{n} 个测量点"),
     ("−67 dBm or better is enough for calls and video.", "−67 dBm 或更好足以满足通话和视频。"),
     ("1 command rejected", "1 条命令被拒绝"),
+    ("Back on the network of your manual address", "已回到手动地址所在的网络"),
+    ("Keep as it is", "保持不变"),
+    (
+        "On Wi-Fi, a manual address stays when you join another network. When it does not work there, the app offers automatic settings, and the manual address again when you are back.",
+        "在 Wi-Fi 上，加入其他网络后手动地址仍会保留。如果它在那里无法使用，应用会建议改用自动设置，回到原网络时再建议恢复手动地址。",
+    ),
+    ("This Wi-Fi network needs automatic settings", "此 Wi-Fi 网络需要自动设置"),
+    (
+        "You are back on {network}, where the manual address ({summary}) worked. Use it again?",
+        "你已回到 {network}，手动地址（{summary}）之前在此可用。要再次使用吗？",
+    ),
+    ("Use automatic settings", "使用自动设置"),
+    ("Use the manual address", "使用手动地址"),
+    (
+        "{name} still uses the manual address {address}, but the router does not answer: the address was probably set for another network. Use automatic settings (DHCP) here?",
+        "{name} 仍在使用手动地址 {address}，但路由器没有响应：该地址可能是为其他网络设置的。要在此使用自动设置（DHCP）吗？",
+    ),
 ];

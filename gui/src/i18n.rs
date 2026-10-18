@@ -645,6 +645,7 @@ mod tests {
         include_str!("theme.rs"),
         include_str!("tools.rs"),
         include_str!("update.rs"),
+        include_str!("wifi_ip.rs"),
         include_str!("wifi_page.rs"),
     ];
 

@@ -160,6 +160,7 @@ pub struct App {
     overview: overview::Overview,
     adapters_page: adapters_page::AdaptersPage,
     wifi_page: wifi_page::WifiPage,
+    wifi_ip: crate::wifi_ip::WifiIp,
     devices: devices::Devices,
     profiles: profiles::Profiles,
     tools: tools::Tools,
@@ -249,6 +250,7 @@ impl App {
             overview: Default::default(),
             adapters_page: Default::default(),
             wifi_page: Default::default(),
+            wifi_ip: Default::default(),
             devices: Default::default(),
             profiles: Default::default(),
             tools: Default::default(),
@@ -678,6 +680,7 @@ impl App {
         self.monitor.poll(&ctx, sh);
         self.tools.poll(sh);
         self.console.poll(&ctx, sh);
+        self.wifi_ip.tick(&ctx, p, sh);
         if let Some(nav) = sh.nav.take() {
             match nav {
                 Nav::Page(page) => self.page = page,

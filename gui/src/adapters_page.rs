@@ -424,6 +424,17 @@ impl AdaptersPage {
             });
             ui.add_space(10.0);
             ed.form.show(ui, p);
+            if ed.adapter.kind == Kind::WiFi && !ed.form.dhcp && (cfg!(target_os = "macos") || cfg!(windows)) {
+                ui.add_space(4.0);
+                theme::paragraph(
+                    ui,
+                    trl(
+                        "On Wi-Fi, a manual address stays when you join another network. When it does not work there, the app offers automatic settings, and the manual address again when you are back.",
+                    ),
+                    12.5,
+                    p.weak,
+                );
+            }
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 ui.checkbox(&mut ed.save_profile, tr("Also save as a profile"));

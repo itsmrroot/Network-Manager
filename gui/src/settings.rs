@@ -123,6 +123,8 @@ pub struct Settings {
     /// When the scheduled backups last ran, or the schedule was set (Unix
     /// seconds).
     pub backup_last: i64,
+    /// The Wi-Fi network a manual IP address works on (macOS, Windows).
+    pub wifi_manual: Option<crate::wifi_ip::WifiManual>,
 }
 
 fn yes() -> bool {
@@ -172,6 +174,7 @@ impl Default for Settings {
             snmp_remember: false,
             backup_schedule: Default::default(),
             backup_last: 0,
+            wifi_manual: None,
         }
     }
 }
