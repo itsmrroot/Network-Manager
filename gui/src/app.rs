@@ -45,6 +45,8 @@ pub enum Nav {
     Tool(tools::Tab, String),
     /// Watch a host in the ping monitor.
     Monitor(String),
+    /// A tab of a page (the page's own name for it).
+    Tab(Page, &'static str),
 }
 
 /// Transfer rates of the default adapter, sampled every second.
@@ -100,6 +102,8 @@ pub struct Shared {
     pub traffic: Traffic,
     /// What others do with this computer (Servers → Activity).
     pub activity: crate::activity::Activity,
+    /// Console → CLI guide, in its tab, docked or in its own window.
+    pub guide: crate::guide_view::GuideState,
 }
 
 impl Shared {
@@ -227,6 +231,7 @@ impl App {
                 nav: None,
                 traffic: Traffic::default(),
                 activity: activity_log,
+                guide: Default::default(),
             },
             notifier: Default::default(),
             applied: None,
@@ -696,6 +701,7 @@ impl App {
                     self.monitor.add(sh, &host);
                     self.page = Page::Monitor;
                 }
+                Nav::Tab(page, id) => self.go(&ctx, search::Target::Tab(page, id)),
             }
         }
     }
@@ -806,6 +812,19 @@ impl eframe::App for App {
                 Frame::new().fill(p.sidebar).stroke(Stroke::new(1.0, p.border)).inner_margin(Margin::symmetric(12, 0)),
             )
             .show(ui, |ui| self.sidebar(ui, &p));
+        // The CLI guide beside the console, or in a window of its own.
+        let guide_action = {
+            let (g, cfg) = (&mut self.shared.guide, &mut self.shared.settings.guide);
+            let docked = self.page == Page::Console && cfg.docked && !g.popped && !self.console.showing_guide();
+            let a = if docked { crate::guide_view::dock(ui, &p, g, cfg) } else { None };
+            let b = if g.popped { crate::guide_view::window(&ctx, &p, g, cfg) } else { None };
+            a.or(b)
+        };
+        match guide_action {
+            Some(crate::guide_view::Action::OpenTab) => self.shared.nav = Some(Nav::Tab(Page::Console, "guide")),
+            Some(crate::guide_view::Action::OpenConsole) => self.shared.nav = Some(Nav::Tab(Page::Console, "serial")),
+            None => {}
+        }
         egui::CentralPanel::default()
             .frame(Frame::new().fill(p.bg).inner_margin(Margin { left: 30, right: 30, top: 26, bottom: 22 }))
             .show(ui, |ui| self.content(ui, &p));
@@ -985,6 +1004,10 @@ mod tour {
     pub struct Tour {
         pub dir: PathBuf,
         pub step: usize,
+        /// The step the tour began at (NETMGR_TOUR_FROM).
+        pub start: usize,
+        /// NETMGR_TOUR_FROM: the name (its start) of the first step to visit.
+        pub from: Option<String>,
         pub frames: u32,
         pub waiting: Option<String>,
     }
@@ -993,7 +1016,14 @@ mod tour {
         pub fn from_env() -> Option<Self> {
             let dir = PathBuf::from(std::env::var_os("NETMGR_TOUR_DIR")?);
             std::fs::create_dir_all(&dir).ok()?;
-            Some(Self { dir, step: 0, frames: 0, waiting: None })
+            Some(Self {
+                dir,
+                step: 0,
+                start: 0,
+                from: std::env::var("NETMGR_TOUR_FROM").ok(),
+                frames: 0,
+                waiting: None,
+            })
         }
     }
 }
@@ -1027,7 +1057,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 35] = [
+        let pages: [(Page, &str, u32); 40] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1062,14 +1092,26 @@ impl App {
             (Page::Tools, "33-snmpv3", 400),
             (Page::Servers, "34-traps-v3", 40),
             (Page::Adapters, "35-ip", 40),
+            (Page::Console, "36-guide", 30),
+            (Page::Console, "37-guide-dock", 30),
+            (Page::Console, "38-guide-search", 30),
+            (Page::Console, "39-guide-table", 30),
+            (Page::Console, "40-guide-window", 80),
             (Page::Overview, "26-search", 30),
         ];
+        // NETMGR_TOUR_FROM=36-guide: begin at that step.
+        if t.frames == 1
+            && let Some(prefix) = t.from.take()
+            && let Some(i) = pages.iter().position(|(_, n, _)| n.starts_with(prefix.as_str()))
+        {
+            (t.step, t.start) = (i, i);
+        }
         // NETMGR_TOUR_LIGHT: the light theme instead.
-        if t.frames == 1 && t.step == 0 && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {
+        if t.frames == 1 && t.step == t.start && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {
             self.shared.settings.theme = settings::ThemeChoice::Light;
         }
         // NETMGR_TOUR_ICON=violet|graphite|kiwi: that icon and its colours.
-        if t.frames == 1 && t.step == 0 {
+        if t.frames == 1 && t.step == t.start {
             let icon = match std::env::var("NETMGR_TOUR_ICON").as_deref() {
                 Ok("violet") => Some(theme::AppIcon::Violet),
                 Ok("graphite") => Some(theme::AppIcon::Graphite),
@@ -1083,13 +1125,13 @@ impl App {
         }
         // NETMGR_TOUR_SCALE=1.5: the interface size (narrow layouts).
         if t.frames == 1
-            && t.step == 0
+            && t.step == t.start
             && let Some(scale) = std::env::var("NETMGR_TOUR_SCALE").ok().and_then(|s| s.parse::<f32>().ok())
         {
             self.shared.settings.ui_scale = scale;
         }
         // NETMGR_TOUR_LANG=de|ar|es|fr|ru|zh|tr: that language instead.
-        if t.frames == 1 && t.step == 0 {
+        if t.frames == 1 && t.step == t.start {
             use i18n::Language as L;
             let lang = match std::env::var("NETMGR_TOUR_LANG").as_deref() {
                 Ok("en") => Some(L::English),
@@ -1108,7 +1150,7 @@ impl App {
         }
         // NETMGR_TOUR_DEMO: sample data instead of this computer's networks.
         if std::env::var_os("NETMGR_TOUR_DEMO").is_some() {
-            if t.frames == 1 && t.step == 0 {
+            if t.frames == 1 && t.step == t.start {
                 self.wifi_page.demo();
                 self.devices.demo();
                 self.switchport.demo();
@@ -1223,6 +1265,32 @@ impl App {
             }
             if name == "20-map" {
                 self.devices.show("map");
+            }
+            if name == "36-guide" {
+                let g = &mut self.shared.settings.guide;
+                (g.book, g.topic, g.docked) = (1, 5, false);
+                self.console.show(&mut self.shared, "guide");
+            }
+            if name == "37-guide-dock" {
+                let g = &mut self.shared.settings.guide;
+                (g.book, g.topic, g.docked, g.side, g.width) = (1, 2, true, crate::guide_view::Side::Right, 480.0);
+                self.console.show(&mut self.shared, "dock");
+            }
+            if name == "38-guide-search" {
+                let g = &mut self.shared.settings.guide;
+                (g.book, g.topic, g.docked) = (1, 1, false);
+                self.shared.guide.demo_search("trunk allowed", true);
+                self.console.show(&mut self.shared, "guide");
+            }
+            if name == "40-guide-window" {
+                self.shared.guide.popped = true;
+                self.console.show(&mut self.shared, "guide");
+            }
+            if name == "39-guide-table" {
+                let g = &mut self.shared.settings.guide;
+                (g.book, g.topic, g.docked) = (7, 3, false);
+                self.shared.guide.demo_search("", false);
+                self.console.show(&mut self.shared, "guide");
             }
             if name == "30-push" {
                 self.console.show(&mut self.shared, "push");

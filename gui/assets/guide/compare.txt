@@ -1,0 +1,58 @@
+@title Same task, every make
+@intro The same everyday tasks side by side for Cisco IOS, Juniper Junos, Aruba AOS-CX, Arista EOS and MikroTik RouterOS 7. Use it when you know one make and need to work on another. The details are in each make's book: a command here shows the idea, not every option.
+@source Cisco IOS XE configuration guides | https://www.cisco.com/c/en/us/support/switches/catalyst-9300-series-switches/products-installation-and-configuration-guides-list.html
+@source Juniper Junos documentation for switches | https://www.juniper.net/documentation/us/en/software/junos/interfaces-ethernet-switches/interfaces-ethernet-switches.pdf
+@source Aruba AOS-CX documentation | https://arubanetworking.hpe.com/techdocs/AOS-CX/
+@source Arista EOS user manual | https://www.arista.com/en/um-eos
+@source MikroTik RouterOS documentation | https://help.mikrotik.com/docs/spaces/ROS/overview
+
+# Looking and saving
+## Look at the switch
+| Task | Cisco IOS | Juniper Junos | Aruba AOS-CX | Arista EOS | MikroTik RouterOS 7 |
+|---|---|---|---|---|---|
+| Model and software | `show version` | `show version` | `show version` | `show version` | `/system resource print` |
+| Running configuration | `show running-config` | `show configuration` | `show running-config` | `show running-config` | `/export` |
+| Ports at a glance | `show interfaces status` | `show interfaces terse` | `show interface brief` | `show interfaces status` | `/interface print` |
+| Layer 3 interfaces | `show ip interface brief` | `show interfaces terse` | `show ip interface brief` | `show ip interface brief` | `/ip address print` |
+| VLANs | `show vlan brief` | `show vlans` | `show vlan` | `show vlan` | `/interface bridge vlan print` |
+| MAC address table | `show mac address-table` | `show ethernet-switching table` | `show mac-address-table` | `show mac address-table` | `/interface bridge host print` |
+| Neighbours (LLDP) | `show lldp neighbors` | `show lldp neighbors` | `show lldp neighbor-info` | `show lldp neighbors` | `/ip neighbor print` |
+| Routing table | `show ip route` | `show route` | `show ip route` | `show ip route` | `/ip route print` |
+| Log | `show logging` | `show log messages` | `show logging` | `show logging` | `/log print` |
+
+## Save and undo
+| Task | Cisco IOS | Juniper Junos | Aruba AOS-CX | Arista EOS | MikroTik RouterOS 7 |
+|---|---|---|---|---|---|
+| Save the configuration | `copy running-config startup-config` | `commit` (nothing works before it) | `write memory` | `write memory` | Nothing: changes are kept at once |
+| Safe change with automatic undo | `reload in 10` (before saving) | `commit confirmed 5` | `checkpoint create NAME` | `commit timer` in a `configure session` | Safe mode: Ctrl+X |
+| Go back | Reload without saving | `rollback 1` and `commit` | `checkpoint rollback NAME` | `abort` in the session | Leave safe mode with a broken connection |
+| Reboot | `reload` | `request system reboot` | `boot system` | `reload` | `/system reboot` |
+| Factory reset | `write erase` and `reload` | `request system zeroize` | `erase all zeroize` | `write erase` and `reload` | `/system reset-configuration` |
+
+# Configuring switching
+## VLANs and ports
+| Task | Cisco IOS | Juniper Junos (ELS) | Aruba AOS-CX | Arista EOS | MikroTik RouterOS 7 |
+|---|---|---|---|---|---|
+| Create VLAN 10 | `vlan 10` | `set vlans SALES vlan-id 10` | `vlan 10` | `vlan 10` | An entry in `/interface bridge vlan` |
+| Access port in VLAN 10 | `switchport mode access`, `switchport access vlan 10` | `interface-mode access`, `vlan members SALES` | `no routing`, `vlan access 10` | `switchport mode access`, `switchport access vlan 10` | `/interface bridge port add … pvid=10` |
+| Trunk | `switchport mode trunk` | `interface-mode trunk`, `vlan members [ … ]` | `vlan trunk allowed 10,20` | `switchport mode trunk` | `frame-types=admit-only-vlan-tagged`, `tagged=` |
+| Limit the VLANs on a trunk | `switchport trunk allowed vlan 10,20` | `vlan members [ SALES SUPPORT ]` | `vlan trunk allowed 10,20` | `switchport trunk allowed vlan 10,20` | The `tagged=` list of each VLAN |
+| Native VLAN | `switchport trunk native vlan 99` | `native-vlan-id 99` | `vlan trunk native 99` | `switchport trunk native vlan 99` | `pvid=99` on the trunk |
+| Switch address in VLAN 10 | `interface vlan 10`, `ip address …` | `irb unit 10`, `l3-interface irb.10` | `interface vlan 10`, `ip address …/24` | `interface Vlan10`, `ip address …/24` | `/interface vlan`, `/ip address` |
+| Link aggregation (LACP) | `channel-group 1 mode active` | `802.3ad ae0`, `lacp active` | `lag 1`, `lacp mode active` | `channel-group 1 mode active` | `/interface bonding` with `mode=802.3ad` |
+| Rapid spanning tree | `spanning-tree mode rapid-pvst` | `set protocols rstp interface all` | `spanning-tree mode rpvst` | `spanning-tree mode rapid-pvst` | `protocol-mode=rstp` on the bridge |
+| User port: fast start | `spanning-tree portfast edge` | `rstp interface … edge` | `spanning-tree port-type admin-edge` | `spanning-tree portfast` | `edge=yes` on the bridge port |
+| BPDU guard | `spanning-tree bpduguard enable` | `set protocols rstp bpdu-block-on-edge` | `spanning-tree bpdu-guard` | `spanning-tree bpduguard enable` | `bpdu-guard=yes` on the bridge port |
+
+~ The MikroTik entries for bonding, `protocol-mode` and the edge and BPDU guard properties of a bridge port are listed here as pointers: check MikroTik's documentation for the exact syntax on your RouterOS version.
+
+# How the makes differ
+## Ideas that surprise people
+| Topic | What to know |
+|---|---|
+| Where VLANs are set | Cisco, Arista: on the port (`switchport access vlan`). Juniper: on the port, by VLAN name. Aruba AOS-CX: on the port, and the port must be `no routing`. Aruba AOS-Switch: in the VLAN (`vlan 10 untagged 1-12`). MikroTik: in the bridge VLAN table and the bridge port |
+| Default trunk VLANs | Cisco: all VLANs. Arista: all VLANs. Aruba AOS-CX: all VLANs until you set `vlan trunk allowed`. Juniper: only the VLANs you list |
+| Saving | Cisco, Arista, Aruba: save by hand. Juniper: `commit` applies and saves. MikroTik: always saved |
+| Default spanning tree | Cisco: PVST+. Arista: MSTP. Juniper: RSTP under `protocols rstp` (check that it is in your configuration). Aruba AOS-CX: off until you turn on `spanning-tree`. MikroTik: set by the bridge `protocol-mode` |
+| Layer 3 on a switch | Cisco: `ip routing`. Arista: `ip routing`. Aruba AOS-CX: no command, an address is enough. Juniper: IRB interfaces. MikroTik: an address on the bridge VLAN interface |
+| Console speed | Cisco, Juniper, Arista: 9600. Aruba AOS-CX, MikroTik: 115200 |

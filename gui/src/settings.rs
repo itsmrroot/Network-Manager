@@ -125,6 +125,8 @@ pub struct Settings {
     pub backup_last: i64,
     /// The Wi-Fi network a manual IP address works on (macOS, Windows).
     pub wifi_manual: Option<crate::wifi_ip::WifiManual>,
+    /// Console → CLI guide: where it sits and what it shows.
+    pub guide: crate::guide_view::GuideSettings,
 }
 
 fn yes() -> bool {
@@ -175,6 +177,7 @@ impl Default for Settings {
             backup_schedule: Default::default(),
             backup_last: 0,
             wifi_manual: None,
+            guide: Default::default(),
         }
     }
 }

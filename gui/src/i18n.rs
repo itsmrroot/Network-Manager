@@ -620,6 +620,7 @@ mod tests {
         include_str!("capture_page.rs"),
         include_str!("console.rs"),
         include_str!("devices.rs"),
+        include_str!("guide_view.rs"),
         include_str!("heatmap.rs"),
         include_str!("help.rs"),
         include_str!("i18n.rs"),

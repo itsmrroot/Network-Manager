@@ -22,6 +22,20 @@ const FONT: f32 = 13.0;
 const BG: Color32 = Color32::from_rgb(8, 10, 14);
 const FG: Color32 = Color32::from_rgb(220, 226, 235);
 
+/// Gives the keyboard to the terminal `id` for this frame: egui's keyboard
+/// focus must sit on it, or its Tab and arrow-key navigation keeps running
+/// (the filter below only applies to the focused widget) and moves the focus
+/// to other widgets, so that the next Enter presses one of them.
+pub fn capture_keys(ctx: &egui::Context, id: egui::Id) {
+    ctx.memory_mut(|m| {
+        m.request_focus(id);
+        m.set_focus_lock_filter(
+            id,
+            egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true },
+        )
+    });
+}
+
 impl Term {
     pub fn new(id: u64) -> Self {
         Self { parser: vt100::Parser::new(24, 80, 5000), focused: true, id: egui::Id::new(("term", id)) }
@@ -131,13 +145,7 @@ impl Term {
                 self.parser.screen_mut().set_scrollback(0);
             }
             // Keep Tab and the arrows in the terminal.
-            ui.ctx().memory_mut(|m| {
-                m.request_focus(self.id);
-                m.set_focus_lock_filter(
-                    self.id,
-                    egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true },
-                )
-            });
+            capture_keys(ui.ctx(), self.id);
         }
         out
     }
@@ -269,5 +277,122 @@ fn color(c: vt100::Color, default: Color32, bold: bool) -> Color32 {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use eframe::egui::{Event, Modifiers, PointerButton, Pos2};
+
+    #[derive(Default)]
+    struct State {
+        /// Times the first button on the page ("Overview" in the sidebar) was pressed.
+        overview: u32,
+        /// Connected: the terminal takes the keys (set by the click on Connect, as in the console).
+        connected: bool,
+        /// Where the Connect button was.
+        connect_at: Pos2,
+        /// Key presses that reached the terminal.
+        seen: usize,
+    }
+
+    fn key(key: Key) -> Event {
+        Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }
+    }
+
+    /// One frame of a page built as the serial console is: a button first
+    /// (the sidebar's Overview), a Connect button until connected, and the
+    /// terminal. `fixed` takes the keyboard with [`capture_keys`]; the old
+    /// code only set the lock filter, which applies to the focused widget.
+    fn frame(ctx: &egui::Context, events: Vec<Event>, fixed: bool, st: &mut State) {
+        let input = egui::RawInput {
+            events,
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0))),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| {
+            if ui.button("Overview").clicked() {
+                st.overview += 1;
+            }
+            if !st.connected {
+                let connect = ui.button("Connect");
+                st.connect_at = connect.rect.center();
+                if connect.clicked() {
+                    st.connected = true;
+                }
+            }
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(400.0, 200.0), Sense::hover());
+            let id = egui::Id::new("terminal-focus");
+            // As in the console: the terminal's own click area.
+            ui.interact(rect, id, Sense::click());
+            if st.connected {
+                st.seen += ui.input(|i| i.events.iter().filter(|e| matches!(e, Event::Key { .. })).count());
+                if fixed {
+                    capture_keys(ui.ctx(), id);
+                } else {
+                    ui.ctx().memory_mut(|m| {
+                        m.set_focus_lock_filter(
+                            id,
+                            egui::EventFilter {
+                                tab: true,
+                                horizontal_arrows: true,
+                                vertical_arrows: true,
+                                escape: true,
+                            },
+                        )
+                    });
+                }
+            }
+        });
+        // Nothing paints these frames: the texture updates are not needed.
+        output.textures_delta.clear();
+    }
+
+    /// Click Connect, then type as on a switch: the keys in `keys`.
+    fn type_a_command(fixed: bool, keys: &[Key]) -> State {
+        let ctx = egui::Context::default();
+        let mut st = State::default();
+        for _ in 0..3 {
+            frame(&ctx, vec![], fixed, &mut st);
+        }
+        let at = st.connect_at;
+        let button = |pressed| Event::PointerButton {
+            pos: at,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        frame(&ctx, vec![Event::PointerMoved(at), button(true)], fixed, &mut st);
+        frame(&ctx, vec![button(false)], fixed, &mut st);
+        assert!(st.connected, "the Connect button was not clicked");
+        for _ in 0..3 {
+            frame(&ctx, vec![], fixed, &mut st);
+        }
+        for &k in keys {
+            frame(&ctx, vec![key(k)], fixed, &mut st);
+            frame(&ctx, vec![], fixed, &mut st);
+        }
+        st
+    }
+
+    /// The keys a person types on a switch that move egui's focus unless the
+    /// terminal holds it: Tab completion, history with the arrows, Escape.
+    #[test]
+    fn enter_does_not_press_other_buttons() {
+        for keys in [
+            vec![Key::Tab, Key::Enter],
+            vec![Key::ArrowDown, Key::Enter],
+            vec![Key::ArrowUp, Key::ArrowUp, Key::Enter],
+            vec![Key::Tab, Key::Tab, Key::Enter],
+        ] {
+            let old = type_a_command(false, &keys);
+            let new = type_a_command(true, &keys);
+            println!("{keys:?}: old pressed Overview {} times; new {}", old.overview, new.overview);
+            assert_eq!(new.overview, 0, "Enter reached the button behind the terminal after {keys:?}");
+            assert_eq!(new.seen, keys.len(), "every key press reaches the terminal");
+        }
+        // The test must show the old bug, or it proves nothing.
+        assert!(type_a_command(false, &[Key::Tab, Key::Enter]).overview > 0, "the old code no longer shows the bug");
     }
 }

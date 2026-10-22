@@ -187,6 +187,13 @@ fn entries() -> Vec<Entry> {
             "backup config running diff oxidized",
             Target::Tab(Page::Console, "backups"),
         ),
+        e(
+            icon::BOOK_OPEN,
+            tr("CLI guide"),
+            tr("Console"),
+            "cli guide commands cisco juniper aruba arista mikrotik ccna learn switch vlan trunk spanning tree password recovery cheat sheet",
+            Target::Tab(Page::Console, "guide"),
+        ),
         e(icon::GEAR_SIX, tr("Settings"), "", "settings preferences language theme", Target::Page(Page::Settings)),
         e(icon::QUESTION, tr("Help"), "", "help guide how", Target::Page(Page::Help)),
         e(icon::INFO, tr("About"), "", "about version update", Target::Page(Page::About)),

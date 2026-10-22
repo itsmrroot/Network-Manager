@@ -12,6 +12,8 @@ mod backups;
 mod capture_page;
 mod console;
 mod devices;
+mod guide;
+mod guide_view;
 mod heatmap;
 mod help;
 mod i18n;

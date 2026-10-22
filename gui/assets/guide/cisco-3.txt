@@ -1,0 +1,357 @@
+# Routing basics
+## Static routes
+A Layer 3 switch (or router) sends a packet to the best matching entry of its routing table. The most specific match wins (the longest prefix), and when two protocols know the same network, the one with the lower administrative distance wins.
+
+[SW1(config)#] ip routing
+Routing must be on for a Layer 3 switch.
+
+[SW1(config)#] ip route 10.20.0.0 255.255.0.0 192.168.1.2
+A route to the network 10.20.0.0/16 through the router at 192.168.1.2.
+
+[SW1(config)#] ip route 0.0.0.0 0.0.0.0 192.168.1.1
+The default route: where everything without a better route goes.
+
+[SW1(config)#] ip route 0.0.0.0 0.0.0.0 192.168.2.1 200
+A floating static route: a backup default route with a high distance (200), which only appears when the main route disappears.
+
+[SW1#] show ip route
+The routing table.
+> Codes: L - local, C - connected, S - static, R - RIP, B - BGP
+>        D - EIGRP, EX - EIGRP external, O - OSPF, IA - OSPF inter area
+>
+> Gateway of last resort is 192.168.1.1 to network 0.0.0.0
+>
+> S*    0.0.0.0/0 [1/0] via 192.168.1.1
+>       192.168.10.0/24 is variably subnetted, 2 subnets, 2 masks
+> C        192.168.10.0/24 is directly connected, Vlan10
+> L        192.168.10.1/32 is directly connected, Vlan10
+> O     192.168.20.0/24 [110/2] via 192.168.1.2, 00:05:12, Vlan99
+`[110/2]` is the administrative distance and the metric. `S*` is the default route, and "Gateway of last resort" names its next hop.
+| Source of the route | Administrative distance |
+|---|---|
+| Connected | 0 |
+| Static | 1 |
+| eBGP | 20 |
+| EIGRP (internal) | 90 |
+| OSPF | 110 |
+| RIP | 120 |
+| EIGRP (external) | 170 |
+| iBGP | 200 |
+| Unknown | 255 (never used) |
+
+## OSPF (single area)
+OSPF is a link-state routing protocol: every router learns the whole map of its area and calculates the best path. The CCNA covers OSPFv2 in a single area.
+
+[SW1(config)#] router ospf 1
++ router-id 1.1.1.1
++ network 192.168.10.0 0.0.0.255 area 0
++ network 192.168.99.0 0.0.0.255 area 0
++ passive-interface vlan 10
+Starts OSPF process 1 with a router ID, advertises two networks into area 0, and stops sending OSPF hellos towards users on VLAN 10 (the network is still advertised).
+
+[SW1(config)#] interface vlan 99
++ ip ospf 1 area 0
+Another way: switch OSPF on per interface instead of with `network` commands.
+
+[SW1#] show ip ospf neighbor
+The routers it has adjacencies with.
+> Neighbor ID     Pri   State           Dead Time   Address         Interface
+> 2.2.2.2           1   FULL/DR         00:00:35    192.168.1.2     Vlan99
+`FULL` is a working adjacency. `2WAY` is normal between two routers that are neither DR nor BDR on Ethernet. Stuck in `INIT`, `EXSTART` or `EXCHANGE` means a mismatch.
+
+[SW1#] show ip ospf interface brief
+The interfaces in OSPF with their area, cost and number of neighbours.
+
+[SW1#] show ip protocols
+Which routing protocols run, the networks they advertise and the distance.
+
+[SW1#] show ip route ospf
+Only the routes learned by OSPF.
+| Neighbours need the same | Detail |
+|---|---|
+| Area | The same area ID on the link |
+| Subnet and mask | The two interfaces in one subnet |
+| Hello and dead timers | 10 and 40 seconds on Ethernet |
+| Authentication | The same type and key, or none |
+| MTU | The same on both sides |
+| Router ID | Different on each router |
+On Ethernet a designated router (DR) and a backup (BDR) are elected: the highest priority wins (default 1, 0 means never), then the highest router ID. The election is not pre-emptive.
+
+## First hop redundancy
+Hosts have one default gateway. A first hop redundancy protocol lets two Layer 3 switches or routers share one virtual gateway address, so that the network survives the loss of one.
+| Protocol | Standard | Notes |
+|---|---|---|
+| HSRP | Cisco | One active, one standby; virtual address and MAC |
+| VRRP | Open (IEEE/IETF) | The same idea; works with other makes |
+| GLBP | Cisco | Also shares the load between routers |
+
+[SW1(config)#] interface vlan 10
++ ip address 192.168.10.2 255.255.255.0
++ standby version 2
++ standby 10 ip 192.168.10.1
++ standby 10 priority 110
++ standby 10 preempt
+HSRP group 10 with the virtual gateway 192.168.10.1. The switch with the higher priority (default 100) is active; `preempt` lets it take the role back after a failure. The second switch uses another address and the same `standby 10 ip` line.
+
+[SW1#] show standby brief
+The group, priority, state (Active, Standby) and the virtual address.
+
+# IPv6
+## Configure IPv6
+IPv6 addresses are 128 bits written as eight groups of hexadecimal: `2001:db8:10::1`. Leading zeros can be left out and one run of zero groups can be written as `::`.
+| Type | Range | Use |
+|---|---|---|
+| Global unicast | 2000::/3 | Routable on the internet |
+| Unique local | fc00::/7 (fd00::/8 in practice) | Private, inside a company |
+| Link-local | fe80::/10 | Only on the local link: every IPv6 interface has one |
+| Multicast | ff00::/8 | One-to-many: replaces broadcast |
+| Loopback | ::1/128 | The device itself |
+| Unspecified | ::/128 | "No address yet" |
+
+[SW1(config)#] ipv6 unicast-routing
+Turns IPv6 routing on (a Layer 3 switch or router).
+
+[SW1(config)#] interface vlan 10
++ ipv6 address 2001:db8:10::1/64
++ ipv6 address fe80::1 link-local
++ no shutdown
+Gives the VLAN an IPv6 address and a simple link-local address. With `eui-64` after the prefix, the interface part is built from the MAC address: `ipv6 address 2001:db8:10::/64 eui-64`.
+
+[SW1(config)#] ipv6 route ::/0 2001:db8:1::1
+The IPv6 default route.
+
+[SW1#] show ipv6 interface brief
+Each interface with its IPv6 addresses.
+
+[SW1#] show ipv6 route
+The IPv6 routing table. `show ipv6 neighbors` is the equivalent of the ARP table.
+
+[SW1#] ping 2001:db8:10::2
+Tests an IPv6 address.
+~ Older Catalyst 2960 switches need `sdm prefer dual-ipv4-and-ipv6 default` and a reload before they can use IPv6.
+
+# Maintenance and recovery
+## Back up and restore
+Back up the configuration before changes and after every important change. Network Manager does it for you: Console → Backups saves the configuration of your SSH sessions on a schedule and shows what changed.
+
+[SW1#] copy running-config tftp://192.168.99.10/SW1-confg
+Copies the running configuration to a TFTP server. `copy startup-config …` copies the saved one.
+~ In Network Manager, Servers → TFTP server is a TFTP server for this. Allow uploads, and the file appears in its folder.
+
+[SW1#] copy running-config flash:SW1-backup.cfg
+Keeps a copy in the switch's own flash memory (also `usbflash0:SW1.cfg` on switches with a USB port).
+
+[SW1#] copy tftp://192.168.99.10/SW1-confg running-config
+Loads a file. It is merged into the running configuration: lines that are not in the file stay.
+
+[SW1#] configure replace flash:SW1-backup.cfg
+Makes the running configuration exactly like the file, removing everything else. Put `list` at the end first to see what would change. Not every model supports it.
+
+## Upgrade the software
+Always read Cisco's release notes first, keep the old image until the new one works, and have console access.
+
+[SW1#] dir flash:
+Shows the files and the free space.
+
+[SW1#] copy tftp://192.168.99.10/cat9k_iosxe.17.12.03.SPA.bin flash:
+Copies the new image to flash.
+
+[SW1#] verify /md5 flash:cat9k_iosxe.17.12.03.SPA.bin
+Checks the file against the MD5 value Cisco publishes: do not install a damaged file.
+
+[SW1#] install add file flash:cat9k_iosxe.17.12.03.SPA.bin activate commit
+Catalyst 9000 switches run in install mode: this installs the new software and reloads. `show install summary` shows the result and `install remove inactive` cleans up old files.
+
+[SW1(config)#] boot system flash:image.bin
+Older switches in bundle mode: set the image, save with `copy run start` and `reload`. On a 2960: `archive download-sw /overwrite /reload tftp://192.168.99.10/image.tar`.
+
+## Reload and factory reset
+[SW1#] reload
+Restarts the switch. It asks whether to save the configuration if it changed.
+
+[SW1#] reload in 10
+Restarts in 10 minutes. `reload cancel` cancels it. A safety net for risky changes: do not save, and if you lose the connection, the switch comes back with the old saved configuration.
+
+[SW1#] write erase
++ delete flash:vlan.dat
++ reload
+Resets the switch to its factory state: erases the saved configuration and the VLAN database. Answer `no` if it asks to save.
+! This deletes the whole configuration. Back it up first.
+
+## Password recovery: Catalyst 9000 (9200, 9300, 9400, 9500, 9600)
+You need physical access and a console cable. These steps follow Cisco's guide for standalone switches. For a stack, turn off all members except the active switch first.
+1. Power cycle the switch. When it says `Preparing to autoboot. [Press Ctrl-C to interrupt]`, press Ctrl-C. If you do not see that prompt, press the Mode button repeatedly until the `switch:` prompt appears.
+2. At the `switch:` prompt, look at the variables, tell the switch to ignore its saved configuration, and boot.
+
+[switch:] set
+Shows the boot variables.
+
+[switch:] SWITCH_IGNORE_STARTUP_CFG=1
+Makes the next boot skip the startup configuration.
+
+[switch:] boot
+Starts the software with an empty configuration.
+
+3. When it has booted, load the old configuration and set a new password.
+
+[Switch>] enable
++ copy startup-config running-config
+Brings the old configuration back, still with the old passwords.
+
+[Switch#] configure terminal
++ username admin privilege 15 secret <new-password>
++ end
+Sets a new password. If you use an enable secret, set that too: `enable algorithm-type scrypt secret <new-password>`.
+
+[Switch#] no system ignore startupconfig switch all
+Stops the switch from ignoring its configuration at the next boot (this is how Cisco's guide writes it).
+
+[Switch#] copy running-config startup-config
+Saves the new password.
+
+[Switch#] show romvar
+Check that `SWITCH_IGNORE_STARTUP_CFG` is 0. If it is not, the switch will ignore its configuration at the next reload.
+
+## Password recovery: Catalyst 2960 and similar (Mode button)
+For Catalyst 2960 and related switches. Timing and LED behaviour differ by model: follow the guide for yours. Use 9600 baud.
+1. Power off the switch. Plug in the power again and, within 15 seconds, press and hold the Mode button while the System LED is still flashing green. Keep it pressed until all the system LEDs stay lit, then release it.
+2. Read the message. "The system has been interrupted prior to initializing the flash file system" means recovery is enabled: continue below. "The password-recovery mechanism has been triggered, but is currently disabled" means it was turned off: see the end of this topic.
+
+[switch:] flash_init
++ load_helper
++ dir flash:
+Starts the flash file system, and shows the files, including `config.text`.
+
+[switch:] rename flash:config.text flash:config.text.old
++ boot
+Hides the configuration (with the passwords) so that the switch starts without it.
+
+[Switch>] enable
++ rename flash:config.text.old flash:config.text
++ copy flash:config.text system:running-config
+Answer `no` to the setup dialog when asked. Then restore the old file, and load it into the running configuration (press Enter at the questions).
+
+[Switch#] configure terminal
++ enable secret <new-password>
++ end
++ copy running-config startup-config
+Sets the new password and saves it.
+! Interfaces that were shut down may still be shut down after the restore: use `no shutdown` on them (`interface vlan <id>`, then `no shutdown`).
+! If password recovery is disabled (`no service password-recovery` in the configuration), you cannot reach the boot loader. The switch offers to set the configuration back to default: answering `y` deletes the configuration and the VLAN database, and you must configure the switch again, ideally from a backup. Answering `n` boots normally.
+
+## The switch stuck at the boot loader
+If the prompt is `switch:` or `rommon 1 >` after a restart, the software did not start.
+[switch:] dir flash:
+Shows the files. Look for the image (`cat9k_iosxe….bin`, or `packages.conf` in install mode).
+
+[switch:] boot flash:packages.conf
+Starts the software. Use the name of the image file instead if the switch runs in bundle mode.
+
+# Troubleshooting
+## A method that works
+Work from the bottom up, one layer at a time, and change one thing at a time.
+1. **What changed?** Ask who is affected: one user, one VLAN, everyone? Since when?
+2. **Physical:** is there a link? `show interfaces status`, the cable, the other end.
+3. **Layer 2:** is the port in the right VLAN, is the trunk carrying it, is spanning tree blocking?
+4. **Layer 3:** the address, mask and gateway; `ping` the gateway, then beyond; the routing table.
+5. **Filters:** ACLs, port security, DHCP snooping.
+6. **Services:** DHCP, DNS, NTP: do they answer?
+
+## Symptom → what to check
+| Symptom | Check | Commands |
+|---|---|---|
+| No link light | Cable, other end, speed and duplex, SFP | `show interfaces status`, `show interfaces transceiver` |
+| Port is err-disabled | The reason, then fix it | `show interfaces status err-disabled`, `show logging` |
+| Link is up, no network | VLAN, port security, DHCP snooping | `show vlan brief`, `show interfaces g1/0/5 switchport`, `show port-security interface g1/0/5` |
+| One VLAN does not cross a trunk | Allowed VLANs, native VLAN, VLAN exists on both | `show interfaces trunk` |
+| Slow link, many errors | Duplex mismatch, bad cable | `show interfaces g1/0/5 \| include error\|duplex`, `show interfaces counters errors` |
+| Everything is slow, lights flash | A loop, a broadcast storm | `show processes cpu sorted`, `show spanning-tree`, log for `MACFLAP` |
+| Clients get no IP address | DHCP snooping trust, helper address, pool | `show ip dhcp snooping`, `show ip dhcp binding`, `show ip helper-address` |
+| Cannot reach the switch | Management VLAN, gateway, ACL | `show ip interface brief`, `ping`, `show ip ssh` |
+| SSH does not work | RSA key, `transport input`, login method, ACL | `show ip ssh`, `show running-config \| section line vty` |
+| Times in the log are wrong | NTP | `show ntp status`, `show clock` |
+| High CPU | Which process | `show processes cpu sorted \| exclude 0.00` |
+
+## ping and traceroute
+[SW1#] ping 192.168.1.1
+Sends five echo requests. Results: `!` reply, `.` timed out, `U` destination unreachable, `Q` source quench, `M` could not fragment, `?` unknown.
+
+[SW1#] ping 8.8.8.8 source vlan 10 repeat 100 size 1400
+An extended ping: from the address of VLAN 10, 100 times, with large packets. It tests as a host in that VLAN would, and finds MTU problems.
+
+[SW1#] traceroute 8.8.8.8
+Lists every router on the way. Stars mean a router did not answer.
+~ Ctrl+Shift+6 then X stops a ping or traceroute.
+
+## Logs and debug
+[SW1#] show logging | include %
+Only the real messages of the log.
+
+[SW1#] terminal monitor
+Shows log messages in this SSH or Telnet session (the console shows them anyway).
+
+[SW1#] debug ip packet
+Shows packets live. Dangerous on a busy switch: it can freeze it. Always know how to stop it: `undebug all`. `show debugging` lists what is on.
+| Message | Meaning |
+|---|---|
+| `%LINK-3-UPDOWN` | A physical link went up or down |
+| `%LINEPROTO-5-UPDOWN` | The line protocol of an interface changed |
+| `%SPANTREE-2-BLOCK_BPDUGUARD` | BPDU guard shut a port down: a switch was plugged into an access port |
+| `%PM-4-ERR_DISABLE` | A port was put into err-disabled state; the reason is in the message |
+| `%PORT_SECURITY-2-PSECURE_VIOLATION` | A device not allowed by port security tried to use a port |
+| `%SW_MATM-4-MACFLAP_NOTIF` | A MAC address moves between ports: often a loop |
+| `%CDP-4-NATIVE_VLAN_MISMATCH` | The two ends of a trunk have different native VLANs |
+| `%SYS-5-CONFIG_I` | Someone changed the configuration (it says who and from where) |
+| `%SYS-5-RESTART` | The switch restarted |
+
+# Quick reference
+## The commands you will use most
+| Command | What it shows or does |
+|---|---|
+| `show ip interface brief` | Interfaces, addresses, up or down |
+| `show interfaces status` | Ports: state, VLAN, speed, duplex |
+| `show vlan brief` | VLANs and their access ports |
+| `show interfaces trunk` | Trunks and their VLANs |
+| `show mac address-table` | Which MAC address is on which port |
+| `show ip arp` | IP-to-MAC table |
+| `show cdp neighbors detail` | Neighbouring devices |
+| `show spanning-tree` | Spanning tree state |
+| `show etherchannel summary` | Port channels |
+| `show ip route` | Routing table |
+| `show running-config \| section <word>` | One part of the configuration |
+| `show version` | Model, software, uptime |
+| `show logging` | The log |
+| `show clock` | The time |
+| `show inventory` | Serial numbers and modules |
+| `show power inline` | PoE use |
+| `show port-security` | Port security state |
+| `show ip dhcp snooping binding` | DHCP leases the switch learned |
+| `show access-lists` | ACLs with match counts |
+| `show processes cpu sorted` | CPU load by process |
+| `copy running-config startup-config` | Save |
+| `reload in 10` | Restart in 10 minutes unless cancelled |
+| `ping`, `traceroute` | Test the way |
+
+## Well-known ports
+| Port | Service | Port | Service |
+|---|---|---|---|
+| 20, 21 | FTP data, control | 123 (UDP) | NTP |
+| 22 | SSH | 161, 162 (UDP) | SNMP, traps |
+| 23 | Telnet | 179 | BGP |
+| 25 | SMTP | 389, 636 | LDAP, LDAPS |
+| 49 | TACACS+ | 443 | HTTPS |
+| 53 | DNS | 514 (UDP) | Syslog |
+| 67, 68 (UDP) | DHCP server, client | 1812, 1813 (UDP) | RADIUS |
+| 69 (UDP) | TFTP | 3389 | Remote Desktop |
+| 80 | HTTP | 110, 143 | POP3, IMAP |
+
+## Private and special IPv4 ranges
+| Range | Use |
+|---|---|
+| 10.0.0.0/8 | Private |
+| 172.16.0.0/12 | Private (172.16.0.0 to 172.31.255.255) |
+| 192.168.0.0/16 | Private |
+| 169.254.0.0/16 | Link-local: a computer that found no DHCP server gives itself one |
+| 127.0.0.0/8 | Loopback |
+| 100.64.0.0/10 | Shared address space of providers (CGNAT) |
+| 224.0.0.0/4 | Multicast |

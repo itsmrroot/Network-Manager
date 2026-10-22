@@ -1,0 +1,149 @@
+@title Arista EOS
+@intro Arista switches run EOS, whose command line is very close to Cisco IOS: if you know one, you know most of the other. This book lists the commands that are the same, and the differences that matter (EOS runs spanning tree in MSTP mode by default, `switchport mode trunk` allows every VLAN, and the configuration can be tried in a session with automatic rollback).
+@source Arista EOS: Virtual LANs (VLANs) | https://www.arista.com/en/um-eos/eos-virtual-lans-vlans
+@source Arista EOS: Spanning Tree Protocol | https://www.arista.com/en/um-eos/eos-spanning-tree-protocol
+@source Arista EOS: Switch booting commands (console speed) | https://www.arista.com/en/um-eos/eos-switch-booting-commands
+@source Arista EOS: Sample configurations | https://www.arista.com/en/um-eos/eos-sample-configurations
+
+# EOS basics
+## Modes and first steps
+The prompts and the way through the modes are the same as on Cisco.
+| Prompt | Mode |
+|---|---|
+| `switch>` | User EXEC |
+| `switch#` | Privileged EXEC (`enable`) |
+| `switch(config)#` | Global configuration (`configure terminal`, or `config`) |
+| `switch(config-if-Et5)#` | Interface configuration |
+The console is 9600 baud, 8N1 by default (`boot console speed` changes it).
+
+[switch>] enable
++ configure terminal
+Enters configuration mode, as on Cisco.
+
+[switch(config)#] hostname SW1
++ username admin privilege 15 secret <password>
++ enable secret <password>
+Names the switch and creates an administrator and the enable password. Use `secret`, never `password`.
+
+[switch(config)#] interface vlan 99
++ ip address 192.168.99.2/24
++ exit
++ ip routing
++ ip route 0.0.0.0/0 192.168.99.1
+A management address in VLAN 99 and a default route. Addresses are written with the prefix length. `ip routing` turns Layer 3 routing on: it is off by default on EOS.
+~ SSH is available as soon as the switch has an address. `management ssh` is the place for its settings.
+
+[SW1#] write memory
+Saves the running configuration. `copy running-config startup-config` does the same.
+
+[SW1#] show running-config
+The running configuration. `| section interface`, `| include` and the other filters work as on Cisco.
+
+## Safe changes with a session
+EOS can hold your changes in a **configuration session** and apply them only on `commit`.
+
+[SW1#] configure session CHANGE1
+Starts a session: the commands you type go into it, not into the running configuration.
+
+[SW1(config-s-CHANGE1)#] show session-config diffs
+Shows what the session would change.
+
+[SW1(config-s-CHANGE1)#] commit timer 00:05:00
+Applies the session, and undoes it after 5 minutes unless you confirm with `commit`. `abort` throws the session away.
+
+# VLANs and ports
+## VLANs, access ports and trunks
+[SW1(config)#] vlan 10
++ name Sales
++ exit
+Creates VLAN 10.
+
+[SW1(config)#] interface Ethernet5
++ switchport mode access
++ switchport access vlan 10
++ spanning-tree portfast
+Makes port Ethernet5 an access port in VLAN 10.
+
+[SW1(config)#] interface Ethernet48
++ switchport mode trunk
++ switchport trunk allowed vlan 10,20,99
++ switchport trunk native vlan 99
+Makes a trunk for VLANs 10, 20 and 99. The native VLAN is 1 unless you change it.
+! `switchport mode trunk` alone allows every VLAN. Restrict the list with `switchport trunk allowed vlan`.
+
+[SW1#] show interfaces status
+One line per port: state, VLAN, duplex, speed and type.
+
+[SW1#] show vlan
+The VLANs and their ports.
+
+[SW1#] show interfaces trunk
+The trunks with their mode, status, native VLAN and allowed VLANs.
+
+[SW1#] show interfaces Ethernet48 switchport
+The administrative and operational mode of a port and its VLANs.
+
+## Routing and link aggregation
+[SW1(config)#] interface Vlan10
++ ip address 192.168.10.1/24
+Gives VLAN 10 a gateway on the switch (needs `ip routing`).
+
+[SW1(config)#] interface Ethernet47-48
++ channel-group 1 mode active
++ exit
++ interface Port-Channel1
++ switchport mode trunk
+Bundles two ports with LACP (`active` or `passive`; `on` is static). Settings of the bundle go on `Port-Channel1`.
+
+[SW1#] show port-channel summary
+The bundles and their members.
+
+## Spanning tree
+[SW1(config)#] spanning-tree mode rapid-pvst
+EOS uses MSTP by default. The other modes are `rstp` and `rapid-pvst` (one tree per VLAN, compatible with Cisco's Rapid PVST+). Use the same mode as the switches around it.
+
+[SW1(config)#] spanning-tree priority 4096
+Makes this switch more likely to be the root bridge.
+
+[SW1(config-if-Et5)#] spanning-tree portfast
++ spanning-tree bpduguard enable
+Fast start and BPDU guard on a user port.
+
+[SW1#] show spanning-tree
+The root bridge and the role and state of each port.
+
+# Looking around and maintenance
+## The daily commands
+[SW1#] show mac address-table
+The MAC addresses learned, per VLAN and port.
+
+[SW1#] show lldp neighbors
+The devices attached to each port.
+
+[SW1#] show ip interface brief
+Layer 3 interfaces and their addresses.
+
+[SW1#] show ip route
+The routing table.
+
+[SW1#] show version
+Model, serial number, EOS version, uptime and memory.
+
+[SW1#] show inventory
+The hardware: modules, transceivers, fans and power supplies.
+
+[SW1#] show logging
+The log.
+
+[SW1#] show tech-support
+Dumps everything for Arista support.
+
+## Reload and factory reset
+[SW1#] reload
+Restarts the switch.
+
+[SW1#] write erase
++ reload
+Erases the startup configuration and restarts: the switch comes back without configuration and starts zero-touch provisioning. `zerotouch cancel` stops that if you want to configure it by hand.
+! This deletes the whole configuration. Back it up first (Console → Backups).
+~ If you cannot log in, Arista's boot loader (Aboot) lets you recover the switch with the console: see the guide for your model for the steps.

@@ -1,0 +1,207 @@
+@title Aruba AOS-CX and ArubaOS-Switch
+@intro Aruba (HPE) switches run two different systems with different commands. AOS-CX (6000 and 8000 series, CX) is the current one and the first part of this book. ArubaOS-Switch, also called ProVision (2530, 2930, 3810, 5400), is older and covered at the end. Check which one you have with `show version`.
+@source Aruba AOS-CX: Layer 2 bridging guide (10.15, 6300 and 6400) | https://arubanetworking.hpe.com/techdocs/AOS-CX/10.15/PDF/l2_bridging_6300-6400.pdf
+@source Aruba AOS-CX: Assigning a VLAN ID to a trunk interface | https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/HTML/l2_bridging_8400/Content/Chp_vlans/asi-vla-id-tru-int.htm
+@source Aruba AOS-CX: vlan trunk native | https://arubanetworking.hpe.com/techdocs/AOS-CX/10.14/HTML/l2_bridging_8400/Content/Chp_vlans/vlan_cmds/vla-tru-nat.htm
+@source Aruba AOS-CX: console baud-rate | https://arubanetworking.hpe.com/techdocs/AOS-CX/AOSCX-CLI-Bank/cli_4100i/Content/SysHW_cmds/con-baud-rate.htm
+@source Aruba community: ArubaOS-CX access and trunk interface good practices | https://airheads.hpe.com/discussion/arubaos-cx-accesstrunk-interface-configuration-commongood-practices
+
+# AOS-CX basics
+## Modes and first login
+| Prompt | Mode |
+|---|---|
+| `switch#` | Manager mode (administrators) |
+| `switch(config)#` | Global configuration (`configure terminal`) |
+| `switch(config-if)#` | Interface configuration |
+| `switch(config-vlan-10)#` | VLAN configuration |
+The console is 115200 baud, 8N1 (9600 can be chosen with `console baud-rate`). Interfaces are named `member/slot/port`: `1/1/1`. A new switch has a user `admin` with no password: it asks you to set one at the first login.
+
+[switch#] configure terminal
+Enters global configuration. Short form: `conf t` or `config`.
+
+[switch(config)#] exit
+Goes back one level. `end` goes straight back to manager mode.
+
+[switch#] show running-config
+The configuration that is running. `show startup-config` is the saved one.
+
+[switch#] write memory
+Saves the running configuration to the startup configuration. `copy running-config startup-config` does the same.
+~ `?` lists what can come next, Tab completes, and the shortened commands work as on Cisco. A command with `no` in front removes a setting.
+
+## First setup
+[switch(config)#] hostname SW1
+Names the switch.
+
+[switch(config)#] user admin group administrators password
+Sets the password of the administrator (it asks for it twice).
+
+[switch(config)#] vlan 99
++ name Management
++ exit
+Creates the management VLAN. If `show vlan` lists it as down, add `no shutdown` inside the VLAN.
+
+[switch(config)#] interface vlan 99
++ ip address 192.168.99.2/24
++ exit
++ ip route 0.0.0.0/0 192.168.99.1
+Gives the switch an address in that VLAN and a default route. Addresses are written with the prefix length.
+
+[switch(config)#] ssh server vrf default
+Lets SSH in over the data ports (the default VRF). The management port uses its own VRF (`mgmt`).
+
+[switch(config)#] interface mgmt
++ no shutdown
++ ip static 192.168.1.10/24
++ default-gateway 192.168.1.1
+The dedicated out-of-band management port, if the model has one.
+
+# VLANs and ports
+## VLANs and access ports
+Interfaces on AOS-CX can be routed or switched. VLANs only work on **switched** interfaces, so every port that carries VLANs needs `no routing`. A port can also be shut down by default: add `no shutdown`.
+
+[switch(config)#] vlan 10
++ name Sales
++ exit
+Creates VLAN 10.
+
+[switch(config)#] interface 1/1/5
++ no shutdown
++ no routing
++ vlan access 10
+Makes port 1/1/5 an access port in VLAN 10.
+
+[switch(config)#] interface 1/1/1-1/1/24
++ no shutdown
++ no routing
++ vlan access 10
+The same for a range of ports.
+
+[switch#] show vlan
+The VLANs and their ports.
+
+[switch#] show interface brief
+One line per port: state, type, speed and mode. The equivalent of Cisco's `show interfaces status`.
+
+[switch#] show interface 1/1/5
+All details and counters of one port.
+
+## Trunks
+There is no separate "tagged" or "untagged" command. A port is a trunk when it has a native VLAN and an allowed list: the native VLAN is untagged, all others are tagged.
+
+[switch(config)#] interface 1/1/48
++ no shutdown
++ no routing
++ vlan trunk native 1
++ vlan trunk allowed 10,20,99
+Makes a trunk carrying VLANs 10, 20 and 99, with VLAN 1 untagged.
+! VLAN 1 is the native VLAN on every trunk unless you change it, and if the native VLAN is not in the allowed list, untagged frames are dropped. Setting a native VLAN also runs `vlan trunk allowed all`: set the allowed list after it to restrict the VLANs.
+
+[switch(config-if)#] vlan trunk native 99 tag
+Accepts only frames tagged with VLAN 99 as native: untagged frames are dropped (except BPDUs).
+
+## Routing between VLANs
+[switch(config)#] interface vlan 10
++ ip address 192.168.10.1/24
++ exit
++ interface vlan 20
++ ip address 192.168.20.1/24
+Gateways for VLAN 10 and 20 on the switch (SVIs). AOS-CX has no `ip routing` command: routing works as soon as the interfaces have addresses.
+
+[switch#] show ip route
+The routing table.
+
+# Aggregation and spanning tree
+## Link aggregation (LAG)
+[switch(config)#] interface lag 1
++ no shutdown
++ no routing
++ vlan trunk native 1
++ vlan trunk allowed 10,20,99
++ lacp mode active
++ exit
+Creates the logical interface lag 1 as a trunk, with LACP.
+
+[switch(config)#] interface 1/1/49
++ no shutdown
++ lag 1
++ exit
++ interface 1/1/50
++ no shutdown
++ lag 1
+Puts two ports into the bundle.
+
+[switch#] show lacp interfaces
+LACP state of each member.
+
+## Spanning tree
+[switch(config)#] spanning-tree
++ spanning-tree mode rpvst
+Turns spanning tree on, in rapid per-VLAN mode (like Cisco's Rapid PVST+). The other mode is `mstp`.
+
+[switch(config-if)#] spanning-tree port-type admin-edge
++ spanning-tree bpdu-guard
+Marks a user port as an edge port (like PortFast) and shuts it down if a BPDU arrives.
+
+[switch#] show spanning-tree
+The root bridge and the role and state of each port.
+
+# Looking around and maintenance
+## The daily commands
+[switch#] show mac-address-table
+The MAC addresses learned, with VLAN and port.
+
+[switch#] show lldp neighbor-info
+The devices attached to each port.
+
+[switch#] show version
+The AOS-CX version and the boot images.
+
+[switch#] show system
+Model, serial, uptime, CPU, memory and temperature.
+
+[switch#] show logging
+The event log. `show logging -r` shows the newest first.
+
+[switch#] show ntp status
+Is the clock synchronised?
+
+[switch#] ping 192.168.99.1
+Tests a way. `traceroute` shows the path.
+
+## Save, roll back and reset
+[switch#] checkpoint create BEFORE-CHANGE
+Keeps a copy of the configuration under a name. `show checkpoint` lists them and `checkpoint rollback BEFORE-CHANGE` goes back to one: a safe way to try changes.
+
+[switch#] boot system
+Restarts the switch (`boot system primary` or `secondary` chooses the image).
+
+[switch#] erase all zeroize
+Returns the switch to factory defaults and erases all keys and data. Back up first.
+! For a forgotten password, AOS-CX has a recovery menu in its boot loader (ServiceOS). See Aruba's AOS-CX fundamentals guide for your model: it needs physical access and may erase the configuration.
+
+# ArubaOS-Switch (ProVision)
+## The older commands
+This system (2530, 2930F, 2930M, 3810, 5400) assigns ports in the VLAN, not on the port, and numbers ports without slashes (`1`, `24`, or `A1` on modular switches). Commands written for it do not work on AOS-CX.
+| Task | Command |
+|---|---|
+| Enter configuration | `configure` |
+| Create a VLAN and name it | `vlan 10` then `name Sales` |
+| Access ports (untagged) | `vlan 10 untagged 1-12` |
+| Trunk (tagged) | `vlan 10 tagged 24` |
+| VLAN address | `vlan 10 ip address 192.168.10.1/24` |
+| Show VLANs | `show vlans` |
+| Show ports | `show interfaces brief` |
+| Show MAC addresses | `show mac-address` |
+| Show LLDP neighbours | `show lldp info remote-device` |
+| Show the configuration | `show running-config` |
+| Save | `write memory` |
+
+[switch#] configure
++ vlan 10
++ name Sales
++ untagged 1-12
++ tagged 24
++ exit
+Creates VLAN 10 with ports 1 to 12 untagged (access) and port 24 as a tagged (trunk) member.
+~ A port can be untagged in only one VLAN, and tagged in many.

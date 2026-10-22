@@ -242,7 +242,7 @@ impl Palette {
 
 pub const SEMIBOLD: &str = "semibold";
 
-fn semibold_family() -> FontFamily {
+pub fn semibold_family() -> FontFamily {
     FontFamily::Name(SEMIBOLD.into())
 }
 

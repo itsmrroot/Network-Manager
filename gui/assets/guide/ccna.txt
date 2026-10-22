@@ -1,0 +1,397 @@
+@title CCNA study map
+@intro What the CCNA 200-301 exam covers, in which order to learn it, where this guide teaches each objective, and a lab plan for a real switch with Network Manager's console. It follows exam version 1.1, the current one until 2 February 2027; the changes of version 2.0 are in the first topic. The objectives are summarised: Cisco's page has the official wording.
+@source Cisco: CCNA exam page | https://www.cisco.com/site/us/en/learn/training-certifications/exams/ccna.html
+@source Cisco Learning Network: CCNA v1.1 exam topics | https://learningnetwork.cisco.com/s/ccna-v1-1-exam-topics
+@source Wendell Odom, CertSkills: CCNA version 2.0 blueprint deep dive | https://www.certskills.com/ccna26-02/
+@source ComputingForGeeks: CCNA 200-301 exam topics, full v1.1 list (current as of July 2026) | https://computingforgeeks.com/ccna-exam-topics/
+
+# About the exam
+## The facts
+- The exam is **200-301 CCNA**, "Implementing and Administering Cisco Solutions". It lasts 120 minutes and, on Cisco's page at the time of writing, costs US$300 (prices vary by country).
+- Questions are multiple choice, drag and drop, and hands-on simulations in which you type commands.
+- **Version 1.1** has been in force since 20 August 2024 and ends on **2 February 2027**. **Version 2.0** starts on **3 February 2027**, with the same exam number 200-301. Cisco published its blueprint on 20 May 2026.
+- Check Cisco's pages before booking: topics, prices and dates change.
+| Domain (v1.1) | Weight |
+|---|---|
+| 1. Network fundamentals | 20% |
+| 2. Network access | 20% |
+| 3. IP connectivity | 25% |
+| 4. IP services | 10% |
+| 5. Security fundamentals | 15% |
+| 6. Automation and programmability | 10% |
+
+## What changes in version 2.0
+These changes were reported by Wendell Odom (author of the Cisco Press CCNA books) when the blueprint appeared. Cisco's own page has the official list and the new weights, which sources report differently.
+- More **troubleshooting**: about 28% of the topics use troubleshooting verbs, where v1.0 and v1.1 had none.
+- **PoE** (Power over Ethernet) configuration is new, and you must know which features each type of endpoint needs.
+- **DHCP server on IOS devices** is added, and DHCP is raised to the troubleshooting level.
+- **DNS**: diagnosing problems with the main DNS record types.
+- **Ansible** at the "use" level, and the different network management approaches, including infrastructure as code and controller-based.
+- The single AI topic of v1.1 is replaced by two: writing prompts, and agentic AI in network operations.
+- Several v1.1 topics move to a higher level (for example from "describe" to "configure"). None move down.
+~ The commands in this guide stay valid for v2.0: it is the same switching, routing, services and security, with more fixing of broken networks. Practise troubleshooting from the start (see the lab plan).
+
+## How to study
+1. **Fundamentals:** the layers, cables, Ethernet, IPv4 subnetting and IPv6 addresses. Subnetting needs daily practice until it is automatic.
+2. **Switching:** VLANs, trunks, spanning tree, EtherChannel, CDP and LLDP.
+3. **Routing:** the routing table, static routes, OSPF in one area, first hop redundancy.
+4. **Services:** DHCP, DNS, NAT, NTP, SNMP, syslog, QoS ideas, SSH.
+5. **Security:** device access, ACLs, Layer 2 security, AAA, VPN and wireless security.
+6. **Wireless and automation ideas:** architectures, controllers, REST, JSON and the configuration tools.
+7. **Practice exams,** and labs on everything you got wrong.
+
+## Where to practise
+- **A real switch.** An older used Catalyst 2960 or 3560 is enough for most of the exam, and teaches how real hardware behaves. Network Manager helps: Console → Serial console to type commands, Console → Backups to save the configuration, Servers → TFTP server, Syslog server and Time (NTP) for the services, and Tools → SNMP.
+- **Cisco Packet Tracer,** free from Cisco Networking Academy: good for many switches and routers on one screen.
+- **Cisco Modeling Labs** (a free edition exists with a small node limit), GNS3 and EVE-NG: real software images, but you need images and a PC with enough memory.
+- Use all of them: simulations on the exam are closest to the real CLI.
+
+# Domain 1: Network fundamentals (20%)
+## The objectives
+| No. | Topic | Where to learn it |
+|---|---|---|
+| 1.1 | Roles of routers, L2 and L3 switches, firewalls and IPS, access points, controllers, endpoints, servers, PoE | Below |
+| 1.2 | Topologies: two-tier, three-tier, spine-leaf, WAN, SOHO, on-premises and cloud | Below |
+| 1.3 | Interface and cable types: single-mode and multimode fibre, copper, shared media and point-to-point | Below |
+| 1.4 | Interface and cable problems: collisions, errors, duplex and speed mismatch | Cisco → Interfaces |
+| 1.5 | TCP and UDP compared | Below |
+| 1.6 | Configure and verify IPv4 addressing and subnetting | Below, Cisco → First setup |
+| 1.7 | Why private IPv4 addresses exist | Cisco → Quick reference |
+| 1.8 | Configure and verify IPv6 addressing and prefix | Cisco → IPv6 |
+| 1.9 | IPv6 address types: global unicast, unique local, link-local, anycast, multicast, modified EUI-64 | Cisco → IPv6 |
+| 1.10 | Verify IP settings on Windows, macOS and Linux | Below |
+| 1.11 | Wireless principles: non-overlapping channels, SSID, RF, encryption | Below |
+| 1.12 | Virtualisation: servers, containers, VRFs | Below |
+| 1.13 | Switching concepts: MAC learning and ageing, frame switching and flooding, the MAC table | Below, Cisco → Looking around |
+
+## Layers and protocols
+| OSI layer | Name | Data unit | Examples | Devices |
+|---|---|---|---|---|
+| 7 | Application | Data | HTTP, DNS, DHCP, SSH | |
+| 6 | Presentation | Data | TLS, JPEG, ASCII | |
+| 5 | Session | Data | Sessions, RPC | |
+| 4 | Transport | Segment (TCP), datagram (UDP) | TCP, UDP | Firewalls |
+| 3 | Network | Packet | IP, ICMP, OSPF | Routers, L3 switches |
+| 2 | Data link | Frame | Ethernet, 802.1Q, ARP | Switches, access points |
+| 1 | Physical | Bits | Cables, radio, fibre | Hubs, cables |
+The TCP/IP model has four layers: application (OSI 5 to 7), transport, internet and network access (OSI 1 and 2).
+| | TCP | UDP |
+|---|---|---|
+| Connection | Connection-oriented: a three-way handshake (SYN, SYN-ACK, ACK) | Connectionless |
+| Reliability | Acknowledgements, retransmission, ordering | None |
+| Flow control | Windowing | None |
+| Overhead | Higher | Low |
+| Used by | Web, SSH, email, file transfer | DNS, DHCP, TFTP, SNMP, NTP, voice and video |
+
+## Devices and designs
+- A **router** connects networks and decides by IP address. A **Layer 2 switch** forwards frames by MAC address inside a network. A **Layer 3 switch** does both. A **firewall** (next-generation firewall) filters by rules, applications and users; an **IPS** detects and blocks attacks.
+- **Access points** join wireless devices to the wired network: autonomous (configured one by one) or lightweight (controlled by a **wireless LAN controller**). **Endpoints** are PCs, phones and printers; **servers** give services.
+- **PoE** gives power on the Ethernet cable: 802.3af 15.4 W, 802.3at (PoE+) 30 W, 802.3bt up to 60 W (type 3) and 90 W (type 4).
+| Design | Description |
+|---|---|
+| Two-tier (collapsed core) | Access switches connect to a combined distribution and core layer |
+| Three-tier | Access, distribution and core layers: for large campuses |
+| Spine-leaf | Data centres: every leaf switch connects to every spine switch, so every path has the same length |
+| WAN | Connects sites over long distance (leased line, MPLS, internet VPN) |
+| SOHO | A small or home office: one device often does routing, switching and Wi-Fi |
+| On-premises and cloud | Equipment in your own building, or services rented from a provider |
+
+## Cables and Ethernet
+| Standard | Medium | Reach |
+|---|---|---|
+| 10BASE-T | Cat3 or better copper | 100 m |
+| 100BASE-TX | Cat5 copper | 100 m |
+| 1000BASE-T | Cat5e copper | 100 m |
+| 10GBASE-T | Cat6a copper (Cat6 up to about 55 m) | 100 m |
+| 1000BASE-SX | Multimode fibre | 550 m |
+| 1000BASE-LX | Single-mode fibre (multimode 550 m) | 10 km |
+| 10GBASE-SR | Multimode fibre | 300 m (OM3) |
+| 10GBASE-LR | Single-mode fibre | 10 km |
+- Multimode fibre carries many light paths, over short distances, with cheaper optics. Single-mode carries one, over long distances.
+- A straight-through cable joins unlike devices (PC to switch), a crossover joins like devices (switch to switch). Auto-MDIX lets modern ports work with either.
+- Half duplex (one direction at a time, collisions, CSMA/CD) is found only on old hubs. Full duplex has no collisions. A **duplex mismatch** shows as late collisions and slow transfers.
+
+## IPv4 subnetting
+Every subnet has a network address (first), a broadcast address (last) and usable hosts between. The hosts per subnet are 2 to the power of the host bits, minus 2.
+1. Write the mask and find the "interesting" octet, the one that is not 0 or 255.
+2. **Block size** = 256 minus the mask value in that octet.
+3. The network address is the largest multiple of the block size not above the host address in that octet.
+4. The broadcast address is the next network minus 1. The hosts are in between.
+Example: 192.168.1.77/26. The mask is 255.255.255.192, the block size is 64. 77 lies in 64 to 127: the network is 192.168.1.64, the broadcast 192.168.1.127, the hosts 192.168.1.65 to .126.
+| Prefix | Mask | Block (last octet) | Usable hosts |
+|---|---|---|---|
+| /24 | 255.255.255.0 | 256 | 254 |
+| /25 | 255.255.255.128 | 128 | 126 |
+| /26 | 255.255.255.192 | 64 | 62 |
+| /27 | 255.255.255.224 | 32 | 30 |
+| /28 | 255.255.255.240 | 16 | 14 |
+| /29 | 255.255.255.248 | 8 | 6 |
+| /30 | 255.255.255.252 | 4 | 2 |
+| /31 | 255.255.255.254 | 2 | Point-to-point links |
+~ VLSM: give the largest subnet first, then the next, so that no space is wasted. Network Manager's Tools → Plan and Tools → Subnet calculator check your answers.
+
+## Check an IP address on a computer
+| System | Show the settings | Test |
+|---|---|---|
+| Windows | `ipconfig /all` | `ping`, `tracert`, `nslookup` |
+| macOS | `ifconfig`, `networksetup -getinfo Wi-Fi` | `ping`, `traceroute` |
+| Linux | `ip addr`, `ip route` | `ping`, `traceroute` |
+A computer with an address like 169.254.x.x did not find a DHCP server. Network Manager's Overview and Adapters pages show the same information.
+
+## Wireless, virtualisation and switching
+- **Wi-Fi bands.** 2.4 GHz has three channels that do not overlap (1, 6 and 11). 5 GHz has many more. An **SSID** is the network name. Signal strength (RSSI), noise and the signal-to-noise ratio decide the quality.
+| Standard | Marketing name | Bands |
+|---|---|---|
+| 802.11n | Wi-Fi 4 | 2.4 and 5 GHz |
+| 802.11ac | Wi-Fi 5 | 5 GHz |
+| 802.11ax | Wi-Fi 6 (6E adds 6 GHz) | 2.4 and 5 GHz (and 6 GHz) |
+| 802.11be | Wi-Fi 7 | 2.4, 5 and 6 GHz |
+- **Virtualisation.** A virtual machine runs a whole system on a hypervisor. A container shares the host's kernel and is lighter. A **VRF** gives a router several separate routing tables.
+- **Switching.** A switch learns the source MAC address of each frame and the port it came from. A frame to a known address goes out of one port; broadcasts, multicasts and unknown destinations are flooded to all ports of the VLAN. Entries age out after 300 seconds by default.
+
+## Labs for this domain
+- Subnet a /24 into four subnets by hand, then check with Network Manager's subnet calculator.
+- On a switch, look at `show interfaces status` and `show mac address-table`, and find which port a computer is on.
+- Create an interface error: set one end of a link to `speed 100` and `duplex full` and the other to auto. Watch the counters and the log, then fix it.
+
+# Domain 2: Network access (20%)
+## The objectives
+| No. | Topic | Where to learn it |
+|---|---|---|
+| 2.1 | Configure and verify VLANs across switches: access ports, data and voice, default VLAN, inter-VLAN connectivity | Cisco → VLANs, Routing between VLANs |
+| 2.2 | Configure and verify inter-switch connectivity: trunks, 802.1Q, native VLAN | Cisco → Trunks |
+| 2.3 | Configure and verify CDP and LLDP | Cisco → IP services |
+| 2.4 | Configure and verify EtherChannel (Layer 2 and Layer 3, LACP) | Cisco → EtherChannel |
+| 2.5 | Rapid PVST+: root bridge, port roles and states, PortFast, root guard, loop guard, BPDU filter and guard | Cisco → Spanning tree |
+| 2.6 | Cisco wireless architectures and access point modes | Below |
+| 2.7 | How wireless components connect: AP, controller, access and trunk ports, LAG | Below |
+| 2.8 | Device management access: console, Telnet, SSH, HTTP, HTTPS, TACACS+, RADIUS, cloud-managed | Cisco → First setup, Device access |
+| 2.9 | Read the wireless controller's GUI: creating a WLAN, security, QoS profiles | Below |
+
+## Wireless architectures
+| Architecture | How it works |
+|---|---|
+| Autonomous | Each AP is configured and managed on its own |
+| Lightweight (controller-based) | A wireless LAN controller (WLC) configures the APs and tunnels their traffic with CAPWAP |
+| Cloud-based | The APs are managed from a cloud dashboard (for example Meraki) |
+| Embedded wireless controller | The controller runs on a switch |
+| Access point mode | What it does |
+|---|---|
+| Local | The default: serves clients and tunnels all traffic to the controller |
+| FlexConnect | Serves clients and can switch their traffic locally if the controller is not reachable |
+| Monitor | Does not serve clients: listens for rogue devices and attacks |
+| Sniffer | Captures traffic for analysis |
+| Bridge / mesh | Connects two sites or builds a wireless backbone |
+- A lightweight AP connects to an **access port** (in the AP's VLAN) or a **trunk** (when it uses several VLANs, as with FlexConnect). The controller connects to a trunk, often a port channel (LAG).
+- In the controller's GUI you create a **WLAN**: an SSID, the VLAN or interface it maps to, the security (for example WPA2 with a pre-shared key), QoS profile and advanced options.
+
+## Labs for this domain
+- Create VLANs 10, 20 and 99 on two switches, join them with a trunk, and put a PC in each VLAN. Check with `show vlan brief` and `show interfaces trunk`.
+- Make a native VLAN mismatch and read the log messages.
+- Bundle two cables into an EtherChannel with LACP. Unplug one cable and watch the channel stay up.
+- Build a loop of three switches. Find the root bridge, read the port roles, then change the root with `spanning-tree vlan 10 root primary`. Turn on PortFast and BPDU guard on an access port and plug a switch into it.
+
+# Domain 3: IP connectivity (25%)
+## The objectives
+| No. | Topic | Where to learn it |
+|---|---|---|
+| 3.1 | Read the routing table: code, prefix, mask, next hop, administrative distance, metric, gateway of last resort | Cisco → Routing basics |
+| 3.2 | How a router decides: longest prefix match, administrative distance, metric | Below |
+| 3.3 | Configure and verify IPv4 and IPv6 static routes: default, network, host, floating | Cisco → Routing basics, IPv6 |
+| 3.4 | Configure and verify OSPFv2 in a single area: neighbours, point-to-point, broadcast (DR and BDR), router ID | Cisco → Routing basics |
+| 3.5 | The purpose and ideas of first hop redundancy protocols | Cisco → Routing basics |
+
+## How a router chooses
+1. **Longest prefix match.** Among routes that contain the destination, the most specific wins. For 10.1.1.5 with routes to 10.0.0.0/8, 10.1.0.0/16 and 10.1.1.0/24, the /24 is used, even if the /8 has a better metric or distance.
+2. **Administrative distance.** If several protocols offer the same prefix, the one with the lowest distance wins (connected 0, static 1, EIGRP 90, OSPF 110, RIP 120).
+3. **Metric.** Within one protocol, the route with the lowest metric wins (OSPF: the total cost, based on bandwidth).
+If nothing matches, the router uses the default route (`0.0.0.0/0`); with none, it drops the packet and answers "destination unreachable".
+
+## Labs for this domain
+- Connect two Layer 3 switches (or a switch and a router). Give each a routed port, add static routes, and ping from end to end.
+- Replace the static routes with single-area OSPF. Read `show ip ospf neighbor` and `show ip route ospf`.
+- Add a floating static default route with distance 200. Shut the OSPF link and watch it appear.
+- Build HSRP on two SVIs. Shut down the active one and see the standby take over while a ping keeps running.
+
+# Domain 4: IP services (10%)
+## The objectives
+| No. | Topic | Where to learn it |
+|---|---|---|
+| 4.1 | Configure and verify inside source NAT: static and pools | Below |
+| 4.2 | Configure and verify NTP as client and server | Cisco → IP services |
+| 4.3 | The role of DHCP and DNS | Below |
+| 4.4 | The function of SNMP | Cisco → IP services |
+| 4.5 | Syslog: facilities and levels | Cisco → IP services |
+| 4.6 | Configure and verify a DHCP client and relay | Cisco → IP services |
+| 4.7 | QoS per-hop behaviours: classification, marking, queuing, congestion, policing, shaping | Below |
+| 4.8 | Configure network devices for remote access with SSH | Cisco → First setup |
+| 4.9 | What TFTP and FTP do in a network | Cisco → Maintenance and recovery |
+
+## NAT
+NAT (network address translation) swaps private addresses for public ones at the edge. Many private hosts share one public address with **PAT** (port address translation, also called overload).
+| Term | Meaning |
+|---|---|
+| Inside local | A host's address on the inside network (private) |
+| Inside global | The same host as seen from outside (public) |
+| Outside global | An outside host's real address |
+| Outside local | An outside host's address as seen from inside |
+
+[Router(config)#] interface gigabitEthernet 0/0/0
++ ip nat outside
++ exit
++ interface gigabitEthernet 0/0/1
++ ip nat inside
++ exit
+Marks which interface faces the internet and which the inside.
+
+[Router(config)#] access-list 1 permit 192.168.10.0 0.0.0.255
++ ip nat inside source list 1 interface gigabitEthernet 0/0/0 overload
+PAT: every inside host in 192.168.10.0/24 uses the address of the outside interface.
+
+[Router(config)#] ip nat inside source static 192.168.10.10 203.0.113.10
+Static NAT: one inside server always has the same public address.
+
+[Router(config)#] ip nat pool PUBLIC 203.0.113.20 203.0.113.30 netmask 255.255.255.0
++ ip nat inside source list 1 pool PUBLIC
+Dynamic NAT with a pool of public addresses (add `overload` at the end to share them).
+
+[Router#] show ip nat translations
+The current translations. `show ip nat statistics` has the counters, and `clear ip nat translation *` empties the table.
+
+## DHCP, DNS, QoS
+- **DHCP** gives a host its address, mask, gateway and DNS servers: Discover, Offer, Request, Acknowledge (DORA), over UDP 67 and 68. The first message is a broadcast, so a relay (`ip helper-address`) is needed to reach a server on another network.
+- **DNS** turns names into addresses (UDP and TCP 53). Records: A (name to IPv4), AAAA (name to IPv6), CNAME (alias), MX (mail), NS (name server), PTR (address to name), TXT (text).
+- **QoS** gives some traffic priority: *classify* it, *mark* it (DSCP in the IP header, CoS in the VLAN tag), *queue* it, avoid congestion, and limit it. **Policing** drops traffic above a rate; **shaping** delays it to fit. Voice uses DSCP EF (46), interactive video AF41, and normal traffic is 0 (best effort).
+
+## Labs for this domain
+- Configure a DHCP pool on the switch, then a second VLAN with `ip helper-address` pointing to a server.
+- Point the switch at an NTP server (Servers → Time (NTP) in Network Manager) and a syslog server (Servers → Syslog server), and watch the first messages arrive.
+- Configure SNMP and read the switch with Tools → SNMP.
+- Configure PAT on a router and look at `show ip nat translations` while a PC browses.
+
+# Domain 5: Security fundamentals (15%)
+## The objectives
+| No. | Topic | Where to learn it |
+|---|---|---|
+| 5.1 | Threats, vulnerabilities, exploits and how to reduce them | Below |
+| 5.2 | Security programme elements: awareness, training, physical access control | Below |
+| 5.3 | Device access control with local passwords | Cisco → First setup, Device access |
+| 5.4 | Password policy: management, complexity, alternatives (MFA, certificates, biometrics) | Below |
+| 5.5 | IPsec remote-access and site-to-site VPNs | Below |
+| 5.6 | Configure and verify access control lists | Cisco → Access control lists |
+| 5.7 | Layer 2 security: DHCP snooping, dynamic ARP inspection, port security | Cisco → Layer 2 security |
+| 5.8 | Authentication, authorisation and accounting compared | Cisco → Device access |
+| 5.9 | Wireless security: WPA, WPA2, WPA3 | Below |
+| 5.10 | Configure a WLAN with WPA2 PSK in the GUI | Domain 2 |
+
+## Threats and what stops them
+- A **threat** is something that can cause harm, a **vulnerability** is a weakness, an **exploit** uses a weakness, and **mitigation** reduces the risk. The goals of security are confidentiality, integrity and availability.
+| Attack | What it does | Defence |
+|---|---|---|
+| MAC flooding | Fills the MAC table so that the switch floods everything | Port security |
+| DHCP starvation, rogue DHCP server | Uses up the pool, or gives wrong gateways | DHCP snooping |
+| ARP spoofing (man in the middle) | Gets traffic by lying in ARP replies | Dynamic ARP inspection |
+| VLAN hopping: switch spoofing | A host asks for a trunk with DTP | `switchport mode access`, `nonegotiate` |
+| VLAN hopping: double tagging | Uses the native VLAN to send frames into another VLAN | A native VLAN that no host uses |
+| Spanning tree attacks | A rogue switch becomes the root | BPDU guard, root guard |
+| Denial of service | Overloads a device or a link | Rate limits, storm control, filtering |
+| Phishing, social engineering | Tricks a person | Awareness and training |
+
+## Passwords, VPNs and wireless
+- A good **password policy** requires length (a passphrase), no reuse, and changes after a breach. A password manager helps. **Multifactor authentication** adds something you have (an app or key) or are (biometrics). **Certificates** replace passwords with keys.
+- A **site-to-site VPN** joins two networks through an encrypted tunnel between two gateways (usually IPsec). A **remote-access VPN** connects one user's device to the network (SSL/TLS or IPsec, with a client).
+| Protocol | Security |
+|---|---|
+| WEP | Broken: never use it |
+| WPA | Obsolete (TKIP) |
+| WPA2 | AES encryption (CCMP). Personal uses a shared password (PSK); Enterprise uses 802.1X with RADIUS |
+| WPA3 | The newest: SAE replaces the PSK exchange (resists offline guessing); Enterprise has a 192-bit mode |
+- **Physical security** matters as much as software: locked rooms, cameras and badges. Password recovery needs physical access to the switch.
+
+## Labs for this domain
+- Secure a switch from scratch: scrypt secrets, SSH only, `login block-for`, a VTY ACL, unused ports shut down.
+- Turn on port security with `maximum 1` and `violation shutdown`, plug in a second device, see the port go err-disabled and recover it.
+- Turn on DHCP snooping, plug a second DHCP server into an untrusted port and watch it get blocked.
+- Write an extended ACL that allows web traffic but blocks Telnet, apply it, and check the match counts.
+
+# Domain 6: Automation and programmability (10%)
+## The objectives
+| No. | Topic |
+|---|---|
+| 6.1 | How automation changes network management |
+| 6.2 | Traditional networks compared with controller-based networking |
+| 6.3 | Controller-based and software-defined architecture: overlay, underlay, fabric, control and data planes, northbound and southbound APIs |
+| 6.4 | Generative and predictive AI and machine learning in network operations (new in v1.1) |
+| 6.5 | REST API characteristics: authentication, CRUD, HTTP verbs, data encoding |
+| 6.6 | Configuration management tools such as Ansible and Terraform |
+| 6.7 | Recognise JSON-encoded data |
+
+## Controllers and automation
+- In a traditional network every device has its own **control plane** (it decides) and **data plane** (it forwards), and you configure each one by CLI. In a **software-defined network** a controller holds the control plane and gives the devices their instructions.
+- The controller's **northbound API** serves applications and administrators; its **southbound API** talks to the devices (NETCONF, RESTCONF, SNMP, CLI over SSH). The **underlay** is the physical network, the **overlay** the virtual network built over it (for example with VXLAN), and the **fabric** is both together. Cisco's controller for campus networks is Catalyst Center (formerly DNA Center).
+- **Automation** makes changes faster and consistent, and cuts typing errors. A **configuration management tool** keeps devices in a wanted state. *Ansible* has no agent, pushes changes over SSH and uses YAML playbooks. *Puppet* and *Chef* use an agent on the device that pulls its settings. *Terraform* describes and builds infrastructure (infrastructure as code).
+- **Predictive AI** forecasts from past data (for example a failing link). **Generative AI** creates content, such as configurations or documentation from a prompt: check its output before you use it.
+
+## REST and JSON
+A REST API uses HTTP: it is stateless, and each request names a resource by URL.
+| HTTP verb | CRUD action | Example |
+|---|---|---|
+| POST | Create | Add a VLAN |
+| GET | Read | List the interfaces |
+| PUT | Update (replace) | Replace a whole configuration object |
+| PATCH | Update (change a part) | Change one setting |
+| DELETE | Delete | Remove a VLAN |
+Status codes: 200 OK, 201 created, 204 no content, 400 bad request, 401 unauthorised, 403 forbidden, 404 not found, 500 server error.
+JSON has objects in braces, lists in brackets, text in double quotes, and the values `true`, `false`, `null` and numbers:
+> {
+>   "interface": "GigabitEthernet1/0/1",
+>   "enabled": true,
+>   "vlan": 10,
+>   "addresses": ["192.168.10.1", "192.168.10.2"]
+> }
+~ Network Manager's command line can print JSON too: add `--json` to commands such as `netmgr adapters` or `netmgr snmp <host>`.
+
+## Labs for this domain
+- Read the JSON above aloud: find the keys, the types, the list and the nested object.
+- Use `curl` against a public REST API and try GET and POST.
+- Write a tiny Ansible playbook (or just read one) that sets a hostname, and say what each line does.
+
+# Lab plan: twelve labs on a real switch
+## How to work through them
+Each lab has a goal and a check. Keep a text file of your configuration, and back it up (Console → Backups). After each lab, `write erase` and `reload`, or start the next from the previous one. Use the serial console of Network Manager and a second computer or a phone on the switch to test.
+1. **Console and first setup.** Goal: hostname, secrets, management VLAN and address, SSH. Check: you can log in over SSH from your computer, and `show ip ssh` says version 2.
+2. **VLANs and trunk.** Goal: VLANs 10, 20, 99; access ports; a trunk to a second switch (or a router). Check: `show vlan brief` and `show interfaces trunk` agree, and two computers in one VLAN ping each other.
+3. **Inter-VLAN routing.** Goal: SVIs on a Layer 3 switch, or router on a stick. Check: a computer in VLAN 10 pings one in VLAN 20.
+4. **Spanning tree.** Goal: Rapid PVST+, a chosen root bridge, PortFast and BPDU guard. Check: `show spanning-tree` shows your root, and a switch plugged into a guarded port shuts it down.
+5. **EtherChannel.** Goal: LACP between two switches. Check: `show etherchannel summary` shows `SU` and a cable can fail without a loss of connectivity.
+6. **Layer 2 security.** Goal: port security, DHCP snooping, DAI, storm control. Check: a second device is blocked and a rogue DHCP server gets nothing.
+7. **ACLs.** Goal: protect the VTY lines and filter between two VLANs. Check: `show access-lists` counts rise with your tests.
+8. **Static routes and OSPF.** Goal: connect two routed networks, first static, then OSPF. Check: end-to-end ping and a full neighbour state.
+9. **Services.** Goal: DHCP (server and relay), NTP, syslog and SNMP. Check: computers get addresses, `show ntp status` is synchronised, and the log appears in Network Manager.
+10. **IPv6.** Goal: IPv6 addresses and a default route on the same network. Check: `ping` over IPv6 between two hosts.
+11. **Break and fix.** Goal: have a friend (or yourself, after a break) introduce five faults: a wrong VLAN, a trunk without a VLAN, a duplex mismatch, a wrong mask, a blocking ACL. Find each with the commands of the Troubleshooting topic.
+12. **Backup, restore and recovery.** Goal: copy the configuration to a TFTP server (Servers → TFTP server), erase the switch, restore it; then practise password recovery on a spare switch. Check: the restored switch behaves like the original.
+
+# Quick tables
+## Numbers to know by heart
+| Network bits in the octet | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| Value of the bit | 128 | 64 | 32 | 16 | 8 | 4 | 2 | 1 |
+| Mask value | 128 | 192 | 224 | 240 | 248 | 252 | 254 | 255 |
+| Power of two | 2^1 = 2 | 2^2 = 4 | 2^3 = 8 | 2^4 = 16 | 2^5 = 32 | 2^6 = 64 | 2^7 = 128 | 2^8 = 256 |
+- An octet is 8 bits: add the values of the bits that are 1. 192 = 128 + 64 = `11000000`. 10 = 8 + 2 = `00001010`.
+- A /n prefix means n bits of network. /20 is 255.255.240.0 (the third octet has 4 network bits: 240).
+- Number of subnets when borrowing b bits: 2^b. Hosts per subnet: 2^h − 2 (h = host bits).
+
+## Spanning tree, OSPF and VLAN reminders
+| Topic | Remember |
+|---|---|
+| STP root election | Lowest priority, then lowest MAC address |
+| STP timers | Hello 2 s, forward delay 15 s, max age 20 s |
+| Rapid PVST+ port states | Discarding, learning, forwarding |
+| Port roles | Root, designated, alternate, backup |
+| VLAN ranges | 1 default, 2 to 1001 normal, 1006 to 4094 extended |
+| 802.1Q tag | 4 bytes, VLAN ID of 12 bits |
+| OSPF | Administrative distance 110, cost from bandwidth, hello 10 s and dead 40 s on Ethernet, multicast 224.0.0.5 and 224.0.0.6 |
+| OSPF neighbour states | Down, Init, 2-Way, ExStart, Exchange, Loading, Full |
+| Default administrative distances | Connected 0, static 1, EIGRP 90, OSPF 110, RIP 120 |

@@ -1,0 +1,285 @@
+@title Juniper Junos (EX switches)
+@intro Junos on Juniper EX switches. Junos works differently from Cisco: you edit a candidate configuration and nothing happens until you `commit`, and every commit can be rolled back. The examples use the current Enhanced Layer 2 Software (ELS: EX2300, EX3400, EX4300, EX4400 and others); the oldest EX models (EX4200) use `port-mode` and `vlan members` without `interface-mode`.
+@source Juniper: Layer 2 networking, configuring VLANs (ELS CLI) | https://www.juniper.net/documentation/en_US/junos/topics/task/configuration/bridging-vlans-ex-series-cli-els.html
+@source Juniper: Bridging and VLANs example (ELS) | https://www.juniper.net/documentation/en_US/junos/topics/example/bridging-ex-series-basic-els.html
+@source Juniper: Connecting and configuring an EX Series switch | https://www.juniper.net/documentation/en_US/release-independent/topics/task/configuration/ex-series-switch-initial-configuration-setting-up.html
+@source Juniper: Configuring the console port type (EX Series) | https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/task/console-port-type-ex-series-cli.html
+@source Juniper: Configuration files on EX Series switches | https://juniper.net/documentation/en_US/release-independent/junos/topics/concept/ex-series-configuration-files.html
+
+# Junos basics
+## Two modes
+| Prompt | Mode | Used for |
+|---|---|---|
+| `user@switch>` | Operational mode | `show`, `ping`, `traceroute`, `request`: looking and acting |
+| `user@switch#` | Configuration mode | Editing the configuration |
+| `root@:~ #` | Shell (after logging in as root) | The FreeBSD shell: type `cli` to get the Junos CLI |
+
+[user@switch>] configure
+Enters configuration mode. `configure exclusive` locks the configuration so that nobody else edits it, and `configure private` gives you your own copy.
+
+[user@switch#] exit
+Leaves configuration mode (or `exit configuration-mode`). If you have uncommitted changes, it warns you.
+
+[user@switch#] run show interfaces terse
+Runs an operational command from configuration mode, with `run` in front.
+
+## Help and filters
+- `?` lists what can come next. Space or Tab completes a word (a space also completes a keyword and shows what follows).
+- In configuration mode, `[edit]` shows where you are in the hierarchy: `[edit interfaces ge-0/0/5]`.
+| Filter | Use |
+|---|---|
+| `\| match <text>` | Only lines with the text |
+| `\| except <text>` | Without lines with the text |
+| `\| count` | Number of lines |
+| `\| no-more` | No pause at the end of a page |
+| `\| last 20` | The last lines |
+| `\| display set` | Shows the configuration as `set` commands |
+| `\| compare` | Shows the changes since the last commit |
+| `\| save <file>` | Writes the output to a file |
+
+## The candidate configuration
+You edit a **candidate** configuration. The switch keeps running the **active** one until you commit. The switch also keeps the 50 most recent committed configurations, numbered from 0 (the last).
+
+[user@switch#] set system host-name SW1
+`set` adds or changes a setting. Everything is written as `set <path> <value>`.
+
+[user@switch#] delete interfaces ge-0/0/5 unit 0 family ethernet-switching vlan members SALES
+`delete` removes a setting, or a whole part of the hierarchy if you stop earlier.
+
+[user@switch#] show | compare
+Shows what you changed since the last commit: `+` lines added, `-` lines removed. Always look at this before committing.
+
+[user@switch#] commit check
+Checks the candidate for errors without applying it.
+
+[user@switch#] commit
+Applies the candidate configuration: it becomes active and is saved.
+
+[user@switch#] commit confirmed 5
+Applies it, but rolls it back automatically after 5 minutes unless you run `commit` again to confirm. Use it for every remote change.
+
+[user@switch#] rollback 1
+Loads the previous committed configuration into the candidate (`rollback 0` throws away your uncommitted changes). Then `commit` makes it active.
+
+[user@switch#] show | display set
+Shows the whole configuration as `set` commands: the best way to copy and paste a configuration.
+
+[user@switch#] load override terminal
+Replaces the candidate with what you paste next (end with Ctrl+D). `load merge terminal` adds to it instead.
+
+~ Junos writes `show` of the configuration as nested braces. Use `show | display set` for one line per setting.
+
+## Interface names
+| Name | Meaning |
+|---|---|
+| `ge-0/0/5` | Gigabit Ethernet: type, FPC (member), PIC, port |
+| `mge-` | Multigigabit |
+| `xe-` | 10 Gigabit |
+| `et-` | 25, 40 or 100 Gigabit |
+| `ae0` | Aggregated Ethernet (link aggregation) |
+| `irb.99` | The Layer 3 interface of a VLAN |
+| `me0`, `vme` | The management Ethernet port |
+
+# First setup of a new switch
+## Name, passwords and access
+Connect to the console (Start here → Connect to the console, 9600 baud). Log in as `root` with no password and type `cli`, then:
+
+[root@:~ #] cli
++ configure
+Starts the Junos CLI and configuration mode.
+
+[user@switch#] set system host-name SW1
+Names the switch.
+
+[user@switch#] set system root-authentication plain-text-password
+Asks twice for the root password and stores it as a hash. A switch cannot commit a configuration without one.
+
+[user@switch#] set system login user admin class super-user authentication plain-text-password
+Creates an administrator account (asks for the password).
+
+[user@switch#] set system services ssh root-login deny
+Turns SSH on and does not allow root to log in over it. Telnet is off unless `system services telnet` is in the configuration.
+
+[user@switch#] set system time-zone Europe/Vienna
++ set system ntp server 192.168.99.10
++ set system syslog host 192.168.99.10 any notice
+Sets the time zone, an NTP server, and sends log messages of severity notice and worse to a syslog server.
+
+## The management address
+Reach the switch through a VLAN and its Layer 3 interface (irb).
+
+[user@switch#] set vlans MGMT vlan-id 99
++ set interfaces irb unit 99 family inet address 192.168.99.2/24
++ set vlans MGMT l3-interface irb.99
++ set routing-options static route 0.0.0.0/0 next-hop 192.168.99.1
+Creates the management VLAN, gives it an address and a default route.
+~ Some EX models also have a dedicated management port (`me0` or `vme`) with its own address: `set interfaces vme unit 0 family inet address 192.168.1.10/24`.
+
+[user@switch#] commit confirmed 5
+Applies everything for 5 minutes. When you can still reach the switch, run `commit` to keep it.
+
+## Check it
+[user@switch>] show version
+Model, Junos version.
+
+[user@switch>] show system uptime
+How long it has been running and when it last booted.
+
+[user@switch>] show chassis hardware
+The serial numbers of the switch, stack members and modules.
+
+[user@switch>] show system alarms
+Active alarms, such as a missing rescue configuration.
+
+[user@switch>] show log messages | last 30
+The last log lines.
+
+# VLANs and ports
+## VLANs and access ports (ELS)
+[user@switch#] set vlans SALES vlan-id 10
++ set vlans SUPPORT vlan-id 20
+Creates the VLANs. Name them as you like: ports refer to the name.
+
+[user@switch#] set interfaces ge-0/0/5 unit 0 family ethernet-switching interface-mode access
++ set interfaces ge-0/0/5 unit 0 family ethernet-switching vlan members SALES
+Makes the port an access port in VLAN SALES. Interfaces are in access mode by default, so the first line is optional.
+
+[user@switch#] set interfaces interface-range USERS member-range ge-0/0/0 to ge-0/0/23
++ set interfaces interface-range USERS unit 0 family ethernet-switching vlan members SALES
+Sets many ports at once with an interface range.
+
+[user@switch>] show vlans
+The VLANs, their IDs and their member ports.
+
+[user@switch>] show ethernet-switching interface
+Each port with its VLANs and state.
+
+## Trunks
+[user@switch#] set interfaces xe-0/2/0 unit 0 family ethernet-switching interface-mode trunk
++ set interfaces xe-0/2/0 unit 0 family ethernet-switching vlan members [ SALES SUPPORT MGMT ]
++ set interfaces xe-0/2/0 native-vlan-id 99
+Makes a trunk for the VLANs in the list, with VLAN 99 as the native VLAN (untagged). The trunk must also be a member of the native VLAN (here MGMT, which is VLAN 99).
+! `vlan members all` puts the trunk in every VLAN, but the switch has a limit on VLAN memberships and `all` can exceed it. List the VLANs you need.
+
+## Routing between VLANs
+[user@switch#] set interfaces irb unit 10 family inet address 192.168.10.1/24
++ set vlans SALES l3-interface irb.10
++ set interfaces irb unit 20 family inet address 192.168.20.1/24
++ set vlans SUPPORT l3-interface irb.20
+Gives each VLAN a gateway address on the switch (an IRB interface). On the EX2300 the VLAN must be linked with `l3-interface irb.<unit>`: `vlan.<unit>` does not work there.
+
+[user@switch>] show interfaces irb terse
+The IRB interfaces with their addresses.
+
+[user@switch>] show route
+The routing table.
+
+# Link aggregation and spanning tree
+## Link aggregation (LAG)
+[user@switch#] set chassis aggregated-devices ethernet device-count 2
++ set interfaces ge-0/0/46 ether-options 802.3ad ae0
++ set interfaces ge-0/0/47 ether-options 802.3ad ae0
++ set interfaces ae0 aggregated-ether-options lacp active
++ set interfaces ae0 unit 0 family ethernet-switching interface-mode trunk
++ set interfaces ae0 unit 0 family ethernet-switching vlan members [ SALES SUPPORT MGMT ]
+Bundles two ports into the aggregated interface ae0 with LACP, as a trunk. On some models the `device-count` line is not needed.
+
+[user@switch>] show lacp interfaces
+LACP state of the members.
+
+[user@switch>] show interfaces ae0 terse
+Is the bundle up?
+
+## Rapid spanning tree
+[user@switch#] set protocols rstp interface all
+Turns on RSTP on all interfaces.
+
+[user@switch#] set protocols rstp bridge-priority 4k
+Makes this switch more likely to be the root bridge. Priorities are in steps of 4k (4k, 8k, … 60k); the default is 32k.
+
+[user@switch#] set protocols rstp interface ge-0/0/5 edge
++ set protocols rstp bpdu-block-on-edge
+Marks a user port as an edge port (like PortFast) and blocks an edge port when a BPDU arrives (like BPDU guard).
+
+[user@switch>] show spanning-tree bridge
+The root bridge and this switch's priority.
+
+[user@switch>] show spanning-tree interface
+The role and state of each port.
+~ Junos can also run MSTP and VSTP (one tree per VLAN, compatible with Cisco PVST+). Check the Juniper guide for your model.
+
+# Looking around and troubleshooting
+## The daily commands
+[user@switch>] show interfaces terse
+One line per interface: admin state, link state and addresses. The Junos equivalent of `show ip interface brief`.
+> Interface               Admin Link Proto    Local                 Remote
+> ge-0/0/0                up    up
+> ge-0/0/0.0              up    up   eth-switch
+> ge-0/0/1                up    down
+> irb.99                  up    up   inet     192.168.99.2/24
+
+[user@switch>] show interfaces ge-0/0/5 extensive
+All counters and errors of a port. `detail` is shorter.
+
+[user@switch>] show ethernet-switching table
+The MAC address table: MAC, VLAN, port. Add `vlan-name SALES` or `interface ge-0/0/5` to narrow it.
+
+[user@switch>] show lldp neighbors
+The devices attached to each port.
+
+[user@switch>] show arp
+IP-to-MAC addresses.
+
+[user@switch>] show interfaces diagnostics optics xe-0/2/0
+Light levels of an optical module.
+
+[user@switch>] show poe interface
+PoE state and power of each port (on PoE models).
+
+[user@switch>] show configuration | display set | match ge-0/0/5
+All the settings of one port, as `set` lines.
+
+[user@switch>] ping 192.168.99.1 count 5
+Five echo requests. Without `count` a Junos ping goes on until you press Ctrl+C.
+
+[user@switch>] traceroute 8.8.8.8
+The routers on the way.
+
+# Maintenance and recovery
+## Back up, restore and upgrade
+[user@switch>] show configuration | save /var/tmp/SW1.conf
+Saves the active configuration to a file on the switch. Copy it away with `file copy /var/tmp/SW1.conf scp://user@192.168.99.10/`.
+
+[user@switch#] load override /var/tmp/SW1.conf
++ commit confirmed 5
+Replaces the candidate with the file and applies it for 5 minutes.
+
+[user@switch>] request system configuration rescue save
+Saves the active configuration as the **rescue configuration**: a known good state. `rollback rescue` and `commit` bring it back.
+
+[user@switch>] request system software add /var/tmp/<package>.tgz reboot
+Installs a new Junos package and reboots. Read the release notes first; the package name depends on the model. `request system snapshot` copies the running software to the backup partition.
+
+[user@switch>] request system reboot
+Restarts the switch. `request system halt` stops it for power-off.
+
+## Factory reset and password recovery
+[user@switch#] load factory-default
++ set system root-authentication plain-text-password
++ commit
+Loads the factory configuration into the candidate. It needs a root password before it can be committed. Back up first.
+
+[user@switch>] request system zeroize
+Erases the configuration and all data, and restarts: a complete factory reset. This cannot be undone.
+
+Forgotten root password (needs the console and, often, a reboot). Check Juniper's guide for your model, as the details differ.
+1. Reboot the switch. When it says it will boot in a few seconds, press the space bar to reach the `loader>` prompt.
+2. Type `boot -s` to start in single-user mode.
+3. When asked for a shell, type `recovery`. The switch starts in recovery mode.
+4. Set a new password and save it:
+
+[user@switch>] configure
++ set system root-authentication plain-text-password
++ commit
++ exit
+Then `exit` the recovery mode and `reboot`.

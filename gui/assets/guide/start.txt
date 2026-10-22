@@ -1,0 +1,96 @@
+@title Start here
+@intro Connecting to a switch's console, what to do in the first ten minutes, and the habits that keep a network safe. This part is the same for every make.
+@source Cisco Catalyst 9300 hardware installation guide: Configuring the switch | https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/hardware/install/b_c9300_hig/Configuring-a-switch.html
+@source Juniper: Connecting and configuring an EX Series switch | https://www.juniper.net/documentation/en_US/release-independent/topics/task/configuration/ex-series-switch-initial-configuration-setting-up.html
+@source Juniper: Configuring the console port type (EX Series) | https://www.juniper.net/documentation/us/en/software/junos/user-access/topics/task/console-port-type-ex-series-cli.html
+@source Arista EOS: Switch booting commands (console speed) | https://www.arista.com/en/um-eos/eos-switch-booting-commands
+@source Aruba AOS-CX: console baud-rate | https://arubanetworking.hpe.com/techdocs/AOS-CX/AOSCX-CLI-Bank/cli_4100i/Content/SysHW_cmds/con-baud-rate.htm
+@source MikroTik: Serial console | https://help.mikrotik.com/docs/spaces/ROS/pages/328139/Serial+Console
+
+# Connect to the console
+## What you need
+A console port lets you configure a switch without the network. It is the only way in on a brand-new switch, and the way back in when the network settings are wrong.
+- **A console cable.** Many switches have an RJ-45 console port: use the flat, light-blue "rollover" console cable (RJ-45 to DB-9) with a USB-to-serial adapter, or a ready-made RJ-45-to-USB console cable.
+- **Or a USB console port** (mini-USB or USB-C) on newer switches: one USB cable, no adapter.
+- **A terminal program.** Network Manager has one: Console → Serial console.
+! A normal Ethernet cable is not a console cable. Plugged into the console port it does nothing.
+~ Some switches have both an RJ-45 and a USB console port. On Cisco Catalyst 9300 the USB port takes precedence by default, so with a USB cable plugged in the RJ-45 port can stay silent. On Juniper EX2300, EX3400 and EX4300 both can be active at the same time; on other EX models only one is, and the mini-USB port may first need to be activated in the configuration.
+
+## Settings (must match on both ends)
+| Switch | Speed (baud) | Data bits | Parity | Stop bits |
+|---|---|---|---|---|
+| Cisco Catalyst (IOS, IOS XE) | 9600 | 8 | None | 1 |
+| Juniper EX | 9600 | 8 | None | 1 |
+| Arista EOS | 9600 | 8 | None | 1 |
+| Aruba AOS-CX | 115200 (9600 can be chosen) | 8 | None | 1 |
+| MikroTik RouterBOARD | 115200 | 8 | None | 1 |
+Flow control: choose **None**, with one exception: MikroTik documents hardware (RTS/CTS) flow control as the default on RouterBOARDs, so choose that if nothing appears. Juniper also tells you to ignore the DCD signal.
+~ The speed can be changed on the switch: if you cannot connect and the speed is unknown, try 9600, then 115200. Garbage on the screen means the wrong speed.
+! MikroTik x86 machines use 9600, not 115200. Always check the guide for your exact model: these are the usual defaults.
+
+## Connect with Network Manager
+1. Plug the console cable into the switch and the computer.
+2. Open Console → Serial console and choose the port. The app lists them: COM3 or similar on Windows, /dev/cu.usbserial… on macOS, /dev/ttyUSB0 on Linux.
+3. Choose the speed from the table above. Keep 8 data bits, no parity, 1 stop bit, no flow control.
+4. Click Connect, then press Enter once or twice. The switch answers with its prompt, such as `Switch>`.
+5. Click inside the terminal so that your typing goes to the switch. Tab, ? and the arrow keys work as on a real terminal.
+~ Send break is for password recovery on Cisco and some other makes (see the password recovery topics of each book).
+
+## If nothing appears
+- **Blank screen.** Press Enter. Some switches take 2 to 5 minutes to boot after power-on: wait for the prompt.
+- **Wrong characters.** The speed is wrong: try the other value from the table.
+- **The port is not listed.** The USB adapter needs a driver on Windows (FTDI, Prolific, Silicon Labs CP210x, or Cisco's own USB console driver for the mini-USB port). macOS and Linux need none. Click the refresh button next to the port list after plugging in.
+- **Permission denied on Linux.** Add yourself to the group that owns the port (`dialout` on Ubuntu and Debian, `uucp` on Arch), then log out and in again.
+- **The port is busy.** Only one program can use a port: close PuTTY, minicom or another Network Manager window first.
+- **Typing does nothing.** Click in the terminal. If the screen scrolls only when you press keys, turn flow control off.
+- **`switch:` or `rommon 1 >` appears.** The switch is in its boot loader and has not started its software. See the password recovery topics, or boot the software image from flash.
+
+# The first ten minutes on a new switch
+## A safe order
+1. Connect to the console and press Enter. Run `show version` to see the model and software.
+2. Give the switch a name.
+3. Set passwords. Never leave a switch on its default or empty password.
+4. Give it a management address and a gateway, in a management VLAN.
+5. Turn on SSH and turn off Telnet.
+6. Set the clock, or point the switch at an NTP server.
+7. Create the VLANs and assign the ports.
+8. Shut down the ports nobody uses.
+9. Save the configuration.
+10. Back it up: Console → Backups saves the configuration of your SSH sessions on a schedule.
+Each book of this guide has the exact commands for its make: open Cisco IOS / IOS XE → First setup of a new switch, or the first topic of the other books.
+
+## Vendors at a glance
+| Make | Looks like | Configuration style |
+|---|---|---|
+| Cisco IOS / IOS XE | `Switch#` | Type commands in modes; changes apply at once; save with `copy run start` |
+| Juniper Junos | `user@switch#` | Edit a candidate configuration, then `commit` |
+| Aruba AOS-CX | `switch#` | Like Cisco, with VLANs set on the port (`vlan access 10`) |
+| Arista EOS | `switch#` | Very like Cisco |
+| MikroTik RouterOS | `[admin@MikroTik] >` | Paths like `/interface bridge`; changes apply at once, no save step |
+
+# Safe habits
+## Rules that prevent most outages
+- **Running is not saved.** On Cisco and others, a change works at once but is lost at the next reload unless you save it. On Juniper nothing works until you `commit`.
+- **Keep a console connection when you change the way you reach the switch:** the management VLAN, trunk VLAN lists, spanning tree, ACLs. A mistake on the network side cuts SSH off; the console stays.
+- **Give yourself a way back.** Cisco: `reload in 10` restarts the switch in 10 minutes unless you cancel it with `reload cancel` (only unsaved changes are undone). Juniper: `commit confirmed 5`. MikroTik: safe mode (press Ctrl+X in the terminal).
+- **Back up before you change anything**, and keep the copy off the switch.
+- **One change at a time**, and check it with a `show` command before the next.
+- **Test on a spare switch or at a quiet hour.** Write down what you changed.
+- **Be careful with `debug`** on a busy switch: it can freeze it. Turn it off with `undebug all`.
+! Pasting a long configuration into a console sends it at the console speed and the switch may drop characters. Paste in small parts, wait while a command thinks (such as generating an RSA key), and check with `show running-config` afterwards.
+
+## Words you will meet
+| Word | Meaning |
+|---|---|
+| Access port | A port for one device (a PC, a printer, a phone) in one VLAN |
+| Trunk | A link between switches that carries several VLANs, with a tag on each frame |
+| VLAN | A separate virtual network on the same switches |
+| SVI | A switch virtual interface: the switch's own address in a VLAN (`interface vlan 10`) |
+| Native VLAN | The one VLAN sent without a tag on a trunk |
+| STP | Spanning Tree Protocol: stops loops by blocking redundant links |
+| EtherChannel / LAG | Several cables bundled into one logical link |
+| PoE | Power over Ethernet: the switch powers phones and access points |
+| MAC address table | What the switch learned: which device is on which port |
+| ROMMON / boot loader | The tiny program that starts the switch, used for recovery |
+| Management VLAN | The VLAN used to reach the switch's own address |
+| Uplink | The port that connects a switch to the rest of the network |

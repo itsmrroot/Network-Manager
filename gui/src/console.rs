@@ -19,6 +19,7 @@ enum View {
     Remote,
     Backups,
     Push,
+    Guide,
 }
 
 /// An SSH or Telnet session in a tab.
@@ -83,8 +84,14 @@ impl Console {
             "remote" => View::Remote,
             "backups" => View::Backups,
             "push" => View::Push,
+            "guide" => View::Guide,
             _ => View::Serial,
         };
+    }
+
+    /// Console → CLI guide is the tab being shown (the docked guide is then not).
+    pub fn showing_guide(&self) -> bool {
+        self.view == View::Guide
     }
 
     pub fn connected(&self) -> bool {
@@ -146,6 +153,7 @@ impl Console {
                 (View::Remote, icon::TERMINAL_WINDOW, tr("SSH and Telnet")),
                 (View::Backups, icon::CLOUD_ARROW_DOWN, tr("Backups")),
                 (View::Push, icon::PAPER_PLANE_TILT, tr("Push configuration")),
+                (View::Guide, icon::BOOK_OPEN, tr("CLI guide")),
             ],
         );
         ui.add_space(8.0);
@@ -161,6 +169,16 @@ impl Console {
             }
             View::Push => {
                 egui::ScrollArea::vertical().id_salt("push-view").show(ui, |ui| self.push.ui(ui, p, sh));
+            }
+            View::Guide => {
+                if let Some(a) = crate::guide_view::tab(ui, p, &mut sh.guide, &mut sh.settings.guide) {
+                    sh.nav = Some(match a {
+                        crate::guide_view::Action::OpenTab => crate::app::Nav::Tab(crate::app::Page::Console, "guide"),
+                        crate::guide_view::Action::OpenConsole => {
+                            crate::app::Nav::Tab(crate::app::Page::Console, "serial")
+                        }
+                    });
+                }
             }
         }
         self.edit_window(ui.ctx(), p, sh);
@@ -204,6 +222,10 @@ impl Console {
         if view == "push" {
             self.view = View::Push;
             self.push.demo(&sh.settings.sessions);
+        } else if view == "guide" {
+            self.view = View::Guide;
+        } else if view == "dock" {
+            self.view = View::Serial;
         } else {
             self.view = View::Backups;
             self.backups.demo(sh);
@@ -619,6 +641,10 @@ impl Console {
             ui.horizontal_wrapped(|ui| {
                 let connected = self.session.is_some();
                 ui.add_enabled_ui(!connected, |ui| {
+                    // Drop-down menus do not wrap by themselves: in a narrow
+                    // place (a window that is small, or the guide beside
+                    // the console) the port and the settings get a line each.
+                    let narrow = ui.available_width() < 690.0;
                     let shown = if sh.settings.serial_port.is_empty() {
                         tr("Choose a port").to_string()
                     } else {
@@ -642,6 +668,9 @@ impl Console {
                         .clicked()
                     {
                         self.ports = nc::ports();
+                    }
+                    if narrow {
+                        ui.end_row();
                     }
                     let s = &mut sh.settings.serial;
                     egui::ComboBox::from_id_salt("baud")
@@ -782,7 +811,7 @@ impl Console {
                         } else {
                             tr("Choose the port and click Connect. Most switches and routers use 9600 baud, 8N1, no flow control.")
                         };
-                        ui.label(RichText::new(hint).color(p.weak));
+                        ui.add(egui::Label::new(RichText::new(hint).color(p.weak)).wrap());
                     }
                     let text = self.screen.text();
                     ui.add(egui::Label::new(RichText::new(text).monospace().size(13.0).color(egui::Color32::from_rgb(220, 226, 235))).extend());
@@ -841,12 +870,9 @@ impl Console {
         if !out.is_empty() {
             self.send(sh, &out);
         }
-        // Keep Tab from moving the focus away.
-        ui.ctx().memory_mut(|m| {
-            m.set_focus_lock_filter(
-                egui::Id::new("terminal-focus"),
-                egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true },
-            )
-        });
+        // Keep Tab, the arrows and Escape from moving the focus away: the
+        // terminal must hold egui's focus, or the next Enter presses another
+        // button (it opened Overview after Tab completion).
+        crate::term::capture_keys(ui.ctx(), egui::Id::new("terminal-focus"));
     }
 }

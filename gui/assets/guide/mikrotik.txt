@@ -1,0 +1,128 @@
+@title MikroTik RouterOS 7 (CRS switches)
+@intro MikroTik CRS switches and routers run RouterOS. It looks nothing like Cisco: commands are paths (`/interface bridge`), every change takes effect at once, and there is no save step. This book covers RouterOS 7 on CRS3xx and similar devices, where VLANs are set up on a bridge. CRS1xx and CRS2xx models use a different menu, `/interface ethernet switch`.
+@source MikroTik: Bridging and switching (bridge VLAN filtering) | https://help.mikrotik.com/docs/spaces/ROS/pages/328068/Bridging+and+Switching
+@source MikroTik: Bridge VLAN table | https://help.mikrotik.com/docs/spaces/ROS/pages/88014957/Bridge+VLAN+Table
+@source MikroTik: Serial console | https://help.mikrotik.com/docs/spaces/ROS/pages/328139/Serial+Console
+@source MikroTik: CRS3xx series switches | https://wiki.mikrotik.com/Manual:CRS3xx_series_switches
+
+# RouterOS basics
+## The command line
+| Prompt | Meaning |
+|---|---|
+| `[admin@MikroTik] >` | The top level; `admin` is the user, `MikroTik` the identity |
+| `[admin@MikroTik] /interface bridge>` | You moved into a menu |
+- Menus are written as paths. `/interface bridge print` and `/interface/bridge/print` are the same. You can go into a menu and work there: `/interface bridge` and then `print`.
+- Tab completes, `?` shows what can follow, and `..` goes up one level, `/` back to the top.
+- The main commands are `print` (show), `add`, `set`, `remove`, `enable`, `disable` and `export`.
+- Items have numbers or names: `/interface bridge port print` lists them, `remove 3` removes number 3, `set [ find interface=ether5 ] pvid=20` finds one by its properties.
+~ A factory-default MikroTik has the user `admin` with an empty password, or a unique password on the label (newer devices). Change it at once: `/user set admin password=<new-password>`.
+
+[admin@MikroTik] > /system resource print
+Version, uptime, memory, CPU, board name: the equivalent of `show version`.
+
+[admin@MikroTik] > /interface print
+The interfaces with their state: flags `R` running, `S` slave, `X` disabled.
+
+[admin@MikroTik] > /export compact
+Prints the whole configuration as commands. `/export file=SW1` writes it to the file `SW1.rsc` on the device.
+
+## Safe mode
+Press Ctrl+X in the terminal to enter **safe mode**. Changes you make are undone if the connection to the device breaks, so a mistake that cuts you off repairs itself. Press Ctrl+X again to leave safe mode and keep the changes.
+! There is no save step on RouterOS: everything you type is active and kept at once. Use safe mode, and `/system backup save name=before-change` before a risky change.
+
+## First setup
+[admin@MikroTik] > /system identity set name=SW1
+Names the device.
+
+[admin@MikroTik] > /user set admin password=<new-password>
++ /user add name=netops password=<password> group=full
+Changes the admin password and adds your own administrator.
+
+[admin@MikroTik] > /ip service disable telnet,ftp,www,api
++ /ip service set ssh address=192.168.99.0/24
+Turns off the services you do not use, and lets only the management network reach SSH. `/ip service print` lists them.
+
+[admin@MikroTik] > /system clock set time-zone-name=Europe/Vienna
++ /system ntp client set enabled=yes servers=192.168.99.10
+Sets the time zone and an NTP server.
+
+[admin@MikroTik] > /system logging action add name=remote target=remote remote=192.168.99.10
++ /system logging add topics=info,warning,error action=remote
+Sends log messages to a syslog server.
+
+# Bridge and VLANs
+## VLAN filtering on a bridge (RouterOS 7)
+On RouterOS 7 all ports of the switch go into one **bridge**. VLANs are set on the bridge, in three places: the bridge itself, each bridge port (the PVID and the frame types) and the bridge VLAN table (which ports carry which VLAN, tagged or untagged).
+1. Create the bridge with VLAN filtering off.
+2. Add the ports, with the PVID of each access port.
+3. Fill in the bridge VLAN table.
+4. Switch VLAN filtering on, last.
+! Turn `vlan-filtering` on only at the end, and from the console or in safe mode. Switching it on with a wrong table can cut off your own connection.
+
+[admin@MikroTik] > /interface bridge add name=bridge1 vlan-filtering=no
+Creates the bridge, with filtering off for now.
+
+[admin@MikroTik] > /interface bridge port add bridge=bridge1 interface=ether2 pvid=10 frame-types=admit-only-untagged-and-priority-tagged
+Adds an access port in VLAN 10: it accepts untagged frames and puts them into VLAN 10.
+
+[admin@MikroTik] > /interface bridge port add bridge=bridge1 interface=sfp-sfpplus1 frame-types=admit-only-vlan-tagged
+Adds a trunk port: it accepts only tagged frames.
+
+[admin@MikroTik] > /interface bridge vlan add bridge=bridge1 vlan-ids=10 tagged=sfp-sfpplus1,bridge1 untagged=ether2
+VLAN 10 is tagged on the trunk and on the bridge itself (so the switch can have an address in it), and untagged on ether2. Add one line per VLAN.
+
+[admin@MikroTik] > /interface bridge set bridge1 vlan-filtering=yes
+Turns VLAN filtering on: the table now applies.
+
+[admin@MikroTik] > /interface bridge vlan print
+The bridge VLAN table, including entries that RouterOS added by itself.
+
+[admin@MikroTik] > /interface bridge port print
+The ports with PVID and flags. The `H` flag means the port is switched in hardware: a port without it is switched by the CPU, which is slow.
+
+[admin@MikroTik] > /interface bridge host print
+The MAC address table: `where !local` hides the switch's own addresses.
+
+[admin@MikroTik] > /interface bridge monitor bridge1
+Live state of the bridge, such as the root bridge in spanning tree.
+~ `ingress-filtering` (on by default when VLAN filtering is on) drops frames that arrive on a port that is not a member of their VLAN.
+
+## The management address
+[admin@MikroTik] > /interface vlan add name=vlan99 interface=bridge1 vlan-id=99
++ /ip address add address=192.168.99.2/24 interface=vlan99
++ /ip route add dst-address=0.0.0.0/0 gateway=192.168.99.1
+A management VLAN with an address and a default route. The VLAN must also be in the bridge VLAN table with `bridge1` tagged. Since RouterOS 7.16, adding a VLAN interface to a bridge with VLAN filtering adds that entry for you.
+
+# Looking around and maintenance
+## The daily commands
+[admin@MikroTik] > /ip address print
+The addresses of the device.
+
+[admin@MikroTik] > /ip route print
+The routing table.
+
+[admin@MikroTik] > /ip neighbor print
+The neighbours found by MNDP and LLDP.
+
+[admin@MikroTik] > /interface ethernet monitor ether1 once
+Link state, speed and duplex of a port.
+
+[admin@MikroTik] > /log print
+The log. `/log print follow` shows new lines live.
+
+[admin@MikroTik] > /ping 192.168.99.1 count=4
+Four echo requests. `/tool traceroute 8.8.8.8` shows the path.
+
+[admin@MikroTik] > /tool torch interface=ether1
+Live traffic on a port, by address and protocol.
+
+## Back up, upgrade and reset
+[admin@MikroTik] > /system backup save name=before-change
+Saves a binary backup (`before-change.backup`) that can be restored on the same device. `/export file=before-change` saves readable commands instead: it can be used on another device.
+
+[admin@MikroTik] > /system package update check-for-updates
+Looks for a new RouterOS. `/system package update install` installs it and restarts. After an upgrade, `/system routerboard upgrade` and a reboot update the firmware too.
+
+[admin@MikroTik] > /system reset-configuration
+Resets the device to the factory configuration and restarts. Add `no-defaults=yes` to start with an empty configuration.
+! This deletes the configuration. For a forgotten password, hold the reset button while powering on (it resets to the default configuration), or reinstall with Netinstall from MikroTik's site.

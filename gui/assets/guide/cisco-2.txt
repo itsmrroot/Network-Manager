@@ -1,0 +1,450 @@
+# Spanning tree
+## How it works
+Redundant links between switches would create loops, and a loop floods a network with endless broadcasts. Spanning tree protocol (STP) keeps all links but blocks the ones that would form a loop.
+1. The switches elect one **root bridge**: the lowest bridge ID wins. The ID is the priority (default 32768, plus the VLAN number) and then the MAC address.
+2. Every other switch finds its **root port**: the port with the lowest path cost to the root.
+3. On each link, one side becomes the **designated port** (forwarding). Ports that would form a loop are blocked.
+Cisco switches run **PVST+** by default: one spanning tree per VLAN. **Rapid PVST+** (802.1w) reacts in seconds instead of up to 50 seconds, and is what you should use.
+| Original STP (802.1D) states | Rapid STP states |
+|---|---|
+| Disabled, blocking, listening, learning, forwarding | Discarding, learning, forwarding |
+| Port roles | Meaning |
+|---|---|
+| Root | The best way towards the root bridge (one per non-root switch) |
+| Designated | The forwarding port of a link, towards the leaves |
+| Alternate | A backup way to the root (blocked, ready to take over) |
+| Backup | A backup to a designated port on the same switch (rare) |
+| Defaults | Value |
+|---|---|
+| Bridge priority | 32768 (changes in steps of 4096; the VLAN number is added) |
+| Hello, forward delay, max age | 2 s, 15 s, 20 s |
+| Path cost (short method) | 10 Mbit/s 100, 100 Mbit/s 19, 1 Gbit/s 4, 10 Gbit/s 2 |
+~ Catalyst switches use the short values above by default. `spanning-tree pathcost method long` gives 100 Mbit/s 200000, 1 Gbit/s 20000, 10 Gbit/s 2000. Use the same method on all switches.
+
+## Configure it
+[SW1(config)#] spanning-tree mode rapid-pvst
+Turns on Rapid PVST+. Do it on every switch.
+
+[SW1(config)#] spanning-tree vlan 1,10,20,99 root primary
+Makes this switch the root bridge of those VLANs: it sets the priority low enough to win (24576, or lower if needed). Do it on the core switch.
+
+[SW1(config)#] spanning-tree vlan 1,10,20,99 root secondary
+Makes this switch the backup root (priority 28672).
+
+[SW1(config)#] spanning-tree vlan 10 priority 4096
+Sets the priority by hand. It has to be a multiple of 4096.
+
+[SW1#] show spanning-tree vlan 10
+Shows who the root is and the role and state of each port.
+> VLAN0010
+>   Spanning tree enabled protocol rstp
+>   Root ID    Priority    24586
+>              Address     0011.2233.4455
+>              This bridge is the root
+>              Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec
+>
+>   Bridge ID  Priority    24586  (priority 24576 sys-id-ext 10)
+>              Address     0011.2233.4455
+>
+> Interface           Role Sts Cost      Prio.Nbr Type
+> ------------------- ---- --- --------- -------- ------------------------
+> Gi1/0/1             Desg FWD 4         128.1    P2p
+> Gi1/0/48            Desg FWD 4         128.48   P2p
+"This bridge is the root" appears only on the root. On other switches the line `Root ID … Cost` and `Port` show the way to the root.
+
+[SW1#] show spanning-tree summary
+The mode, and the number of blocking, learning and forwarding ports per VLAN.
+
+## Protect the tree
+These features stop a wrong device from changing the tree. The names changed in newer software: `portfast edge` is the new form of `portfast`.
+| Feature | For | What it does |
+|---|---|---|
+| PortFast | Access ports | The port forwards at once instead of waiting |
+| BPDU guard | Access ports | Err-disables the port if a switch sends BPDUs into it |
+| Root guard | Ports towards switches that must never become the root | Blocks the port if a better root appears |
+| Loop guard | Links between switches | Stops a link that lost its BPDUs from forwarding |
+| BPDU filter | Rarely | Stops sending and receiving BPDUs (can cause loops) |
+
+[SW1(config-if)#] spanning-tree portfast edge
+Turns PortFast on for one access port (older software: `spanning-tree portfast`). A trunk to a server needs `spanning-tree portfast trunk`.
+
+[SW1(config)#] spanning-tree portfast edge default
++ spanning-tree portfast edge bpduguard default
+Turns PortFast and BPDU guard on for every access port at once (older software: `spanning-tree portfast default` and `spanning-tree portfast bpduguard default`). This is the usual way.
+
+[SW1(config-if)#] spanning-tree bpduguard enable
+BPDU guard on one port. The port goes err-disabled when a BPDU arrives: see Interfaces → Err-disabled ports.
+
+[SW1(config-if)#] spanning-tree guard root
+Root guard on a port towards a switch that must never become the root. It is off by default.
+
+[SW1(config)#] spanning-tree loopguard default
+Loop guard on all point-to-point links. Root guard and loop guard cannot both be on for one port.
+! BPDU filter (`spanning-tree bpdufilter enable`) turns spanning tree off on a port. If you connect a switch to such a port, you create a loop. Prefer BPDU guard.
+
+## Finding a loop
+Signs of a loop: every port light flashes, the network crawls, the CPU is at 100%, and the log shows a MAC address moving between ports.
+> %SW_MATM-4-MACFLAP_NOTIF: Host 0011.2233.4455 in vlan 20 is flapping between port Gi1/0/3 and port Gi1/0/7
+1. Check `show processes cpu sorted | exclude 0.00` and `show interfaces | include rate` for very high traffic.
+2. Find the ports that carry it: `show interfaces counters` or `show interfaces | include broadcast`.
+3. `show spanning-tree detail | include occurr|from` shows where topology changes come from.
+4. Unplug the suspected cable. Then turn on BPDU guard and storm control (see Layer 2 security) so it cannot happen again.
+
+# EtherChannel
+## Bundle links into one
+An EtherChannel (also called a port channel or LAG) joins 2 to 8 cables into one logical link: more speed, and the link survives when one cable fails. Spanning tree sees it as one link.
+| Protocol | Modes | Notes |
+|---|---|---|
+| LACP (802.3ad, the standard) | `active`, `passive` | Works with other makes: the usual choice |
+| PAgP (Cisco) | `desirable`, `auto` | Cisco to Cisco only |
+| None (static) | `on` | No checking: a wrong cable can cause a loop |
+| Mode on this side | Mode on the other side | Result |
+|---|---|---|
+| active | active or passive | Channel forms |
+| passive | passive | No channel (nobody starts it) |
+| desirable | desirable or auto | Channel forms |
+| auto | auto | No channel |
+| on | on | Channel forms; anything else fails |
+All members must have the same speed, duplex, VLAN and trunk settings.
+
+## Configure it
+[SW1(config)#] interface range gigabitEthernet 1/0/47 - 48
++ switchport mode trunk
++ channel-group 1 mode active
+Puts both ports into channel 1 with LACP. The logical interface `Port-channel1` is created for you.
+
+[SW1(config)#] interface port-channel 1
++ switchport trunk allowed vlan 10,20,99
++ switchport trunk native vlan 999
+Settings that belong to the whole bundle go on the port-channel interface.
+
+[SW1#] show etherchannel summary
+The channels and their members.
+> Flags:  D - down        P - bundled in port-channel
+>         I - stand-alone s - suspended
+>         R - Layer3      S - Layer2
+>         U - in use      f - failed to allocate aggregator
+>
+> Group  Port-channel  Protocol    Ports
+> ------+-------------+-----------+-----------------------------------------------
+> 1      Po1(SU)         LACP      Gi1/0/47(P) Gi1/0/48(P)
+`SU` means a working Layer 2 channel. A member marked `s` (suspended) or `I` (stand-alone) does not match the others: compare the ports with `show running-config interface …`.
+
+[SW1#] show lacp neighbor
+What the other end announces. Empty means no LACP partner: check the cables and the other side's mode.
+
+[SW1#] show etherchannel load-balance
+How traffic is spread over the cables.
+
+[SW1(config)#] port-channel load-balance src-dst-ip
+Chooses what the spreading is based on. The options depend on the model. One conversation always uses one cable.
+
+## A routed EtherChannel
+[SW1(config)#] interface port-channel 1
++ no switchport
++ ip address 10.0.0.2 255.255.255.252
++ exit
+Creates a Layer 3 bundle.
+
+[SW1(config)#] interface range gigabitEthernet 1/0/47 - 48
++ no switchport
++ channel-group 1 mode active
+Adds the members (also routed ports).
+
+# Layer 2 security
+## Basic hardening
+These steps stop most simple attacks and mistakes.
+- Shut down unused ports and park them in a VLAN that nothing uses.
+- Set every port to `access` or `trunk` and turn DTP off.
+- Do not use VLAN 1 for anything, and use another native VLAN on trunks.
+- Turn on BPDU guard, DHCP snooping, dynamic ARP inspection and port security on user ports.
+- Turn off CDP and LLDP on ports towards users.
+
+[SW1(config)#] interface range gigabitEthernet 1/0/10 - 24
++ description UNUSED
++ switchport mode access
++ switchport access vlan 999
++ shutdown
+Makes unused ports harmless. Create VLAN 999 first (`vlan 999` and `name PARKING`).
+
+## Port security
+Port security limits which MAC addresses may use a port. It works on access ports (`switchport mode access` first).
+
+[SW1(config)#] interface gigabitEthernet 1/0/5
++ switchport mode access
++ switchport port-security
++ switchport port-security maximum 2
++ switchport port-security mac-address sticky
++ switchport port-security violation restrict
+Turns it on, allows two addresses (a phone and a PC), remembers the learned addresses in the running configuration (`sticky`), and logs a violation without shutting the port down.
+| Violation mode | What happens to the extra device |
+|---|---|
+| `shutdown` (default) | The port goes err-disabled |
+| `restrict` | Its frames are dropped; a log message, an SNMP trap and a counter record it |
+| `protect` | Its frames are dropped, with no message at all (not recommended on trunk ports) |
+~ Sticky learning is off by default. Save the configuration after the addresses are learned, or they are lost at a reload.
+
+[SW1#] show port-security
+A list of all secured ports with their maximum and violation counts.
+
+[SW1#] show port-security interface gigabitEthernet 1/0/5
+> Port Security              : Enabled
+> Port Status                : Secure-up
+> Violation Mode             : Restrict
+> Maximum MAC Addresses      : 2
+> Total MAC Addresses        : 1
+> Sticky MAC Addresses       : 1
+> Last Source Address:Vlan   : 0050.7966.6801:10
+> Security Violation Count   : 0
+`Secure-shutdown` as the status means the port was shut down by a violation.
+
+[SW1#] show port-security address
+The secured addresses of all ports.
+
+[SW1(config)#] errdisable recovery cause psecure-violation
+Lets a port shut down by port security come back after the recovery interval (300 seconds by default).
+
+## DHCP snooping
+Stops rogue DHCP servers. Ports are untrusted by default: answers from a DHCP server arriving on an untrusted port are dropped. Mark the ports towards the real DHCP server (or the uplinks) as trusted.
+
+[SW1(config)#] ip dhcp snooping
++ ip dhcp snooping vlan 10,20
+Turns snooping on, for those VLANs.
+
+[SW1(config)#] interface gigabitEthernet 1/0/48
++ ip dhcp snooping trust
+The uplink towards the DHCP server is trusted.
+
+[SW1(config-if)#] ip dhcp snooping limit rate 15
+Limits DHCP packets per second on an untrusted port: it goes err-disabled if the limit is exceeded.
+
+[SW1(config)#] no ip dhcp snooping information option
+Stops the switch adding "option 82" to requests. Needed when the DHCP server or relay drops requests that carry it and the clients cannot get addresses (a common surprise).
+
+[SW1#] show ip dhcp snooping
+The settings, the VLANs and the trusted ports.
+
+[SW1#] show ip dhcp snooping binding
+The table of leases the switch learned: MAC, IP, VLAN, port. Dynamic ARP inspection and IP source guard use it.
+! If clients stop getting addresses after you turn snooping on, the port towards the DHCP server is probably not trusted.
+
+## Dynamic ARP inspection (DAI)
+Stops ARP spoofing: the switch checks each ARP reply against the DHCP snooping table and drops the false ones. It needs DHCP snooping.
+
+[SW1(config)#] ip arp inspection vlan 10,20
+Turns DAI on for those VLANs. Every port is untrusted by default.
+
+[SW1(config)#] interface gigabitEthernet 1/0/48
++ ip arp inspection trust
+Trusts the uplink, so that ARP crossing it is not checked.
+
+[SW1(config)#] ip arp inspection validate src-mac dst-mac ip
+Also checks MAC and IP addresses inside the ARP packet. Each use of the command replaces the previous: list every check you want in one command.
+
+[SW1#] show ip arp inspection
+Shows the VLANs, and the counts of forwarded and dropped packets.
+! Devices with a fixed IP address (printers, servers) are not in the snooping table: DAI drops their ARP. Trust their port, or give DAI an ARP ACL for them (`arp access-list` and `ip arp inspection filter`). An untrusted port is limited to 15 ARP packets per second and goes err-disabled above it.
+
+## IP source guard and storm control
+[SW1(config-if)#] ip verify source
+IP source guard: the port only accepts traffic from the address it got by DHCP (from the snooping table).
+
+[SW1(config-if)#] storm-control broadcast level 20
++ storm-control multicast level 20
++ storm-control action shutdown
+Limits broadcast and multicast traffic to 20% of the port's speed and shuts the port down when exceeded (`action trap` only sends an alert). `show storm-control` shows the state.
+
+## 802.1X
+802.1X makes a user or device log in before the port opens, with a RADIUS server. It is configured with `aaa new-model`, a RADIUS server and `dot1x system-auth-control`, then `authentication port-control auto` and `dot1x pae authenticator` on each port. It is a topic of its own: see Cisco's configuration guide for your model.
+
+# Device access and passwords
+## Harden SSH
+[SW1(config)#] ip ssh version 2
++ ip ssh time-out 60
++ ip ssh authentication-retries 3
+Version 2 only, 60 seconds to log in, three tries.
+
+[SW1(config)#] login block-for 120 attempts 3 within 60
+Blocks all logins for 2 minutes after 3 failed attempts within 60 seconds. It slows down password guessing on remote logins.
+
+[SW1(config)#] login on-failure log
++ login on-success log
+Writes a log line for each failed and successful login.
+
+[SW1(config)#] access-list 10 permit 192.168.99.0 0.0.0.255
++ line vty 0 15
++ access-class 10 in
+Lets only the management network open a remote session.
+
+[SW1(config)#] no ip http server
++ no ip http secure-server
+Turns the web interface off if you do not use it: fewer ways in.
+
+[SW1#] show users
+Who is logged in. `clear line vty 0` ends a session, `show ssh` lists the SSH sessions.
+
+## AAA: central logins
+[SW1(config)#] username admin privilege 15 algorithm-type scrypt secret <password>
++ aaa new-model
++ aaa authentication login default local
++ aaa authorization exec default local
+Turns on AAA with local users. Create the local user before `aaa new-model`.
+
+[SW1(config)#] tacacs server TACACS1
++ address ipv4 10.0.0.5
++ key <shared-secret>
++ exit
+Defines a TACACS+ server. For RADIUS: `radius server RADIUS1`, `address ipv4 10.0.0.6 auth-port 1812 acct-port 1813` and `key <secret>`.
+
+[SW1(config)#] aaa authentication login default group tacacs+ local
+Logins use the TACACS+ server and fall back to local users if it does not answer.
+! Test AAA from a second session while the first stays open, and keep a console connection. A wrong AAA setting locks you out of the switch.
+| | TACACS+ | RADIUS |
+|---|---|---|
+| Used for | Device administration | Network access (802.1X, VPN, Wi-Fi) |
+| Transport | TCP 49 | UDP 1812 and 1813 |
+| Encrypts | The whole packet | The password only |
+| Separates authentication and authorization | Yes | No |
+
+# Access control lists
+## How ACLs work
+An access control list (ACL) is a list of permit and deny rules checked from the top. The first rule that matches wins. At the end there is an invisible `deny any`: a packet that matches nothing is dropped.
+- A **standard** ACL looks only at the source address. Put it near the destination.
+- An **extended** ACL looks at source, destination, protocol and ports. Put it near the source.
+- Apply an ACL to an interface in one direction (`in` or `out`), one ACL per interface, direction and protocol.
+- On a VLAN interface of a Layer 3 switch an ACL filters routed traffic (between VLANs), not traffic inside one VLAN.
+| Wildcard mask | Matches | Same as mask |
+|---|---|---|
+| `0.0.0.0` (or `host`) | One address | 255.255.255.255 |
+| `0.0.0.255` | A /24 network | 255.255.255.0 |
+| `0.0.0.3` | Four addresses (/30) | 255.255.255.252 |
+| `0.0.0.15` | Sixteen addresses (/28) | 255.255.255.240 |
+| `255.255.255.255` (or `any`) | Everything | 0.0.0.0 |
+A wildcard mask is the mask turned around: 0 means "must match", 1 means "any value".
+
+## Write and apply ACLs
+[SW1(config)#] ip access-list standard MGMT-ONLY
++ permit 192.168.99.0 0.0.0.255
++ exit
+A named standard ACL: only the management network. Use it with `access-class MGMT-ONLY in` on the VTY lines.
+
+[SW1(config)#] ip access-list extended SALES-IN
++ permit tcp 192.168.10.0 0.0.0.255 host 192.168.20.10 eq 443
++ deny ip 192.168.10.0 0.0.0.255 192.168.20.0 0.0.0.255
++ permit ip any any
++ exit
+Sales may reach the server 192.168.20.10 on HTTPS, nothing else in VLAN 20, but everything outside.
+
+[SW1(config)#] interface vlan 10
++ ip access-group SALES-IN in
+Applies the ACL to traffic coming in from VLAN 10.
+
+[SW1#] show access-lists
+The ACLs with a count of matches per rule: a rule with no matches may be misplaced or unnecessary.
+> Extended IP access list SALES-IN
+>     10 permit tcp 192.168.10.0 0.0.0.255 host 192.168.20.10 eq 443 (12 matches)
+>     20 deny ip 192.168.10.0 0.0.0.255 192.168.20.0 0.0.0.255 (3 matches)
+>     30 permit ip any any (1450 matches)
+
+[SW1(config)#] ip access-list extended SALES-IN
++ no 20
++ 15 deny tcp any any eq 23
+Removes rule 20 and inserts a new rule between 10 and 20. Rules have sequence numbers, so you can change a list without rewriting it.
+
+[SW1(config)#] ip access-list resequence SALES-IN 10 10
+Renumbers the rules 10, 20, 30… to make room.
+
+[SW1#] show ip interface vlan 10 | include access list
+Shows which ACL is applied in each direction.
+! An ACL on the interface you are connected through can lock you out. Permit your management address first, use a numbered list in a test, and run `reload in 5` (without saving) as a safety net.
+| Numbers | Type |
+|---|---|
+| 1-99, 1300-1999 | Standard |
+| 100-199, 2000-2699 | Extended |
+
+# IP services
+## DHCP server and relay
+A Layer 3 switch can hand out addresses itself, or pass the requests on to a server.
+
+[SW1(config)#] ip dhcp excluded-address 192.168.10.1 192.168.10.20
+Keeps these addresses out of the pool (gateway, printers, servers).
+
+[SW1(config)#] ip dhcp pool VLAN10
++ network 192.168.10.0 255.255.255.0
++ default-router 192.168.10.1
++ dns-server 8.8.8.8 1.1.1.1
++ lease 7
++ exit
+A pool for VLAN 10 with the gateway and DNS servers, leases of 7 days.
+
+[SW1#] show ip dhcp binding
+The addresses handed out, with the MAC address and the lease end. `show ip dhcp pool` shows use of the pool; `show ip dhcp conflict` shows addresses found in use already.
+
+[SW1(config)#] interface vlan 10
++ ip helper-address 10.0.0.5
+Relay: forwards the DHCP requests of VLAN 10 to the server at 10.0.0.5 on another network.
+~ In Network Manager, Servers → DHCP gives a lab switch an address with options for zero-touch setup.
+
+## Time (NTP)
+[SW1(config)#] ntp server 192.168.99.10
++ clock timezone CET 1
++ clock summer-time CEST recurring
+The switch takes its time from an NTP server. Add `prefer` after the address for the main one.
+
+[SW1#] show ntp status
+> Clock is synchronized, stratum 3, reference is 192.168.99.10
+`unsynchronized` means no server answered: check routing and the address. `show ntp associations` lists the servers.
+~ Network Manager has an NTP server for labs without internet: Servers → Time (NTP).
+
+## Syslog: send the log away
+[SW1(config)#] service timestamps log datetime msec
++ logging host 192.168.99.10
++ logging trap informational
++ logging source-interface vlan 99
++ logging buffered 16384
+Messages carry the time, go to the server at 192.168.99.10 (severity informational and worse), come from the management address and are also kept in memory.
+| Level | Name | Example |
+|---|---|---|
+| 0 | emergencies | The system is unusable |
+| 1 | alerts | Act at once |
+| 2 | critical | A critical condition |
+| 3 | errors | An error |
+| 4 | warnings | A warning |
+| 5 | notifications | Normal but important: link up or down |
+| 6 | informational | Information |
+| 7 | debugging | Debug output |
+Setting a level means that level and every lower number: `logging trap warnings` sends 0 to 4. A mnemonic: "Every Awesome Cisco Engineer Will Need Ice cream Daily".
+~ In Network Manager, Servers → Syslog server collects these messages, and Servers → Logs keeps them by day.
+
+## SNMP
+[SW1(config)#] snmp-server community <read-only-string> RO 10
++ snmp-server location Building A, 2nd floor
++ snmp-server contact netops@example.com
+Version 2c with a read-only community, limited to the addresses in ACL 10. The community string is sent in clear text: choose a long one that is not "public".
+
+[SW1(config)#] snmp-server group NMGROUP v3 priv
++ snmp-server user nmuser NMGROUP v3 auth sha <auth-password> priv aes 128 <privacy-password>
+SNMPv3 with authentication and encryption: the secure way. Passwords need at least 8 characters.
+
+[SW1(config)#] snmp-server host 192.168.99.10 version 3 priv nmuser
++ snmp-server enable traps
+Sends traps (link up and down, restarts, configuration changes) to the server. For version 2c: `snmp-server host 192.168.99.10 version 2c <community>`.
+
+[SW1#] show snmp user
+Lists the SNMPv3 users. `show snmp group`, `show snmp host` and `show snmp` show the rest.
+~ In Network Manager: Tools → SNMP reads the switch (v1, v2c, v3), and Servers → SNMP traps receives its traps.
+
+## CDP and LLDP
+Both announce a device to its neighbours: name, model, address, port. They are useful to document a network, and a risk on ports towards users.
+
+[SW1(config)#] lldp run
+Turns LLDP on globally (CDP is on by default). `no cdp run` turns CDP off everywhere.
+
+[SW1(config-if)#] no cdp enable
++ no lldp transmit
++ no lldp receive
+Turns both off on one port: do this on ports towards users.
+
+[SW1#] show cdp neighbors detail
+Each neighbour with its management address. `show lldp neighbors detail` is the same for LLDP.
+~ Network Manager's Switch port page reads the LLDP and CDP announcements of the switch you are plugged into.
