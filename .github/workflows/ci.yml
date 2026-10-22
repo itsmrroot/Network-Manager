@@ -3,7 +3,15 @@ name: CI
 on:
   push:
     branches: [main]
+    # Nothing to test in a change to the texts and pictures alone.
+    paths-ignore: ["**.md", "assets/**", "LICENSE"]
   pull_request:
+  workflow_dispatch:
+
+# A newer push makes the run for the older one pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always

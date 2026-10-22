@@ -1,8 +1,21 @@
 name: Release
 
+# Started from main (Actions → Release → Run workflow, or
+# `gh workflow run release.yml -f tag=v1.2.3`): runs on main share their
+# caches — compiled libraries and packaging tools — so each release reuses
+# the last one's. (Runs started by pushing a tag cannot use them.) The tag is
+# created with the release.
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag, e.g. v0.9.2 (must match Cargo.toml)"
+        required: true
   push:
     tags: ["v*"]
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: write
@@ -32,16 +45,24 @@ jobs:
           - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu, packages: "-p netmgr -p netmgr-gui", bins: "netmgr-gui", suffix: "-desktop", installer: linux, label: linux-arm64 }
     steps:
       - uses: actions/checkout@v5
+      - name: Version matches the tag
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          [[ "v$version" == "$TAG" ]] || { echo "Cargo.toml says $version, the tag is $TAG"; exit 1; }
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
       - if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       - run: cargo build --release --locked --target ${{ matrix.target }} ${{ matrix.packages }}
       - name: Package
         shell: bash
         run: |
-          name=netmgr-${GITHUB_REF_NAME}-${{ matrix.target }}${{ matrix.suffix }}
+          name=netmgr-${TAG}-${{ matrix.target }}${{ matrix.suffix }}
           mkdir "$name"
           for b in ${{ matrix.bins }}; do cp "target/${{ matrix.target }}/release/$b" "$name/"; done
           cp README.md LICENSE "$name/"
@@ -54,26 +75,42 @@ jobs:
           fi
       # Published to the public repository (the code stays private): the
       # app's updater and the download links look there.
-      - uses: softprops/action-gh-release@v2
+      # (Not when testing locally with act, which has no token.)
+      - if: ${{ !env.ACT }}
+        uses: softprops/action-gh-release@v2
         with:
           repository: itsmrroot/Network-Manager-releases
           token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ env.TAG }}
           target_commitish: main
           files: ${{ env.ASSET }}
       # And to this (private) repository, with notes from its history.
-      - uses: softprops/action-gh-release@v2
+      - if: ${{ !env.ACT }}
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           files: ${{ env.ASSET }}
           generate_release_notes: true
 
       # Installers (configured in gui/Cargo.toml). They run after the archive is
       # published, so a failing installer never holds back the plain download.
+      # Built from source (no ready-made downloads): kept between releases.
+      - if: matrix.installer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cargo-packager*
+            ~/.cargo/bin/cargo-generate-rpm*
+          key: tools-${{ runner.os }}-${{ runner.arch }}-packager-0.11.8-rpm-0.21.0
       - name: Install packaging tools
         if: matrix.installer
         shell: bash
         run: |
-          cargo install --locked cargo-packager@0.11.8
-          if [[ "${{ matrix.installer }}" == linux ]]; then cargo install --locked cargo-generate-rpm@0.21.0; fi
+          command -v cargo-packager || cargo install --locked cargo-packager@0.11.8
+          if [[ "${{ matrix.installer }}" == linux ]]; then
+            command -v cargo-generate-rpm || cargo install --locked cargo-generate-rpm@0.21.0
+          fi
       - name: Build installers
         if: matrix.installer
         shell: bash
@@ -116,14 +153,17 @@ jobs:
               cp "$pkg"/*.rpm "installers/$base.rpm" ;;
           esac
           ls -la installers
-      - if: matrix.installer
+      - if: matrix.installer && !env.ACT
         uses: softprops/action-gh-release@v2
         with:
           repository: itsmrroot/Network-Manager-releases
           token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ env.TAG }}
           target_commitish: main
           files: installers/*
-      - if: matrix.installer
+      - if: matrix.installer && !env.ACT
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           files: installers/*

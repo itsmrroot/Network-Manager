@@ -1,3 +1,10 @@
 /target
 /gui/pkg
 .DS_Store
+
+# Local diagnostic reports and logs: never committed, even in the private repository.
+netmgr-diag/
+problems.log
+debug.log
+# Claude Code's local working files.
+/.claude/
