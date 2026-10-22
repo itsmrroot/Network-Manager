@@ -746,12 +746,29 @@ impl IpForm {
                 );
                 ui.end_row();
                 ui.label(tr("Subnet"));
-                crate::theme::field(
-                    ui,
-                    egui::TextEdit::singleline(&mut self.subnet)
-                        .hint_text(tr("255.255.255.0 or 24"))
-                        .desired_width(220.0),
-                );
+                ui.horizontal(|ui| {
+                    let r = crate::theme::field(
+                        ui,
+                        egui::TextEdit::singleline(&mut self.subnet)
+                            .hint_text(tr("255.255.255.0 or 24"))
+                            .desired_width(220.0),
+                    );
+                    // A prefix length (24 or /24) becomes the mask when you leave the field.
+                    if r.lost_focus()
+                        && let Some(bits) = prefix_only(&self.subnet)
+                    {
+                        self.subnet = prefix_to_mask(bits).to_string();
+                    }
+                    // What the text means, as you type it.
+                    let meaning = match (prefix_only(&self.subnet), parse_subnet(&self.subnet)) {
+                        (Some(bits), _) => Some(format!("= {}", prefix_to_mask(bits))),
+                        (None, Ok(bits)) => Some(format!("= /{bits}")),
+                        _ => None,
+                    };
+                    if let Some(text) = meaning {
+                        ui.label(RichText::new(text).color(p.weak).size(13.0));
+                    }
+                });
                 ui.end_row();
                 ui.label(tr("Gateway"));
                 ui.horizontal(|ui| {
@@ -954,6 +971,15 @@ impl IpForm {
     }
 }
 
+/// "24" or "/24": a prefix length typed where a mask goes.
+fn prefix_only(s: &str) -> Option<u8> {
+    let t = s.trim().trim_start_matches('/');
+    if t.is_empty() || !t.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    t.parse::<u8>().ok().filter(|bits| (1..=32).contains(bits))
+}
+
 /// "255.255.255.0", "24" or "/24".
 fn parse_subnet(s: &str) -> Result<u8, String> {
     let s = s.trim().trim_start_matches('/');
@@ -973,4 +999,30 @@ struct MacEditor {
     original_loaded: bool,
     vendor: String,
     error: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_prefix_length_turns_into_a_mask() {
+        for (typed, mask) in [
+            ("24", "255.255.255.0"),
+            ("/25", "255.255.255.128"),
+            (" 16 ", "255.255.0.0"),
+            ("30", "255.255.255.252"),
+            ("32", "255.255.255.255"),
+        ] {
+            assert_eq!(prefix_only(typed).map(|b| prefix_to_mask(b).to_string()).as_deref(), Some(mask), "{typed}");
+        }
+        // Not prefixes: masks, nothing, out of range, words.
+        for typed in ["255.255.255.0", "", "/", "0", "33", "2x", "24.5"] {
+            assert_eq!(prefix_only(typed), None, "{typed}");
+        }
+        // The same text still works when applied without leaving the field.
+        assert_eq!(parse_subnet("24"), Ok(24));
+        assert_eq!(parse_subnet("/20"), Ok(20));
+        assert_eq!(parse_subnet("255.255.240.0"), Ok(20));
+    }
 }
