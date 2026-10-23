@@ -138,6 +138,11 @@ pub struct App {
     /// Desktop notifications for Servers → Activity.
     notifier: crate::activity::Notifier,
     shared: Shared,
+    /// Development aid: frames since the tour began dragging the guide's edge.
+    #[cfg(debug_assertions)]
+    dock_drag: Option<u32>,
+    #[cfg(debug_assertions)]
+    dock_drag_edge: f32,
     applied: Option<(theme::Accent, f32, settings::ThemeChoice)>,
     /// The icon shown in the Dock or task bar.
     icon_shown: Option<theme::AppIcon>,
@@ -265,6 +270,10 @@ impl App {
             console: Default::default(),
             #[cfg(debug_assertions)]
             tour,
+            #[cfg(debug_assertions)]
+            dock_drag: None,
+            #[cfg(debug_assertions)]
+            dock_drag_edge: 0.0,
         }
     }
 
@@ -766,6 +775,32 @@ impl App {
 }
 
 impl eframe::App for App {
+    /// Development aid: the tour can drag the guide's edge with the mouse.
+    #[cfg(debug_assertions)]
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+        let Some(n) = self.dock_drag.as_mut() else { return };
+        *n += 1;
+        let by: f32 = std::env::var("NETMGR_TOUR_DRAG").ok().and_then(|s| s.parse().ok()).unwrap_or(0.0);
+        if *n == 5 {
+            self.dock_drag_edge = self.shared.guide.dock_edge;
+        }
+        let edge = if *n >= 5 { self.dock_drag_edge } else { self.shared.guide.dock_edge };
+        let at = |dx: f32| egui::Pos2::new(edge + dx, 400.0);
+        let button = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        match *n {
+            5 => raw.events.push(egui::Event::PointerMoved(at(0.0))),
+            6 => raw.events.push(button(at(0.0), true)),
+            7..=12 => raw.events.push(egui::Event::PointerMoved(at(by * (*n - 6) as f32 / 6.0))),
+            13 => raw.events.push(button(at(by), false)),
+            _ => {}
+        }
+    }
+
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.fit_to_screen(&ctx);
@@ -1057,7 +1092,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 47] = [
+        let pages: [(Page, &str, u32); 48] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1104,6 +1139,7 @@ impl App {
             (Page::Console, "45-art-2", 30),
             (Page::Console, "46-art-4", 30),
             (Page::Console, "47-art-6", 30),
+            (Page::Console, "48-dock-drag", 60),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_FROM=36-guide: begin at that step.
@@ -1306,6 +1342,13 @@ impl App {
             if let Some(n) = name.strip_prefix("4").and_then(|n| n.split_once("-art-")).map(|(_, n)| n) {
                 self.shared.settings.guide.docked = false;
                 self.console.show(&mut self.shared, &format!("art-{n}"));
+            }
+            if name == "48-dock-drag" {
+                let g = &mut self.shared.settings.guide;
+                (g.docked, g.side, g.width, g.collapsed, g.maximized) =
+                    (true, crate::guide_view::Side::Right, 400.0, false, false);
+                self.console.show(&mut self.shared, "dock");
+                self.dock_drag = Some(0);
             }
             if name == "30-push" {
                 self.console.show(&mut self.shared, "push");

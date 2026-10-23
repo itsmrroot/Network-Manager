@@ -5,7 +5,8 @@
 use std::time::{Duration, Instant};
 
 use eframe::egui::{
-    self, Align, Color32, CornerRadius, FontId, Frame, Layout, Margin, RichText, ScrollArea, Stroke, Ui, Vec2,
+    self, Align, Color32, CornerRadius, FontId, Frame, Layout, Margin, Rect, RichText, ScrollArea, Sense, Stroke, Ui,
+    Vec2,
     text::{LayoutJob, TextFormat},
 };
 use egui_phosphor::regular as icon;
@@ -75,6 +76,9 @@ pub struct GuideState {
     copied: Option<(String, Instant)>,
     /// What the window of its own was last told about staying on top.
     on_top_sent: Option<bool>,
+    /// Development aid: where the docked panel's left edge is (for the tour's drag).
+    #[cfg(debug_assertions)]
+    pub dock_edge: f32,
 }
 
 impl GuideState {
@@ -141,13 +145,19 @@ fn dock_limits(room: f32, horizontal: bool) -> (f32, f32) {
     (min, (room - console).max(min))
 }
 
+/// The size the panel keeps: its width at the sides, its height below.
+fn dock_size(cfg: &mut GuideSettings, horizontal: bool) -> &mut f32 {
+    if horizontal { &mut cfg.width } else { &mut cfg.height }
+}
+
 /// The panel beside (or below) the console. Call it before the central panel.
 pub fn dock(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSettings) -> Option<Action> {
     let free = ui.available_rect_before_wrap();
     let horizontal = cfg.side != Side::Bottom;
     let room = if horizontal { free.width() } else { free.height() };
     let frame = Frame::new().fill(p.bg).stroke(Stroke::new(1.0, p.border)).inner_margin(Margin::symmetric(14, 12));
-    let panel = |id: &'static str| match cfg.side {
+    let side = cfg.side;
+    let panel = |id: &'static str| match side {
         Side::Left => egui::Panel::left(id),
         Side::Right => egui::Panel::right(id),
         Side::Bottom => egui::Panel::bottom(id),
@@ -189,19 +199,61 @@ pub fn dock(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSetting
         return None;
     }
     let (min, max) = dock_limits(room, horizontal);
-    let wanted = if horizontal { cfg.width } else { cfg.height };
-    let panel = if cfg.maximized {
-        panel("guide-dock-full").exact_size((room - if horizontal { 150.0 } else { 90.0 }).max(min)).resizable(false)
-    } else {
-        panel("guide-dock").default_size(wanted.clamp(min, max)).size_range(min..=max).resizable(true)
+    let size = {
+        let slot = dock_size(cfg, horizontal);
+        *slot = slot.clamp(min, max);
+        *slot
     };
-    let shown = panel.frame(frame).show(ui, |ui| show(ui, p, g, cfg, Where::Dock));
-    // The size the person dragged it to is kept.
-    let size = if horizontal { shown.response.rect.width() } else { shown.response.rect.height() };
-    if !cfg.maximized && size > 1.0 {
-        let slot = if horizontal { &mut cfg.width } else { &mut cfg.height };
-        if (*slot - size).abs() > 1.0 {
-            *slot = size;
+    // The size is ours, not the content's: egui sizes a resizable panel by
+    // what is in it, and a row that was a little too wide made the panel
+    // grow by itself, or shrink back after it was dragged.
+    let panel = if cfg.maximized {
+        panel("guide-dock-full").exact_size((room - if horizontal { 150.0 } else { 90.0 }).max(min))
+    } else {
+        panel("guide-dock").exact_size(size)
+    };
+    let shown = panel.resizable(false).frame(frame).show(ui, |ui| show(ui, p, g, cfg, Where::Dock));
+    let edge = shown.response.rect;
+    #[cfg(debug_assertions)]
+    {
+        g.dock_edge = edge.left();
+    }
+    if !cfg.maximized {
+        // The edge facing the console is the handle.
+        let grab = 5.0;
+        let (rect, icon, line) = match cfg.side {
+            Side::Right => (
+                Rect::from_min_max(edge.left_top() - Vec2::X * grab, edge.left_bottom() + Vec2::X * grab),
+                egui::CursorIcon::ResizeHorizontal,
+                [edge.left_top(), edge.left_bottom()],
+            ),
+            Side::Left => (
+                Rect::from_min_max(edge.right_top() - Vec2::X * grab, edge.right_bottom() + Vec2::X * grab),
+                egui::CursorIcon::ResizeHorizontal,
+                [edge.right_top(), edge.right_bottom()],
+            ),
+            Side::Bottom => (
+                Rect::from_min_max(edge.left_top() - Vec2::Y * grab, edge.right_top() + Vec2::Y * grab),
+                egui::CursorIcon::ResizeVertical,
+                [edge.left_top(), edge.right_top()],
+            ),
+        };
+        let handle = ui.interact(rect, egui::Id::new("guide-dock-edge"), Sense::drag());
+        if handle.hovered() || handle.dragged() {
+            ui.set_cursor_icon(icon);
+            let color = if handle.dragged() { p.accent } else { p.accent.gamma_multiply(0.6) };
+            ui.painter().line_segment(line, Stroke::new(2.0, color));
+        }
+        if handle.dragged()
+            && let Some(pos) = handle.interact_pointer_pos()
+        {
+            // The panel's edge goes where the pointer is.
+            let wanted = match cfg.side {
+                Side::Right => free.right() - pos.x,
+                Side::Left => pos.x - free.left(),
+                Side::Bottom => free.bottom() - pos.y,
+            };
+            *dock_size(cfg, horizontal) = wanted.clamp(min, max);
         }
     }
     shown.inner
@@ -266,9 +318,12 @@ fn header(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSettings,
     ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new(icon::BOOK_OPEN).size(18.0).color(p.accent));
         let before = cfg.book;
+        // What does not fit the panel would make the panel wider than it was
+        // dragged to: the widgets take the room they are given.
+        let room = ui.available_width();
         egui::ComboBox::from_id_salt(("guide-book", at as u8))
             .selected_text(books[cfg.book].title.clone())
-            .width(210.0)
+            .width((room - 48.0).clamp(90.0, 210.0))
             .show_ui(ui, |ui| {
                 for (i, b) in books.iter().enumerate() {
                     ui.selectable_value(&mut cfg.book, i, b.title.clone());
@@ -279,7 +334,9 @@ fn header(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSettings,
         }
         theme::field(
             ui,
-            egui::TextEdit::singleline(&mut g.search).hint_text(tr("Search the commands…")).desired_width(210.0),
+            egui::TextEdit::singleline(&mut g.search)
+                .hint_text(tr("Search the commands…"))
+                .desired_width((ui.available_width() - 12.0).clamp(90.0, 210.0)),
         );
         if !g.search.is_empty() && ui.add(egui::Button::new(icon::X).frame(false)).on_hover_text(tr("Clear")).clicked()
         {
@@ -437,7 +494,7 @@ fn topic_bar(ui: &mut Ui, cfg: &mut GuideSettings, book: &Book) {
             if cfg.topic == 0 { tr("About this book").to_string() } else { book.topics[cfg.topic - 1].title.clone() };
         egui::ComboBox::from_id_salt(("guide-topic", cfg.book))
             .selected_text(shown)
-            .width((ui.available_width() - 44.0).max(120.0))
+            .width((ui.available_width() - 80.0).max(90.0))
             .show_ui(ui, |ui| {
                 ui.selectable_value(&mut cfg.topic, 0, tr("About this book"));
                 for (i, t) in book.topics.iter().enumerate() {
@@ -879,6 +936,61 @@ mod tests {
             show(ui, p, g, cfg, at);
         });
         output.textures_delta.clear();
+    }
+
+    /// The docked panel follows the mouse when its edge is dragged, also to
+    /// a narrower width than what its content would like to have.
+    #[test]
+    fn the_dock_follows_the_mouse_when_dragged() {
+        use egui::{Event, Modifiers, PointerButton, Pos2};
+        let p = Palette::new(true, true, Accent::Blue);
+        let screen = Vec2::new(1400.0, 800.0);
+        for (book, topic, target) in [(0, 0, 300.0), (0, 1, 300.0), (1, 4, 300.0), (7, 3, 300.0), (0, 0, 1000.0)] {
+            let ctx = egui::Context::default();
+            ctx.set_pixels_per_point(2.0);
+            crate::theme::install_fonts(&ctx, crate::i18n::Lang::En);
+            let (mut g, mut cfg) = (GuideState::default(), GuideSettings::default());
+            (cfg.side, cfg.docked, cfg.width, cfg.book, cfg.topic) = (Side::Right, true, 700.0, book, topic);
+            let mut run = |events: Vec<Event>, cfg: &mut GuideSettings| {
+                let input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, screen)),
+                    events,
+                    ..Default::default()
+                };
+                let mut out = ctx.run_ui(input, |ui| {
+                    dock(ui, &p, &mut g, cfg);
+                });
+                out.textures_delta.clear();
+            };
+            for _ in 0..3 {
+                run(vec![], &mut cfg);
+            }
+            let edge = Pos2::new(screen.x - cfg.width, 300.0);
+            let button = |pos, pressed| Event::PointerButton {
+                pos,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            };
+            run(vec![Event::PointerMoved(edge)], &mut cfg);
+            run(vec![button(edge, true)], &mut cfg);
+            let to = Pos2::new(screen.x - target, 300.0);
+            run(vec![Event::PointerMoved(to)], &mut cfg);
+            run(vec![Event::PointerMoved(to)], &mut cfg);
+            run(vec![button(to, false)], &mut cfg);
+            // The mouse stays over the panel afterwards, as it does in use.
+            run(vec![Event::PointerMoved(Pos2::new(screen.x - 100.0, 400.0))], &mut cfg);
+            let mut widths = Vec::new();
+            for _ in 0..40 {
+                run(vec![], &mut cfg);
+                widths.push(cfg.width.round());
+            }
+            assert!(
+                (cfg.width - target).abs() < 12.0,
+                "book {book} topic {topic}: dragged to {target}, the panel is {}",
+                cfg.width
+            );
+        }
     }
 
     /// Every topic of every book can be drawn, in a narrow place (the docked
