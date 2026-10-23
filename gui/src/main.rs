@@ -115,6 +115,14 @@ impl log::Log for Logger {
 }
 
 fn main() -> eframe::Result {
+    // A hang-up signal ends a program without a word or a crash report. A
+    // desktop app has no use for it, and the programs it starts in a
+    // pseudo-terminal (ssh, adb) are sent one when they are closed.
+    #[cfg(unix)]
+    // SAFETY: setting a signal to be ignored, before any thread exists.
+    unsafe {
+        libc::signal(libc::SIGHUP, libc::SIG_IGN);
+    }
     if let Some(level) = std::env::var("RUST_LOG").ok().and_then(|l| l.parse::<log::LevelFilter>().ok()) {
         let file = std::fs::File::create(problem_log().with_file_name("debug.log")).ok();
         let _ = log::set_boxed_logger(Box::new(Logger(level, std::sync::Mutex::new(file))))

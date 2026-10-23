@@ -761,12 +761,15 @@ impl IpForm {
                     }
                     // What the text means, as you type it.
                     let meaning = match (prefix_only(&self.subnet), parse_subnet(&self.subnet)) {
-                        (Some(bits), _) => Some(format!("= {}", prefix_to_mask(bits))),
-                        (None, Ok(bits)) => Some(format!("= /{bits}")),
+                        (Some(bits), _) => Some((format!("= {}", prefix_to_mask(bits)), p.weak)),
+                        (None, Ok(bits)) => Some((format!("= /{bits}"), p.weak)),
+                        (None, Err(_)) if !self.subnet.trim().is_empty() => {
+                            Some((tr("Not a valid subnet mask").to_string(), p.danger))
+                        }
                         _ => None,
                     };
-                    if let Some(text) = meaning {
-                        ui.label(RichText::new(text).color(p.weak).size(13.0));
+                    if let Some((text, color)) = meaning {
+                        ui.label(RichText::new(text).color(color).size(13.0));
                     }
                 });
                 ui.end_row();

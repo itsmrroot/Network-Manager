@@ -778,6 +778,23 @@ impl eframe::App for App {
     /// Development aid: the tour can drag the guide's edge with the mouse.
     #[cfg(debug_assertions)]
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+        // NETMGR_TOUR_CLICK=x,y: a click there, 40 frames into a step.
+        if let (Some(t), Ok(at)) = (&self.tour, std::env::var("NETMGR_TOUR_CLICK"))
+            && t.frames == 40
+            && let Some((x, y)) =
+                at.split_once(',').and_then(|(x, y)| Some((x.parse::<f32>().ok()?, y.parse::<f32>().ok()?)))
+        {
+            let pos = egui::Pos2::new(x, y);
+            raw.events.push(egui::Event::PointerMoved(pos));
+            for pressed in [true, false] {
+                raw.events.push(egui::Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: egui::Modifiers::NONE,
+                });
+            }
+        }
         let Some(n) = self.dock_drag.as_mut() else { return };
         *n += 1;
         let by: f32 = std::env::var("NETMGR_TOUR_DRAG").ok().and_then(|s| s.parse().ok()).unwrap_or(0.0);

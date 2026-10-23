@@ -233,7 +233,11 @@ impl Drop for Remote {
     fn drop(&mut self) {
         match &mut self.link {
             Link::Pty { child, .. } => {
-                if let Ok(c) = child.get_mut() {
+                // Only a program that still runs: the number of one that has
+                // ended may by now belong to another.
+                if let Ok(c) = child.get_mut()
+                    && matches!(c.try_wait(), Ok(None))
+                {
                     let _ = c.kill();
                 }
             }

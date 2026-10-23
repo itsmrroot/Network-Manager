@@ -141,8 +141,21 @@ pub fn tab(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSettings
 /// keeps a share of its own: a panel that could take everything would leave
 /// it too narrow to use when the window is made smaller or split in two.
 fn dock_limits(room: f32, horizontal: bool) -> (f32, f32) {
-    let (min, console) = if horizontal { (240.0, 380.0) } else { (150.0, 240.0) };
+    let (min, console) = dock_needs(horizontal);
     (min, (room - console).max(min))
+}
+
+/// The least the panel needs (its content is cut off below it) and the
+/// least the console keeps (its toolbar and a terminal you can use).
+fn dock_needs(horizontal: bool) -> (f32, f32) {
+    if horizontal { (300.0, 380.0) } else { (170.0, 440.0) }
+}
+
+/// Is there room for both? If not (a window made small, or half a screen)
+/// the panel folds away and opens the guide in a window of its own.
+fn dock_fits(room: f32, horizontal: bool) -> bool {
+    let (min, console) = dock_needs(horizontal);
+    room >= min + console
 }
 
 /// The size the panel keeps: its width at the sides, its height below.
@@ -162,7 +175,8 @@ pub fn dock(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSetting
         Side::Right => egui::Panel::right(id),
         Side::Bottom => egui::Panel::bottom(id),
     };
-    if cfg.collapsed {
+    let squeezed = !dock_fits(room, horizontal);
+    if cfg.collapsed || squeezed {
         let mut open = false;
         panel("guide-dock-folded")
             .exact_size(if horizontal { 46.0 } else { 40.0 })
@@ -170,6 +184,7 @@ pub fn dock(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSetting
             .frame(frame.inner_margin(Margin::symmetric(6, 8)))
             .show(ui, |ui| {
                 let (glyph, hint) = match cfg.side {
+                    _ if squeezed => (icon::ARROW_SQUARE_OUT, tr("Open in its own window: move it to another screen")),
                     Side::Left => (icon::CARET_RIGHT, tr("Show the guide")),
                     Side::Right => (icon::CARET_LEFT, tr("Show the guide")),
                     Side::Bottom => (icon::CARET_UP, tr("Show the guide")),
@@ -193,7 +208,9 @@ pub fn dock(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSetting
                     ui.horizontal(content);
                 }
             });
-        if open {
+        if open && squeezed {
+            g.popped = true;
+        } else if open {
             cfg.collapsed = false;
         }
         return None;
@@ -271,7 +288,8 @@ pub fn window(ctx: &egui::Context, p: &Palette, g: &mut GuideState, cfg: &mut Gu
     let mut action = None;
     let mut closed = false;
     ctx.show_viewport_immediate(egui::ViewportId::from_hash_of("cli-guide-window"), builder, |ui, _| {
-        if ui.ctx().input(|i| i.viewport().close_requested()) {
+        // Cmd+W (Ctrl+W) closes it, as every window.
+        if ui.ctx().input(|i| i.viewport().close_requested() || (i.modifiers.command && i.key_pressed(egui::Key::W))) {
             closed = true;
         }
         // Stays on top (or not) as the person chooses, also while it is open.
@@ -915,12 +933,15 @@ mod tests {
     #[test]
     fn the_dock_leaves_room_for_the_console() {
         use super::dock_limits;
-        assert_eq!(dock_limits(1400.0, true), (240.0, 1020.0));
+        assert_eq!(dock_limits(1400.0, true), (300.0, 1020.0));
         // A narrow window: the panel keeps its smallest size, never less.
-        assert_eq!(dock_limits(496.0, true), (240.0, 240.0));
+        assert_eq!(dock_limits(496.0, true), (300.0, 300.0));
+        // Not room for both: the panel folds away.
+        assert!(super::dock_fits(1000.0, true) && !super::dock_fits(520.0, true));
+        assert!(super::dock_fits(700.0, false) && !super::dock_fits(500.0, false));
         let (min, max) = dock_limits(300.0, true);
         assert!(max >= min);
-        assert_eq!(dock_limits(800.0, false), (150.0, 560.0));
+        assert_eq!(dock_limits(800.0, false), (170.0, 360.0));
     }
 
     use super::*;

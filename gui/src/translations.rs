@@ -2359,6 +2359,7 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("adb was not found on this computer", "adb wurde auf diesem Computer nicht gefunden"),
     ("six digits", "sechs Ziffern"),
     ("{level} and above", "{level} und höher"),
+    ("Not a valid subnet mask", "Keine gültige Subnetzmaske"),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4692,6 +4693,7 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("adb was not found on this computer", "No se encontró adb en este ordenador"),
     ("six digits", "seis dígitos"),
     ("{level} and above", "{level} y superiores"),
+    ("Not a valid subnet mask", "Máscara de subred no válida"),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7049,6 +7051,7 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("adb was not found on this computer", "adb est introuvable sur cet ordinateur"),
     ("six digits", "six chiffres"),
     ("{level} and above", "{level} et plus"),
+    ("Not a valid subnet mask", "Masque de sous-réseau non valide"),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -9364,6 +9367,7 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("adb was not found on this computer", "adb bu bilgisayarda bulunamadı"),
     ("six digits", "altı hane"),
     ("{level} and above", "{level} ve üstü"),
+    ("Not a valid subnet mask", "Geçerli bir alt ağ maskesi değil"),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -11697,6 +11701,7 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("adb was not found on this computer", "adb не найден на этом компьютере"),
     ("six digits", "шесть цифр"),
     ("{level} and above", "{level} и выше"),
+    ("Not a valid subnet mask", "Недопустимая маска подсети"),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -13961,6 +13966,7 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("adb was not found on this computer", "لم يُعثر على adb في هذا الحاسوب"),
     ("six digits", "ستة أرقام"),
     ("{level} and above", "{level} وما فوق"),
+    ("Not a valid subnet mask", "قناع شبكة فرعية غير صالح"),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -15780,7 +15786,7 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("optional, e.g. lab.local", "可选，例如 lab.local"),
     (
         "Hides the pages for network engineers: Switch port, Monitor, Servers and Console. Search (⌘K / Ctrl+K) still finds them.",
-        "隐藏面向网络工程师的页面：交换机端口、监控、服务器和 Console。搜索（⌘K / Ctrl+K）仍能找到它们。",
+        "隐藏面向网络工程师的页面：交换机端口、监控、服务器和控制台。搜索（⌘K / Ctrl+K）仍能找到它们。",
     ),
     ("Inspect", "检查"),
     ("Nothing found.", "未找到任何内容。"),
@@ -16189,4 +16195,5 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("adb was not found on this computer", "在这台电脑上没有找到 adb"),
     ("six digits", "六位数字"),
     ("{level} and above", "{level} 及以上"),
+    ("Not a valid subnet mask", "子网掩码无效"),
 ];

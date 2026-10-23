@@ -129,6 +129,20 @@ impl Console {
         }
     }
 
+    /// The chosen port was unplugged: a USB one that is there replaces it (or
+    /// none is chosen), instead of the name of a port that is gone.
+    fn forget_missing_port(&mut self, sh: &mut Shared) {
+        if sh.settings.serial_port.is_empty() || self.ports.iter().any(|p| p.name == sh.settings.serial_port) {
+            return;
+        }
+        sh.settings.serial_port = self
+            .ports
+            .iter()
+            .find(|p| format!("{} {}", p.name, p.description).to_lowercase().contains("usb"))
+            .map(|p| p.name.clone())
+            .unwrap_or_default();
+    }
+
     fn send(&mut self, sh: &mut Shared, bytes: &[u8]) {
         if let Some(s) = &self.session
             && let Err(e) = s.send(bytes)
@@ -143,6 +157,7 @@ impl Console {
         if !self.ports_read {
             self.ports_read = true;
             self.ports = nc::ports();
+            self.forget_missing_port(sh);
         }
         if self.connected() {
             ui.ctx().request_repaint_after(Duration::from_millis(50));
@@ -692,6 +707,7 @@ impl Console {
                         .clicked()
                     {
                         self.ports = nc::ports();
+                        self.forget_missing_port(sh);
                     }
                     if narrow {
                         ui.end_row();
@@ -847,6 +863,11 @@ impl Console {
             self.focused = true;
         } else if ui.input(|i| i.pointer.any_click()) && !click.hovered() {
             self.focused = false;
+        }
+        // Clicked, but not connected: Tab and Enter stay here too, instead of
+        // moving to the sidebar and opening another page.
+        if self.focused && !connected {
+            crate::term::capture_keys(ui.ctx(), egui::Id::new("terminal-focus"));
         }
         if !(connected && self.focused) {
             return;

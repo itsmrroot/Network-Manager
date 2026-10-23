@@ -149,7 +149,6 @@ fn console_cable(c: &Canvas) {
         11.5,
         p.weak,
     );
-    c.line((420.0, 138.0), (420.0, 98.0), p.border, 1.0);
     c.text(20.0, 150.0, Align2::LEFT_CENTER, "9600 baud, 8N1", 11.5, p.weak);
 }
 
@@ -339,7 +338,7 @@ fn layers(c: &Canvas) {
 fn router_on_a_stick(c: &Canvas) {
     let p = c.p;
     let (v10, v20) = (p.accent, p.warning);
-    c.device([170.0, 14.0, 300.0, 62.0], p.success, "Router", "Gi0/0.10 = VLAN 10     Gi0/0.20 = VLAN 20");
+    c.device([170.0, 14.0, 300.0, 62.0], p.success, "Router", "Gi0/0/1.10 = VLAN 10     Gi0/0/1.20 = VLAN 20");
     c.line((320.0, 76.0), (320.0, 130.0), p.text, 4.0);
     c.text(335.0, 103.0, Align2::LEFT_CENTER, "one trunk cable", 11.5, p.text);
     c.device([225.0, 130.0, 190.0, 46.0], p.success, "Switch", "");
