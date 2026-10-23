@@ -1,6 +1,7 @@
 # Spanning tree
 ## How it works
 Redundant links between switches would create loops, and a loop floods a network with endless broadcasts. Spanning tree protocol (STP) keeps all links but blocks the ones that would form a loop.
+@diagram stp | Spanning tree: the root bridge is chosen, and one link in the triangle is blocked so that no loop forms.
 1. The switches elect one **root bridge**: the lowest bridge ID wins. The ID is the priority (default 32768, plus the VLAN number) and then the MAC address.
 2. Every other switch finds its **root port**: the port with the lowest path cost to the root.
 3. On each link, one side becomes the **designated port** (forwarding). Ports that would form a loop are blocked.

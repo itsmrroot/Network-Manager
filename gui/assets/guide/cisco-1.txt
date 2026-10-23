@@ -316,6 +316,7 @@ Dumps nearly everything. Very long: send it to Cisco support, or save it from th
 # Interfaces
 ## Choosing ports
 Ports are named by speed and position: `GigabitEthernet1/0/1` (Gi1/0/1) is stack member 1, module 0, port 1. Prefixes: Fa FastEthernet, Gi GigabitEthernet, Te TenGigabitEthernet, Twe TwentyFiveGigE, Hu HundredGigE. Older switches use two numbers: Gi0/1.
+@diagram interface-name | How a port is named: type, stack member, module, port. Port 3 is highlighted.
 
 [SW1(config)#] interface gigabitEthernet 1/0/1
 Selects one port.
@@ -382,6 +383,7 @@ PoE settings of a port: `auto` (default), `never` (off), `static max 15400` (res
 # VLANs
 ## What a VLAN is
 A VLAN is a separate Layer 2 network inside the switch. Devices in one VLAN do not see the broadcasts of another: to talk to each other, traffic must pass a router or a Layer 3 switch.
+@diagram trunk | Two VLANs over one trunk between two switches: each VLAN stays separate, end to end.
 | VLAN IDs | Use |
 |---|---|
 | 0 and 4095 | Reserved: not usable |
@@ -504,6 +506,7 @@ Each VLAN interface must be up/up. An SVI is down when its VLAN does not exist o
 
 ## Router on a stick
 With a router and a switch, one cable between them carries all VLANs: the switch port is a trunk and the router has a sub-interface per VLAN.
+@diagram router-on-a-stick | One cable carries both VLANs to the router, which has a sub-interface for each.
 
 [Router(config)#] interface gigabitEthernet 0/0/1
 + no shutdown

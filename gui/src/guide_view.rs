@@ -132,6 +132,15 @@ pub fn tab(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSettings
     show(ui, p, g, cfg, Where::Tab)
 }
 
+/// How small and how large the docked panel may be, given the room it shares
+/// with the console (the width at the sides, the height below). The console
+/// keeps a share of its own: a panel that could take everything would leave
+/// it too narrow to use when the window is made smaller or split in two.
+fn dock_limits(room: f32, horizontal: bool) -> (f32, f32) {
+    let (min, console) = if horizontal { (240.0, 380.0) } else { (150.0, 240.0) };
+    (min, (room - console).max(min))
+}
+
 /// The panel beside (or below) the console. Call it before the central panel.
 pub fn dock(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSettings) -> Option<Action> {
     let free = ui.available_rect_before_wrap();
@@ -179,8 +188,7 @@ pub fn dock(ui: &mut Ui, p: &Palette, g: &mut GuideState, cfg: &mut GuideSetting
         }
         return None;
     }
-    let min = if horizontal { 320.0 } else { 170.0 };
-    let max = (room * 0.8).max(min);
+    let (min, max) = dock_limits(room, horizontal);
     let wanted = if horizontal { cfg.width } else { cfg.height };
     let panel = if cfg.maximized {
         panel("guide-dock-full").exact_size((room - if horizontal { 150.0 } else { 90.0 }).max(min)).resizable(false)
@@ -691,6 +699,11 @@ fn show_block(ui: &mut Ui, p: &Palette, g: &mut GuideState, b: &Block, z: f32, k
         }
         Block::Warn(t) => callout(ui, p, p.warning, icon::WARNING, t, z),
         Block::Tip(t) => callout(ui, p, p.accent, icon::LIGHTBULB, t, z),
+        Block::Diagram(name, caption) => {
+            crate::guide_art::draw(ui, p, name);
+            ui.add_space(2.0);
+            ui.label(RichText::new(caption).size(12.5 * z).color(p.weak).italics());
+        }
     }
 }
 
@@ -840,6 +853,19 @@ fn table(ui: &mut Ui, p: &Palette, rows: &[Vec<String>], z: f32, key: &str) {
 
 #[cfg(test)]
 mod tests {
+    /// Split screen: the console keeps its share and the panel can still be
+    /// dragged, instead of the panel taking nearly everything.
+    #[test]
+    fn the_dock_leaves_room_for_the_console() {
+        use super::dock_limits;
+        assert_eq!(dock_limits(1400.0, true), (240.0, 1020.0));
+        // A narrow window: the panel keeps its smallest size, never less.
+        assert_eq!(dock_limits(496.0, true), (240.0, 240.0));
+        let (min, max) = dock_limits(300.0, true);
+        assert!(max >= min);
+        assert_eq!(dock_limits(800.0, false), (150.0, 560.0));
+    }
+
     use super::*;
     use crate::theme::Accent;
 

@@ -22,6 +22,7 @@
 //! > Lines of output or code
 //! ! A warning
 //! ~ A tip
+//! @diagram console-cable | A picture (see guide_art.rs) and its caption
 //!
 //! [Switch(config)#] interface vlan 10     (a command: prompt and command)
 //! + ip address 10.0.0.1 255.255.255.0     (more command lines)
@@ -55,6 +56,8 @@ pub enum Block {
     Code(Vec<String>),
     Warn(String),
     Tip(String),
+    /// A picture drawn by `guide_art` and its caption.
+    Diagram(String, String),
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -173,10 +176,13 @@ enum Kind {
     Warn,
     Tip,
     Command,
+    Diagram,
 }
 
 fn kind_of(line: &str) -> Kind {
-    if line.starts_with('|') {
+    if line.starts_with("@diagram ") {
+        Kind::Diagram
+    } else if line.starts_with('|') {
         Kind::Table
     } else if line.starts_with("- ") {
         Kind::Bullets
@@ -204,6 +210,8 @@ fn continues(kind: Kind, line: &str) -> bool {
         Kind::Command => own == Kind::Text || own == Kind::Code,
         Kind::Bullets | Kind::Steps | Kind::Warn | Kind::Tip => own == kind || indented,
         Kind::Table | Kind::Code | Kind::Text => own == kind,
+        // One line each.
+        Kind::Diagram => false,
     }
 }
 
@@ -220,6 +228,13 @@ fn classify(id: &str, lines: &[(usize, &str)]) -> Result<Block, String> {
     let (n0, first) = lines[0];
     let joined =
         |skip: &str| lines.iter().map(|(_, l)| l.strip_prefix(skip).unwrap_or(l).trim()).collect::<Vec<_>>().join(" ");
+    if let Some(rest) = first.strip_prefix("@diagram ") {
+        let (name, caption) = rest.split_once(" | ").ok_or_else(|| err(n0, "@diagram needs `name | caption`"))?;
+        if !crate::guide_art::NAMES.contains(&name.trim()) {
+            return Err(err(n0, &format!("no picture called {:?}", name.trim())));
+        }
+        return Ok(Block::Diagram(name.trim().to_string(), caption.trim().to_string()));
+    }
     if let Some(rest) = first.strip_prefix('[') {
         let (prompt, command) = rest.split_once("] ").ok_or_else(|| err(n0, "a command needs `[prompt] command`"))?;
         let mut c = Command {
@@ -342,6 +357,7 @@ pub fn block_text(b: &Block) -> String {
         Block::Bullets(items) | Block::Steps(_, items) | Block::Code(items) => items.join(" "),
         Block::Table(rows) => rows.iter().map(|r| r.join(" ")).collect::<Vec<_>>().join(" "),
         Block::Command(c) => format!("{} {} {}", c.lines.join(" "), c.what, c.output.join(" ")),
+        Block::Diagram(_, caption) => caption.clone(),
     }
 }
 
@@ -461,6 +477,17 @@ mod tests {
             })
             .collect();
         assert_eq!(kinds, ["table", "text", "bullets", "text", "command", "warn", "tip", "command"]);
+    }
+
+    #[test]
+    fn a_picture_is_a_block_of_its_own() {
+        let b = parse("t", "@title T\n\n# A\n## B\nText.\n@diagram stp | A caption\nMore text.\n").unwrap();
+        let blocks = &b.topics[0].sections[0].blocks;
+        assert_eq!(blocks.len(), 3);
+        assert_eq!(blocks[1], Block::Diagram("stp".into(), "A caption".into()));
+        let e = parse("t", "@title T\n\n# A\n## B\n@diagram nope | x\n").unwrap_err();
+        assert!(e.starts_with("t:5:") && e.contains("nope"), "{e}");
+        assert!(parse("t", "@title T\n\n# A\n## B\n@diagram stp\n").is_err());
     }
 
     #[test]

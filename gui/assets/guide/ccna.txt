@@ -65,6 +65,7 @@ These changes were reported by Wendell Odom (author of the Cisco Press CCNA book
 | 1.13 | Switching concepts: MAC learning and ageing, frame switching and flooding, the MAC table | Below, Cisco → Looking around |
 
 ## Layers and protocols
+@diagram layers | The seven OSI layers, how TCP/IP groups them, and what you meet at each.
 | OSI layer | Name | Data unit | Examples | Devices |
 |---|---|---|---|---|
 | 7 | Application | Data | HTTP, DNS, DHCP, SSH | |
@@ -113,6 +114,7 @@ The TCP/IP model has four layers: application (OSI 5 to 7), transport, internet 
 
 ## IPv4 subnetting
 Every subnet has a network address (first), a broadcast address (last) and usable hosts between. The hosts per subnet are 2 to the power of the host bits, minus 2.
+@diagram subnet-bits | A /24 mask is 24 one-bits then 8 zero-bits: the ones are the network, the zeros are the hosts.
 1. Write the mask and find the "interesting" octet, the one that is not 0 or 255.
 2. **Block size** = 256 minus the mask value in that octet.
 3. The network address is the largest multiple of the block size not above the host address in that octet.

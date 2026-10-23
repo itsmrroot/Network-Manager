@@ -35,6 +35,9 @@ pub struct Console {
     backups: crate::backups::Backups,
     push: crate::push::Push,
     adb: crate::adb_page::AdbPage,
+    /// Development aid: the pictures of the guide, from this one on, three at a time.
+    #[cfg(debug_assertions)]
+    gallery: Option<usize>,
     open: Vec<Open>,
     active: usize,
     next_id: u64,
@@ -62,6 +65,8 @@ impl Default for Console {
             backups: Default::default(),
             push: Default::default(),
             adb: Default::default(),
+            #[cfg(debug_assertions)]
+            gallery: None,
             open: Vec::new(),
             active: 0,
             next_id: 0,
@@ -175,6 +180,13 @@ impl Console {
             View::Push => {
                 egui::ScrollArea::vertical().id_salt("push-view").show(ui, |ui| self.push.ui(ui, p, sh));
             }
+            #[cfg(debug_assertions)]
+            View::Guide if self.gallery.is_some() => {
+                for name in crate::guide_art::NAMES.iter().skip(self.gallery.unwrap_or(0)).take(2) {
+                    crate::guide_art::draw(ui, p, name);
+                    ui.add_space(8.0);
+                }
+            }
             View::Adb => self.adb.ui(ui, p, sh),
             View::Guide => {
                 if let Some(a) = crate::guide_view::tab(ui, p, &mut sh.guide, &mut sh.settings.guide) {
@@ -228,6 +240,9 @@ impl Console {
         if view == "push" {
             self.view = View::Push;
             self.push.demo(&sh.settings.sessions);
+        } else if let Some(n) = view.strip_prefix("art-") {
+            self.view = View::Guide;
+            self.gallery = n.parse().ok();
         } else if let Some(sub) = view.strip_prefix("adb-") {
             self.view = View::Adb;
             self.adb.demo(sub);

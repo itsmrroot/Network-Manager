@@ -10,6 +10,7 @@
 # Connect to the console
 ## What you need
 A console port lets you configure a switch without the network. It is the only way in on a brand-new switch, and the way back in when the network settings are wrong.
+@diagram console-cable | The usual way in: your computer, a USB-serial adapter and the console cable into the switch's console port.
 - **A console cable.** Many switches have an RJ-45 console port: use the flat, light-blue "rollover" console cable (RJ-45 to DB-9) with a USB-to-serial adapter, or a ready-made RJ-45-to-USB console cable.
 - **Or a USB console port** (mini-USB or USB-C) on newer switches: one USB cable, no adapter.
 - **A terminal program.** Network Manager has one: Console → Serial console.

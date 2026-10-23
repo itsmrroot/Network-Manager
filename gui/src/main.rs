@@ -14,6 +14,7 @@ mod capture_page;
 mod console;
 mod devices;
 mod guide;
+mod guide_art;
 mod guide_view;
 mod heatmap;
 mod help;
