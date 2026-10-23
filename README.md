@@ -327,6 +327,20 @@ glance**. Save the survey, or export the picture.
 
 </td>
 </tr>
+<tr>
+<td valign="top">
+
+### 📱 Android (ADB)
+Phones and tablets in the Console: see the **connected devices** with a plain
+reason when one says *unauthorized* or *offline*, **pair over Wi-Fi**, open a
+**shell**, follow **logcat** with level, text and app filters (and save it),
+take **screenshots**, install apps and move files. It uses the `adb` already
+on your computer and tells you how to install it when it is missing.
+
+</td>
+<td valign="top"></td>
+</td>
+</tr>
 </table>
 
 > [!NOTE]
@@ -376,7 +390,7 @@ glance**. Save the survey, or export the picture.
 | **Profiles** | Saved IP settings applied to any adapter in one click; shared with the command line. |
 | **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Network planner, SNMP, Time (NTP), MTU, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
 | **Servers** | TFTP and HTTP file servers, DHCP server with zero-touch options (66, 67, 150, 43), syslog (UDP/TCP, save to file), SNMP trap receiver (v1, v2c, v3), NTP time server, throughput test between two computers. |
-| **Console** | Serial console for console cables; SSH and Telnet sessions in tabs, with saved sessions in groups; **configuration backups** with differences, on a schedule; **push configuration** to many devices; a **CLI guide** to read beside the console. |
+| **Console** | Serial console for console cables; SSH and Telnet sessions in tabs, with saved sessions in groups; **configuration backups** with differences, on a schedule; **push configuration** to many devices; a **CLI guide** to read beside the console; **Android (ADB)** shell, logcat and wireless pairing. |
 
 <table>
 <tr>

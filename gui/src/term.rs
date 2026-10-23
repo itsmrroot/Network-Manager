@@ -58,7 +58,7 @@ impl Term {
         let mut out = Out::default();
         let font = FontId::monospace(FONT);
         let (cw, rh) = ui.fonts_mut(|f| (f.glyph_width(&font, 'M'), f.row_height(&font)));
-        let avail = ui.available_size() - Vec2::splat(4.0);
+        let avail = (ui.available_size() - Vec2::splat(4.0)).max(Vec2::splat(60.0));
         let cols = ((avail.x - 20.0) / cw).floor().clamp(20.0, 400.0) as u16;
         let rows = ((avail.y - 20.0) / rh).floor().clamp(5.0, 200.0) as u16;
         if self.parser.screen().size() != (rows, cols) {

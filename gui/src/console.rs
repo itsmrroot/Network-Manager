@@ -20,6 +20,7 @@ enum View {
     Backups,
     Push,
     Guide,
+    Adb,
 }
 
 /// An SSH or Telnet session in a tab.
@@ -33,6 +34,7 @@ pub struct Console {
     view: View,
     backups: crate::backups::Backups,
     push: crate::push::Push,
+    adb: crate::adb_page::AdbPage,
     open: Vec<Open>,
     active: usize,
     next_id: u64,
@@ -59,6 +61,7 @@ impl Default for Console {
             view: View::Serial,
             backups: Default::default(),
             push: Default::default(),
+            adb: Default::default(),
             open: Vec::new(),
             active: 0,
             next_id: 0,
@@ -85,6 +88,7 @@ impl Console {
             "backups" => View::Backups,
             "push" => View::Push,
             "guide" => View::Guide,
+            "adb" => View::Adb,
             _ => View::Serial,
         };
     }
@@ -95,7 +99,7 @@ impl Console {
     }
 
     pub fn connected(&self) -> bool {
-        self.session.is_some() || self.open.iter().any(|o| o.remote.is_some())
+        self.session.is_some() || self.adb.connected() || self.open.iter().any(|o| o.remote.is_some())
     }
 
     /// Takes in what the devices sent (also while another page is shown).
@@ -154,6 +158,7 @@ impl Console {
                 (View::Backups, icon::CLOUD_ARROW_DOWN, tr("Backups")),
                 (View::Push, icon::PAPER_PLANE_TILT, tr("Push configuration")),
                 (View::Guide, icon::BOOK_OPEN, tr("CLI guide")),
+                (View::Adb, icon::DEVICE_MOBILE, tr("Android (ADB)")),
             ],
         );
         ui.add_space(8.0);
@@ -170,6 +175,7 @@ impl Console {
             View::Push => {
                 egui::ScrollArea::vertical().id_salt("push-view").show(ui, |ui| self.push.ui(ui, p, sh));
             }
+            View::Adb => self.adb.ui(ui, p, sh),
             View::Guide => {
                 if let Some(a) = crate::guide_view::tab(ui, p, &mut sh.guide, &mut sh.settings.guide) {
                     sh.nav = Some(match a {
@@ -222,6 +228,9 @@ impl Console {
         if view == "push" {
             self.view = View::Push;
             self.push.demo(&sh.settings.sessions);
+        } else if let Some(sub) = view.strip_prefix("adb-") {
+            self.view = View::Adb;
+            self.adb.demo(sub);
         } else if view == "guide" {
             self.view = View::Guide;
         } else if view == "dock" {

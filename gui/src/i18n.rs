@@ -615,6 +615,7 @@ mod tests {
         include_str!("about.rs"),
         include_str!("activity.rs"),
         include_str!("adapters_page.rs"),
+        include_str!("adb_page.rs"),
         include_str!("app.rs"),
         include_str!("backups.rs"),
         include_str!("capture_page.rs"),

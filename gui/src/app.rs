@@ -1057,7 +1057,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 40] = [
+        let pages: [(Page, &str, u32); 43] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1097,6 +1097,9 @@ impl App {
             (Page::Console, "38-guide-search", 30),
             (Page::Console, "39-guide-table", 30),
             (Page::Console, "40-guide-window", 80),
+            (Page::Console, "41-adb-shell", 60),
+            (Page::Console, "42-adb-log", 60),
+            (Page::Console, "43-adb-actions", 40),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_FROM=36-guide: begin at that step.
@@ -1291,6 +1294,10 @@ impl App {
                 (g.book, g.topic, g.docked) = (7, 3, false);
                 self.shared.guide.demo_search("", false);
                 self.console.show(&mut self.shared, "guide");
+            }
+            if let Some(sub) = name.strip_prefix("4").and_then(|n| n.split_once("-adb-")).map(|(_, s)| s) {
+                self.shared.settings.guide.docked = false;
+                self.console.show(&mut self.shared, &format!("adb-{sub}"));
             }
             if name == "30-push" {
                 self.console.show(&mut self.shared, "push");

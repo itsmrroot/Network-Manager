@@ -6,6 +6,7 @@
 //! Shared by the desktop app (`netmgr-gui`) and the command line (`netmgr`).
 
 pub mod adapters;
+pub mod adb;
 pub mod backup;
 pub mod capture;
 pub mod cmd;

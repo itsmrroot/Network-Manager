@@ -6,6 +6,7 @@
 mod about;
 mod activity;
 mod adapters_page;
+mod adb_page;
 mod app;
 mod appicon;
 mod backups;

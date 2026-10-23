@@ -188,6 +188,13 @@ fn entries() -> Vec<Entry> {
             Target::Tab(Page::Console, "backups"),
         ),
         e(
+            icon::DEVICE_MOBILE,
+            tr("Android (ADB)"),
+            tr("Console"),
+            "android adb phone tablet shell logcat apk wireless debugging pair usb debugging screenshot",
+            Target::Tab(Page::Console, "adb"),
+        ),
+        e(
             icon::BOOK_OPEN,
             tr("CLI guide"),
             tr("Console"),

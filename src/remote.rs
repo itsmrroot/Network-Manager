@@ -136,21 +136,28 @@ impl Remote {
         if !ssh_available() {
             bail!("the ssh client is missing (Windows: Settings → Optional features → OpenSSH Client)");
         }
+        let mut args = Vec::new();
+        if s.port() != 22 {
+            args.extend(["-p".to_string(), s.port().to_string()]);
+        }
+        // Keeps idle sessions through firewalls that drop quiet connections.
+        args.extend(["-o".to_string(), "ServerAliveInterval=30".to_string()]);
+        let target = if s.user.is_empty() { s.host.clone() } else { format!("{}@{}", s.user, s.host) };
+        // `--`: a name starting with `-` is never read as an option.
+        args.extend(["--".to_string(), target]);
+        Self::program("ssh", &args, rows, cols)
+    }
+
+    /// Runs `program` in a pseudo-terminal: what it prints arrives on
+    /// `received`, what is sent goes to its input.
+    pub fn program(program: &str, args: &[String], rows: u16, cols: u16) -> Result<Remote> {
         let pty = native_pty_system()
             .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
             .context("could not open a terminal")?;
-        let mut cmd = CommandBuilder::new("ssh");
+        let mut cmd = CommandBuilder::new(program);
         cmd.env("TERM", "xterm-256color");
-        if s.port() != 22 {
-            cmd.args(["-p", &s.port().to_string()]);
-        }
-        // Keeps idle sessions through firewalls that drop quiet connections.
-        cmd.args(["-o", "ServerAliveInterval=30"]);
-        let target = if s.user.is_empty() { s.host.clone() } else { format!("{}@{}", s.user, s.host) };
-        // `--`: a name starting with `-` is never read as an option.
-        cmd.arg("--");
-        cmd.arg(target);
-        let child = pty.slave.spawn_command(cmd).context("could not start ssh")?;
+        cmd.args(args);
+        let child = pty.slave.spawn_command(cmd).with_context(|| format!("could not start {program}"))?;
         drop(pty.slave);
         let reader = pty.master.try_clone_reader()?;
         let writer = Arc::new(Mutex::new(pty.master.take_writer()?));
