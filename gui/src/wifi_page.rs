@@ -456,7 +456,7 @@ impl WifiPage {
                         row.col(|ui| {
                             match n.security.as_deref().or_else(|| seen.get(&n.ssid).map(String::as_str)) {
                                 Some(sec) => {
-                                    ui.label(RichText::new(sec).color(p.weak).size(13.5));
+                                    ui.label(RichText::new(security_text(sec)).color(p.weak).size(13.5));
                                 }
                                 None => {
                                     ui.label(RichText::new("—").color(p.weak).size(13.5)).on_hover_text(tr(
@@ -627,7 +627,9 @@ impl WifiPage {
                         });
                         row.col(|ui| {
                             ui.label(
-                                RichText::new(n.security.as_deref().unwrap_or(tr("Open"))).color(p.weak).size(13.0),
+                                RichText::new(n.security.as_deref().map_or(tr("Open").to_string(), security_text))
+                                    .color(p.weak)
+                                    .size(13.0),
                             );
                         });
                     });
@@ -762,4 +764,9 @@ fn export(list: &[SavedNetwork], sh: &mut Shared) {
         Ok(()) => sh.toast(trf("Saved to {file}. Keep this file private.", &[("file", &path.display())])),
         Err(e) => sh.fail(trl("The file could not be saved."), &e.into()),
     }
+}
+
+/// The security of a network as the system names it: "Open" is ours to translate.
+fn security_text(security: &str) -> String {
+    if security == "Open" { tr("Open").to_string() } else { security.to_string() }
 }

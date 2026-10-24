@@ -389,7 +389,7 @@ impl Console {
                     self.session_list(ui, p, sh);
                 },
             );
-            let (rect, handle) = ui.allocate_exact_size(egui::vec2(12.0, height), Sense::drag());
+            let (rect, handle) = ui.allocate_exact_size(egui::vec2(12.0, (height - 34.0).max(80.0)), Sense::drag());
             let hot = handle.hovered() || handle.dragged();
             if hot {
                 ui.set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
