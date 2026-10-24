@@ -2360,6 +2360,13 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("six digits", "sechs Ziffern"),
     ("{level} and above", "{level} und höher"),
     ("Not a valid subnet mask", "Keine gültige Subnetzmaske"),
+    ("Maximize", "Maximieren"),
+    ("Restore", "Wiederherstellen"),
+    ("Show the title, the tabs and the list again", "Titel, Tabs und Liste wieder anzeigen"),
+    (
+        "The terminal fills the page: the title, the tabs and the list are hidden",
+        "Das Terminal füllt die Seite: Titel, Tabs und Liste werden ausgeblendet",
+    ),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4694,6 +4701,13 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("six digits", "seis dígitos"),
     ("{level} and above", "{level} y superiores"),
     ("Not a valid subnet mask", "Máscara de subred no válida"),
+    ("Maximize", "Maximizar"),
+    ("Restore", "Restaurar"),
+    ("Show the title, the tabs and the list again", "Mostrar de nuevo el título, las pestañas y la lista"),
+    (
+        "The terminal fills the page: the title, the tabs and the list are hidden",
+        "El terminal llena la página: se ocultan el título, las pestañas y la lista",
+    ),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7052,6 +7066,13 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("six digits", "six chiffres"),
     ("{level} and above", "{level} et plus"),
     ("Not a valid subnet mask", "Masque de sous-réseau non valide"),
+    ("Maximize", "Agrandir"),
+    ("Restore", "Restaurer"),
+    ("Show the title, the tabs and the list again", "Afficher de nouveau le titre, les onglets et la liste"),
+    (
+        "The terminal fills the page: the title, the tabs and the list are hidden",
+        "Le terminal remplit la page : le titre, les onglets et la liste sont masqués",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -9368,6 +9389,13 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("six digits", "altı hane"),
     ("{level} and above", "{level} ve üstü"),
     ("Not a valid subnet mask", "Geçerli bir alt ağ maskesi değil"),
+    ("Maximize", "Büyüt"),
+    ("Restore", "Geri yükle"),
+    ("Show the title, the tabs and the list again", "Başlığı, sekmeleri ve listeyi yeniden göster"),
+    (
+        "The terminal fills the page: the title, the tabs and the list are hidden",
+        "Terminal sayfayı doldurur: başlık, sekmeler ve liste gizlenir",
+    ),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -11702,6 +11730,13 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("six digits", "шесть цифр"),
     ("{level} and above", "{level} и выше"),
     ("Not a valid subnet mask", "Недопустимая маска подсети"),
+    ("Maximize", "Развернуть"),
+    ("Restore", "Восстановить"),
+    ("Show the title, the tabs and the list again", "Снова показать заголовок, вкладки и список"),
+    (
+        "The terminal fills the page: the title, the tabs and the list are hidden",
+        "Терминал занимает всю страницу: заголовок, вкладки и список скрыты",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -13967,6 +14002,13 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("six digits", "ستة أرقام"),
     ("{level} and above", "{level} وما فوق"),
     ("Not a valid subnet mask", "قناع شبكة فرعية غير صالح"),
+    ("Maximize", "تكبير"),
+    ("Restore", "استعادة"),
+    ("Show the title, the tabs and the list again", "إظهار العنوان والتبويبات والقائمة مرة أخرى"),
+    (
+        "The terminal fills the page: the title, the tabs and the list are hidden",
+        "تملأ الطرفية الصفحة: يتم إخفاء العنوان والتبويبات والقائمة",
+    ),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -16196,4 +16238,11 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("six digits", "六位数字"),
     ("{level} and above", "{level} 及以上"),
     ("Not a valid subnet mask", "子网掩码无效"),
+    ("Maximize", "最大化"),
+    ("Restore", "还原"),
+    ("Show the title, the tabs and the list again", "重新显示标题、标签页和列表"),
+    (
+        "The terminal fills the page: the title, the tabs and the list are hidden",
+        "终端占满页面：隐藏标题、标签页和列表",
+    ),
 ];

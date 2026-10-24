@@ -104,6 +104,9 @@ pub struct Shared {
     pub activity: crate::activity::Activity,
     /// Console → CLI guide, in its tab, docked or in its own window.
     pub guide: crate::guide_view::GuideState,
+    /// Development aid: where the last splitter was drawn (the tour drags it).
+    #[cfg(debug_assertions)]
+    pub debug_edge: f32,
 }
 
 impl Shared {
@@ -143,6 +146,8 @@ pub struct App {
     dock_drag: Option<u32>,
     #[cfg(debug_assertions)]
     dock_drag_edge: f32,
+    #[cfg(debug_assertions)]
+    dock_drag_split: bool,
     applied: Option<(theme::Accent, f32, settings::ThemeChoice)>,
     /// The icon shown in the Dock or task bar.
     icon_shown: Option<theme::AppIcon>,
@@ -237,6 +242,8 @@ impl App {
                 traffic: Traffic::default(),
                 activity: activity_log,
                 guide: Default::default(),
+                #[cfg(debug_assertions)]
+                debug_edge: 0.0,
             },
             notifier: Default::default(),
             applied: None,
@@ -274,6 +281,8 @@ impl App {
             dock_drag: None,
             #[cfg(debug_assertions)]
             dock_drag_edge: 0.0,
+            #[cfg(debug_assertions)]
+            dock_drag_split: false,
         }
     }
 
@@ -799,7 +808,8 @@ impl eframe::App for App {
         *n += 1;
         let by: f32 = std::env::var("NETMGR_TOUR_DRAG").ok().and_then(|s| s.parse().ok()).unwrap_or(0.0);
         if *n == 5 {
-            self.dock_drag_edge = self.shared.guide.dock_edge;
+            self.dock_drag_edge =
+                if self.dock_drag_split { self.shared.debug_edge } else { self.shared.guide.dock_edge };
         }
         let edge = if *n >= 5 { self.dock_drag_edge } else { self.shared.guide.dock_edge };
         let at = |dx: f32| egui::Pos2::new(edge + dx, 400.0);
@@ -1109,7 +1119,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 48] = [
+        let pages: [(Page, &str, u32); 51] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1157,6 +1167,9 @@ impl App {
             (Page::Console, "46-art-4", 30),
             (Page::Console, "47-art-6", 30),
             (Page::Console, "48-dock-drag", 60),
+            (Page::Console, "49-split-drag", 60),
+            (Page::Console, "50-zoom-serial", 30),
+            (Page::Console, "51-zoom-remote", 30),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_FROM=36-guide: begin at that step.
@@ -1366,6 +1379,22 @@ impl App {
                     (true, crate::guide_view::Side::Right, 400.0, false, false);
                 self.console.show(&mut self.shared, "dock");
                 self.dock_drag = Some(0);
+            }
+            if matches!(name, "49-split-drag" | "50-zoom-serial" | "51-zoom-remote") {
+                self.shared.settings.guide.docked = false;
+                self.shared.settings.console_list_width = 250.0;
+                self.console.show(
+                    &mut self.shared,
+                    match name {
+                        "49-split-drag" => "split",
+                        "50-zoom-serial" => "zoom-serial",
+                        _ => "zoom-remote",
+                    },
+                );
+                if name == "49-split-drag" {
+                    self.dock_drag_split = true;
+                    self.dock_drag = Some(0);
+                }
             }
             if name == "30-push" {
                 self.console.show(&mut self.shared, "push");

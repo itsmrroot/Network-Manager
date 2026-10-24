@@ -35,6 +35,9 @@ pub struct Console {
     backups: crate::backups::Backups,
     push: crate::push::Push,
     adb: crate::adb_page::AdbPage,
+    /// The terminal fills the page: the title, the tabs, the list of sessions
+    /// and the cards are hidden (the Restore button brings them back).
+    zoomed: bool,
     /// Development aid: the pictures of the guide, from this one on, three at a time.
     #[cfg(debug_assertions)]
     gallery: Option<usize>,
@@ -65,6 +68,7 @@ impl Default for Console {
             backups: Default::default(),
             push: Default::default(),
             adb: Default::default(),
+            zoomed: false,
             #[cfg(debug_assertions)]
             gallery: None,
             open: Vec::new(),
@@ -88,6 +92,7 @@ impl Default for Console {
 impl Console {
     /// Shows a tab by name (search).
     pub fn open_tab(&mut self, id: &str) {
+        self.zoomed = false;
         self.view = match id {
             "remote" => View::Remote,
             "backups" => View::Backups,
@@ -162,26 +167,34 @@ impl Console {
         if self.connected() {
             ui.ctx().request_repaint_after(Duration::from_millis(50));
         }
-        theme::page_title(
-            ui,
-            p,
-            tr("Console"),
-            tr("Configure switches and routers over a console cable, or open SSH and Telnet sessions."),
-        );
-        theme::tabs(
-            ui,
-            p,
-            &mut self.view,
-            &[
-                (View::Serial, icon::USB, tr("Serial console")),
-                (View::Remote, icon::TERMINAL_WINDOW, tr("SSH and Telnet")),
-                (View::Backups, icon::CLOUD_ARROW_DOWN, tr("Backups")),
-                (View::Push, icon::PAPER_PLANE_TILT, tr("Push configuration")),
-                (View::Guide, icon::BOOK_OPEN, tr("CLI guide")),
-                (View::Adb, icon::DEVICE_MOBILE, tr("Android (ADB)")),
-            ],
-        );
-        ui.add_space(8.0);
+        // Only the two terminals can fill the page.
+        if !matches!(self.view, View::Serial | View::Remote) {
+            self.zoomed = false;
+        }
+        if !self.zoomed {
+            theme::page_title(
+                ui,
+                p,
+                tr("Console"),
+                tr("Configure switches and routers over a console cable, or open SSH and Telnet sessions."),
+            );
+        }
+        if !self.zoomed {
+            theme::tabs(
+                ui,
+                p,
+                &mut self.view,
+                &[
+                    (View::Serial, icon::USB, tr("Serial console")),
+                    (View::Remote, icon::TERMINAL_WINDOW, tr("SSH and Telnet")),
+                    (View::Backups, icon::CLOUD_ARROW_DOWN, tr("Backups")),
+                    (View::Push, icon::PAPER_PLANE_TILT, tr("Push configuration")),
+                    (View::Guide, icon::BOOK_OPEN, tr("CLI guide")),
+                    (View::Adb, icon::DEVICE_MOBILE, tr("Android (ADB)")),
+                ],
+            );
+            ui.add_space(8.0);
+        }
         match self.view {
             View::Serial => {
                 self.toolbar(ui, p, sh);
@@ -255,6 +268,14 @@ impl Console {
         if view == "push" {
             self.view = View::Push;
             self.push.demo(&sh.settings.sessions);
+        } else if view == "split" {
+            self.view = View::Remote;
+        } else if view == "zoom-serial" {
+            self.view = View::Serial;
+            self.zoomed = true;
+        } else if view == "zoom-remote" {
+            self.view = View::Remote;
+            self.zoomed = true;
         } else if let Some(n) = view.strip_prefix("art-") {
             self.view = View::Guide;
             self.gallery = n.parse().ok();
@@ -287,6 +308,16 @@ impl Console {
     }
 
     fn remote_ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
+        if self.zoomed {
+            ui.horizontal(|ui| {
+                if zoom_button(ui, true) {
+                    self.zoomed = false;
+                }
+            });
+            ui.add_space(4.0);
+            self.session_tabs(ui, p, sh);
+            return;
+        }
         // Quick connect.
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
@@ -334,13 +365,48 @@ impl Console {
         });
         ui.add_space(8.0);
         let height = ui.available_height();
+        // The list and the terminal share the width: a handle between them
+        // moves the border with the mouse.
+        let total = ui.available_width();
+        let (least, most) = (170.0, (total - 340.0).max(170.0));
+        let list_width = sh.settings.console_list_width.clamp(least, most);
         ui.horizontal_top(|ui| {
-            ui.allocate_ui_with_layout(egui::vec2(250.0, height), egui::Layout::top_down(egui::Align::Min), |ui| {
-                ui.set_width(250.0);
-                ui.set_min_height(height);
-                self.session_list(ui, p, sh);
-            });
-            ui.add_space(6.0);
+            ui.allocate_ui_with_layout(
+                egui::vec2(list_width, height),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_width(list_width);
+                    ui.set_min_height(height);
+                    self.session_list(ui, p, sh);
+                },
+            );
+            let (rect, handle) = ui.allocate_exact_size(egui::vec2(12.0, height), Sense::drag());
+            let hot = handle.hovered() || handle.dragged();
+            if hot {
+                ui.set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+            }
+            let color = if handle.dragged() {
+                p.accent
+            } else if hot {
+                p.accent.gamma_multiply(0.6)
+            } else {
+                p.border
+            };
+            let x = rect.center().x;
+            ui.painter().line_segment(
+                [egui::pos2(x, rect.top() + 4.0), egui::pos2(x, rect.bottom() - 4.0)],
+                egui::Stroke::new(if hot { 2.0 } else { 1.0 }, color),
+            );
+            #[cfg(debug_assertions)]
+            {
+                sh.debug_edge = x;
+            }
+            if handle.dragged()
+                && let Some(pos) = handle.interact_pointer_pos()
+            {
+                // The border goes where the pointer is.
+                sh.settings.console_list_width = (pos.x - (x - list_width)).clamp(least, most);
+            }
             ui.vertical(|ui| {
                 ui.set_min_height(height);
                 self.session_tabs(ui, p, sh);
@@ -504,6 +570,9 @@ impl Console {
                 .clicked()
             {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+            }
+            if zoom_button(ui, self.zoomed) {
+                self.zoomed = !self.zoomed;
             }
         });
         ui.add_space(4.0);
@@ -827,6 +896,9 @@ impl Console {
                         }
                     }
                 }
+                if zoom_button(ui, self.zoomed) {
+                    self.zoomed = !self.zoomed;
+                }
             });
         });
     }
@@ -923,4 +995,18 @@ impl Console {
         // button (it opened Overview after Tab completion).
         crate::term::capture_keys(ui.ctx(), egui::Id::new("terminal-focus"));
     }
+}
+
+/// Maximize or Restore: the terminal fills the page, or the page is back.
+/// True when it was clicked.
+fn zoom_button(ui: &mut Ui, zoomed: bool) -> bool {
+    let (label, hint) = if zoomed {
+        (icon_label(icon::ARROWS_IN_SIMPLE, "Restore"), tr("Show the title, the tabs and the list again"))
+    } else {
+        (
+            icon_label(icon::ARROWS_OUT_SIMPLE, "Maximize"),
+            tr("The terminal fills the page: the title, the tabs and the list are hidden"),
+        )
+    };
+    ui.button(label).on_hover_text(hint).clicked()
 }

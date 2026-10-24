@@ -127,6 +127,9 @@ pub struct Settings {
     pub wifi_manual: Option<crate::wifi_ip::WifiManual>,
     /// Console → CLI guide: where it sits and what it shows.
     pub guide: crate::guide_view::GuideSettings,
+    /// Console → SSH and Telnet: the width of the list of saved sessions,
+    /// as dragged with the mouse.
+    pub console_list_width: f32,
 }
 
 fn yes() -> bool {
@@ -178,6 +181,7 @@ impl Default for Settings {
             backup_last: 0,
             wifi_manual: None,
             guide: Default::default(),
+            console_list_width: 250.0,
         }
     }
 }
