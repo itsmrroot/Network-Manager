@@ -280,7 +280,10 @@ fn pump(
                 data
             } else {
                 let data = &buf[..n];
-                if data.windows(CURSOR_QUESTION.len()).any(|w| w == CURSOR_QUESTION)
+                // Windows' pseudo-terminal asks; on other systems the answer would
+                // only be echoed on the screen and typed into the program.
+                if cfg!(windows)
+                    && data.windows(CURSOR_QUESTION.len()).any(|w| w == CURSOR_QUESTION)
                     && let Ok(mut w) = writer.lock()
                 {
                     let _ = w.write_all(CURSOR_ANSWER);

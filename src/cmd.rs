@@ -47,6 +47,20 @@ pub fn command(program: &str) -> Command {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
+    // The desktop app ignores the hang-up signal; a program it starts must not
+    // inherit that (an ignored signal stays ignored through exec).
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        // SAFETY: `signal` is async-signal-safe, and nothing else is done
+        // between fork and exec.
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::signal(libc::SIGHUP, libc::SIG_DFL);
+                Ok(())
+            });
+        }
+    }
     cmd
 }
 

@@ -60,6 +60,10 @@ pub struct AdbPage {
     send_to: String,
     /// The height left for the shell or the log under the tabs.
     room: f32,
+    /// The log is being started away from the screen.
+    log_starting: Option<Receiver<Result<Remote, String>>>,
+    /// The restart button that was clicked once and waits for a second click.
+    confirm: Option<&'static str>,
     /// Development aid: open the shell or the log as soon as a device is ready.
     #[cfg(debug_assertions)]
     auto: Option<Sub>,
@@ -92,6 +96,8 @@ impl Default for AdbPage {
             remote_path: "/sdcard/Download/".into(),
             send_to: "/sdcard/Download/".into(),
             room: 400.0,
+            log_starting: None,
+            confirm: None,
             #[cfg(debug_assertions)]
             auto: None,
         }
@@ -149,17 +155,23 @@ impl AdbPage {
                 Ok(list) => {
                     self.devices = list;
                     self.list_error = None;
-                    // One device and nothing chosen yet (or the chosen one left):
-                    // that one.
+                    // The only device is taken when nothing was chosen. If the
+                    // chosen one left, no other is taken in its place: the
+                    // reboot buttons are close.
                     if !self.devices.iter().any(|d| d.serial == self.selected) {
-                        self.selected =
-                            if self.devices.len() == 1 { self.devices[0].serial.clone() } else { String::new() };
+                        let none_before = self.selected.is_empty();
+                        self.selected = if none_before && self.devices.len() == 1 {
+                            self.devices[0].serial.clone()
+                        } else {
+                            String::new()
+                        };
                     }
                 }
                 Err(e) => self.list_error = Some(e),
             }
         }
         if self.listing.is_none()
+            && self.job.is_none()
             && let Some(adb) = &self.adb
             && self.listed.is_none_or(|t| t.elapsed() > Duration::from_secs(3))
         {
@@ -190,6 +202,7 @@ impl AdbPage {
         {
             let label = label.clone();
             self.job = None;
+            self.listed = None;
             self.outcome = Some(match result {
                 Ok(text) => Outcome { label, ok: true, text },
                 Err(text) => Outcome { label, ok: false, text },
@@ -198,11 +211,34 @@ impl AdbPage {
                 sh.toast(tr("Done."));
             }
         }
+        self.pump(sh);
+    }
+
+    /// Takes in what the shell and the log wrote: also while another page is
+    /// shown, or the unread output would pile up (and a log being saved would
+    /// stop growing).
+    pub fn pump(&mut self, sh: &mut Shared) {
+        // The log was being started away from the screen.
+        if let Some(rx) = &self.log_starting
+            && let Ok(result) = rx.try_recv()
+        {
+            self.log_starting = None;
+            match result {
+                Ok(r) => {
+                    self.logcat = Some(r);
+                    self.log_term = crate::term::Term::new(1_000_002);
+                }
+                Err(e) => sh.fail(trl("The log could not be started."), &anyhow::anyhow!(e)),
+            }
+        }
         if let Some(r) = &self.shell {
             while let Ok(bytes) = r.received.try_recv() {
                 self.shell_term.feed(&bytes);
             }
-            if r.ended() && r.received.try_recv().is_err() {
+            if r.ended() {
+                while let Ok(bytes) = r.received.try_recv() {
+                    self.shell_term.feed(&bytes);
+                }
                 self.shell = None;
                 self.shell_term.feed(format!("\r\n\x1b[2m[{}]\x1b[0m\r\n", trl("Session ended")).as_bytes());
             }
@@ -214,7 +250,13 @@ impl AdbPage {
                 }
                 self.log_term.feed(&bytes);
             }
-            if r.ended() && r.received.try_recv().is_err() {
+            if r.ended() {
+                while let Ok(bytes) = r.received.try_recv() {
+                    if let Some(f) = &mut self.log_file {
+                        let _ = f.write_all(&bytes);
+                    }
+                    self.log_term.feed(&bytes);
+                }
                 self.logcat = None;
                 self.log_term.feed(format!("\r\n\x1b[2m[{}]\x1b[0m\r\n", trl("Log stopped")).as_bytes());
             }
@@ -228,6 +270,11 @@ impl AdbPage {
         label: String,
         work: impl FnOnce(&Adb) -> anyhow::Result<String> + Send + 'static,
     ) {
+        // One at a time: a second one would take the place of the first, and
+        // its result would be lost.
+        if self.job.is_some() {
+            return;
+        }
         let Some(adb) = self.adb.clone() else { return };
         let (tx, rx) = channel();
         let ctx = ctx.clone();
@@ -238,7 +285,7 @@ impl AdbPage {
         self.job = Some((label, rx));
         self.sub = Sub::Actions;
         self.outcome = None;
-        self.listed = None;
+        self.confirm = None;
     }
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
@@ -272,6 +319,9 @@ impl AdbPage {
                 ],
             );
             ui.add_space(6.0);
+            if self.sub != Sub::Actions {
+                self.confirm = None;
+            }
             self.room = total - (ui.cursor().top() - origin);
             match self.sub {
                 Sub::Shell => self.shell_ui(ui, p, sh),
@@ -376,6 +426,7 @@ impl AdbPage {
                                 (p.warning, tr("Waiting for you to allow it on the phone").to_string())
                             }
                             State::Offline => (p.warning, tr("Offline").to_string()),
+                            State::Busy => (p.weak, tr("Connecting…").to_string()),
                             State::NoPermissions => (p.danger, tr("No permission to use it").to_string()),
                             State::Other(s) => (p.weak, s.clone()),
                         };
@@ -409,6 +460,7 @@ impl AdbPage {
                     State::NoPermissions => Some(trl(
                         "Linux does not let your user use this USB device. Install the Android udev rules (package android-udev-rules or android-sdk-platform-tools-common) and make sure you are in the plugdev group, then plug it in again.",
                     )),
+                    State::Busy => Some(trl("The device is being set up. Wait a moment: it should be ready soon.")),
                     State::Other(_) => Some(trl(
                         "The device is in a special mode (recovery, sideload or bootloader). The shell and log need the normal system.",
                     )),
@@ -458,7 +510,9 @@ impl AdbPage {
                         egui::TextEdit::singleline(&mut self.pair_code).hint_text(tr("six digits")).desired_width(90.0),
                     );
                     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                    let ok = !self.pair_address.trim().is_empty() && self.pair_code.trim().len() == 6;
+                    let ok = !self.pair_address.trim().is_empty()
+                        && self.pair_code.chars().filter(|c| c.is_ascii_digit()).count() == 6
+                        && self.job.is_none();
                     if (ui.add_enabled(ok, egui::Button::new(icon_label(icon::LINK, "Pair"))).clicked() || enter) && ok {
                         pair = true;
                     }
@@ -472,7 +526,7 @@ impl AdbPage {
                             .desired_width(190.0),
                     );
                     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                    let ok = !self.connect_address.trim().is_empty();
+                    let ok = !self.connect_address.trim().is_empty() && self.job.is_none();
                     if (theme::primary_button(ui, p, &icon_label(icon::PLUGS_CONNECTED, "Connect"), ok).clicked() || enter)
                         && ok
                     {
@@ -497,7 +551,10 @@ impl AdbPage {
         }
         if connect {
             let address = self.connect_address.clone();
-            sh.settings.remember_host(address.split(':').next().unwrap_or(&address));
+            // Plain names and IPv4 addresses are remembered, with no port.
+            if address.matches(':').count() <= 1 && !address.contains('[') {
+                sh.settings.remember_host(address.split(':').next().unwrap_or(&address));
+            }
             self.start(&ctx, tr("Connect").to_string(), move |adb| adb.connect(&address));
         }
     }
@@ -650,16 +707,20 @@ impl AdbPage {
                 }
             }
         });
-        if start && let (Some(adb), Some(serial)) = (&self.adb, &serial) {
+        if start
+            && self.log_starting.is_none()
+            && let (Some(adb), Some(serial)) = (&self.adb, &serial)
+        {
+            // Looking up an app's process asks the device: away from the screen.
             let (rows, cols) = self.size;
             self.logcat = None;
-            match adb.logcat_session(serial, &self.filter, rows, cols) {
-                Ok(r) => {
-                    self.logcat = Some(r);
-                    self.log_term = crate::term::Term::new(1_000_002);
-                }
-                Err(e) => sh.fail(trl("The log could not be started."), &e),
-            }
+            let (adb, serial, filter, ctx) = (adb.clone(), serial.clone(), self.filter.clone(), ui.ctx().clone());
+            let (tx, rx) = channel();
+            std::thread::spawn(move || {
+                let _ = tx.send(adb.logcat_session(&serial, &filter, rows, cols).map_err(|e| format!("{e:#}")));
+                ctx.request_repaint();
+            });
+            self.log_starting = Some(rx);
         }
         ui.add_space(4.0);
         let height = self.terminal_height(ui, since);
@@ -740,7 +801,7 @@ impl AdbPage {
                 if ui.add_enabled(on, egui::Button::new(icon_label(icon::UPLOAD_SIMPLE, "Send a file…"))).clicked()
                     && let Some(path) = rfd::FileDialog::new().pick_file()
                 {
-                    let (s, to) = (s.clone(), self.send_to.clone());
+                    let (s, to) = (s.clone(), self.send_to.trim().to_string());
                     self.start(&ctx, tr("Send a file…").to_string(), move |adb| adb.push(&s, &path, &to));
                 }
             });
@@ -784,9 +845,16 @@ impl AdbPage {
                     (tr("Restart into recovery"), &["reboot", "recovery"][..]),
                     (tr("Restart into bootloader"), &["reboot", "bootloader"][..]),
                 ] {
-                    if ui.add_enabled(on, egui::Button::new(label)).clicked() {
-                        let s = s.clone();
-                        self.start(&ctx, label.to_string(), move |adb| adb.run(Some(&s), args));
+                    // These restart the device: the first click only asks.
+                    let armed = self.confirm == Some(label);
+                    let text = if armed { tr("Click again to confirm") } else { label };
+                    if ui.add_enabled(on, egui::Button::new(text)).clicked() {
+                        if armed {
+                            let s = s.clone();
+                            self.start(&ctx, label.to_string(), move |adb| adb.run(Some(&s), args));
+                        } else {
+                            self.confirm = Some(label);
+                        }
                     }
                 }
             });

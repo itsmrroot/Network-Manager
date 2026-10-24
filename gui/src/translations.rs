@@ -2367,6 +2367,12 @@ pub const GERMAN: &[(&str, &str)] = &[
         "The terminal fills the page: the title, the tabs and the list are hidden",
         "Das Terminal füllt die Seite: Titel, Tabs und Liste werden ausgeblendet",
     ),
+    ("Click again to confirm", "Zur Bestätigung noch einmal klicken"),
+    ("Connecting…", "Verbinde …"),
+    (
+        "The device is being set up. Wait a moment: it should be ready soon.",
+        "Das Gerät wird eingerichtet. Einen Moment warten: es sollte gleich bereit sein.",
+    ),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4707,6 +4713,12 @@ pub const SPANISH: &[(&str, &str)] = &[
     (
         "The terminal fills the page: the title, the tabs and the list are hidden",
         "El terminal llena la página: se ocultan el título, las pestañas y la lista",
+    ),
+    ("Click again to confirm", "Haz clic otra vez para confirmar"),
+    ("Connecting…", "Conectando…"),
+    (
+        "The device is being set up. Wait a moment: it should be ready soon.",
+        "El dispositivo se está preparando. Espera un momento: pronto estará listo.",
     ),
 ];
 
@@ -7073,6 +7085,12 @@ pub const FRENCH: &[(&str, &str)] = &[
         "The terminal fills the page: the title, the tabs and the list are hidden",
         "Le terminal remplit la page : le titre, les onglets et la liste sont masqués",
     ),
+    ("Click again to confirm", "Cliquez encore pour confirmer"),
+    ("Connecting…", "Connexion…"),
+    (
+        "The device is being set up. Wait a moment: it should be ready soon.",
+        "L'appareil est en cours de préparation. Patientez un instant : il sera bientôt prêt.",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -9395,6 +9413,12 @@ pub const TURKISH: &[(&str, &str)] = &[
     (
         "The terminal fills the page: the title, the tabs and the list are hidden",
         "Terminal sayfayı doldurur: başlık, sekmeler ve liste gizlenir",
+    ),
+    ("Click again to confirm", "Onaylamak için tekrar tıklayın"),
+    ("Connecting…", "Bağlanıyor…"),
+    (
+        "The device is being set up. Wait a moment: it should be ready soon.",
+        "Cihaz hazırlanıyor. Biraz bekleyin: birazdan hazır olmalı.",
     ),
 ];
 
@@ -11737,6 +11761,12 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "The terminal fills the page: the title, the tabs and the list are hidden",
         "Терминал занимает всю страницу: заголовок, вкладки и список скрыты",
     ),
+    ("Click again to confirm", "Нажмите ещё раз для подтверждения"),
+    ("Connecting…", "Подключение…"),
+    (
+        "The device is being set up. Wait a moment: it should be ready soon.",
+        "Устройство настраивается. Подождите немного: скоро оно будет готово.",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -14009,6 +14039,12 @@ pub const ARABIC: &[(&str, &str)] = &[
         "The terminal fills the page: the title, the tabs and the list are hidden",
         "تملأ الطرفية الصفحة: يتم إخفاء العنوان والتبويبات والقائمة",
     ),
+    ("Click again to confirm", "انقر مرة أخرى للتأكيد"),
+    ("Connecting…", "جارٍ الاتصال…"),
+    (
+        "The device is being set up. Wait a moment: it should be ready soon.",
+        "يجري إعداد الجهاز. انتظر قليلًا: سيكون جاهزًا قريبًا.",
+    ),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -16245,4 +16281,7 @@ pub const CHINESE: &[(&str, &str)] = &[
         "The terminal fills the page: the title, the tabs and the list are hidden",
         "终端占满页面：隐藏标题、标签页和列表",
     ),
+    ("Click again to confirm", "再次点击以确认"),
+    ("Connecting…", "正在连接…"),
+    ("The device is being set up. Wait a moment: it should be ready soon.", "设备正在准备中。请稍等：很快就会就绪。"),
 ];

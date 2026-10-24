@@ -9,6 +9,11 @@ pub struct Term {
     id: egui::Id,
     /// What the mouse selected: where it began and where it is now (row, column).
     selection: Option<((u16, u16), (u16, u16))>,
+    /// The mouse is down on a selection: output does not clear it meanwhile.
+    dragging: bool,
+    /// Frames to keep the keyboard after Paste was clicked: the clipboard's
+    /// text arrives a little later, and the click took the focus away.
+    paste_wait: u8,
 }
 
 /// What happened to the terminal this frame.
@@ -47,11 +52,25 @@ impl Term {
             focused: true,
             id: egui::Id::new(("term", id)),
             selection: None,
+            dragging: false,
+            paste_wait: 0,
         }
     }
 
     pub fn feed(&mut self, bytes: &[u8]) {
+        // The highlight is kept to screen cells: new output would move the
+        // text under it (except while the mouse is held, so a selection can be
+        // made in a log that keeps scrolling).
+        if !self.dragging {
+            self.selection = None;
+        }
         self.parser.process(bytes);
+    }
+
+    /// The Paste button was clicked: the text comes in a moment, and the
+    /// terminal must still take it.
+    pub fn expect_paste(&mut self) {
+        self.paste_wait = 90;
     }
 
     pub fn size(&self) -> (u16, u16) {
@@ -74,7 +93,7 @@ impl Term {
         let Some((start, end)) = self.selection_range() else { return String::new() };
         let screen = self.parser.screen();
         let cols = screen.size().1;
-        let mut lines = Vec::new();
+        let mut text = String::new();
         for r in start.0..=end.0 {
             let first = if r == start.0 { start.1 } else { 0 };
             let last = if r == end.0 { end.1 } else { cols.saturating_sub(1) };
@@ -86,9 +105,18 @@ impl Term {
                     _ => line.push(' '),
                 }
             }
-            lines.push(line.trim_end().to_string());
+            // A line that wrapped at the edge of the screen goes on in the
+            // next one: it is not a line end.
+            if r < end.0 && screen.row_wrapped(r) {
+                text.push_str(&line);
+            } else {
+                text.push_str(line.trim_end());
+                if r < end.0 {
+                    text.push('\n');
+                }
+            }
         }
-        lines.join("\n")
+        text.trim_end_matches('\n').to_string()
     }
 
     /// The word around a cell: letters, digits and the marks that belong to
@@ -97,8 +125,11 @@ impl Term {
         let screen = self.parser.screen();
         let word = |c: u16| {
             screen.cell(row, c).is_some_and(|cell| {
-                cell.has_contents()
-                    && !cell.contents().chars().any(|ch| ch.is_whitespace() || "()[]{}<>\"'`,;".contains(ch))
+                // The second half of a wide (Chinese, Japanese) character is
+                // part of it.
+                cell.is_wide_continuation()
+                    || (cell.has_contents()
+                        && !cell.contents().chars().any(|ch| ch.is_whitespace() || "()[]{}<>\"'`,;".contains(ch)))
             })
         };
         let cols = screen.size().1;
@@ -205,10 +236,11 @@ impl Term {
                 // the mouse has moved a little.
                 let from = ui.input(|i| i.pointer.press_origin()).map_or(cell, cell_at);
                 self.selection = Some((from, cell));
+                self.dragging = true;
                 self.focused = true;
-            } else if resp.dragged()
-                && let Some((from, _)) = self.selection
-            {
+            } else if resp.dragged() {
+                // From where the button went down, as long as it is down.
+                let from = ui.input(|i| i.pointer.press_origin()).map_or(cell, cell_at);
                 self.selection = Some((from, cell));
             }
             if resp.triple_clicked() {
@@ -219,8 +251,11 @@ impl Term {
                 copy_now = true;
             }
         }
-        if resp.drag_stopped() && self.selection.is_some_and(|(a, b)| a != b) {
-            copy_now = true;
+        if resp.drag_stopped() {
+            self.dragging = false;
+            if self.selection.is_some_and(|(a, b)| a != b) {
+                copy_now = true;
+            }
         }
         if resp.clicked() && !resp.double_clicked() && !resp.triple_clicked() {
             self.selection = None;
@@ -274,7 +309,14 @@ impl Term {
                 self.parser.screen_mut().set_scrollback((now + lines).max(0) as usize);
             }
         }
+        if self.paste_wait > 0 {
+            self.paste_wait -= 1;
+            self.focused = true;
+        }
         if self.focused {
+            if ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Paste(_)))) {
+                self.paste_wait = 0;
+            }
             out.input = self.keys(ui, copy_selection);
             if !out.input.is_empty() {
                 self.parser.screen_mut().set_scrollback(0);
@@ -330,7 +372,8 @@ impl Term {
                 }
                 egui::Event::Key { key, pressed: true, modifiers, .. } => {
                     // Ctrl with Alt is AltGr on Windows: a character, sent as text.
-                    if modifiers.ctrl && modifiers.shift && key == Key::C && copy_selection {
+                    // Ctrl+Shift+C is copy (Linux terminals): never a ^C.
+                    if modifiers.ctrl && modifiers.shift && key == Key::C {
                         continue;
                     }
                     if modifiers.ctrl && !modifiers.alt {
@@ -346,18 +389,31 @@ impl Term {
                             continue;
                         }
                     }
-                    let arrow = |c: u8| if app { vec![0x1b, b'O', c] } else { vec![0x1b, b'[', c] };
+                    // xterm's modifier number: 1 + Shift 1 + Alt 2 + Ctrl 4.
+                    let m = 1 + u8::from(modifiers.shift) + 2 * u8::from(modifiers.alt) + 4 * u8::from(modifiers.ctrl);
+                    // Arrows, Home and End: ESC [ X, ESC O X in application
+                    // mode, and ESC [ 1 ; m X with Shift, Alt or Ctrl.
+                    let arrow = |c: u8| {
+                        if m > 1 {
+                            format!("\x1b[1;{m}{}", c as char).into_bytes()
+                        } else if app {
+                            vec![0x1b, b'O', c]
+                        } else {
+                            vec![0x1b, b'[', c]
+                        }
+                    };
                     match key {
                         Key::Enter => out.push(b'\r'),
                         Key::Backspace => out.push(0x7f),
+                        Key::Tab if modifiers.shift => out.extend_from_slice(b"\x1b[Z"),
                         Key::Tab => out.push(b'\t'),
                         Key::Escape => out.push(0x1b),
                         Key::ArrowUp => out.extend(arrow(b'A')),
                         Key::ArrowDown => out.extend(arrow(b'B')),
                         Key::ArrowRight => out.extend(arrow(b'C')),
                         Key::ArrowLeft => out.extend(arrow(b'D')),
-                        Key::Home => out.extend_from_slice(b"\x1b[H"),
-                        Key::End => out.extend_from_slice(b"\x1b[F"),
+                        Key::Home => out.extend(arrow(b'H')),
+                        Key::End => out.extend(arrow(b'F')),
                         Key::Insert => out.extend_from_slice(b"\x1b[2~"),
                         Key::Delete => out.extend_from_slice(b"\x1b[3~"),
                         Key::PageUp => out.extend_from_slice(b"\x1b[5~"),
@@ -366,6 +422,14 @@ impl Term {
                         Key::F2 => out.extend_from_slice(b"\x1bOQ"),
                         Key::F3 => out.extend_from_slice(b"\x1bOR"),
                         Key::F4 => out.extend_from_slice(b"\x1bOS"),
+                        Key::F5 => out.extend_from_slice(b"\x1b[15~"),
+                        Key::F6 => out.extend_from_slice(b"\x1b[17~"),
+                        Key::F7 => out.extend_from_slice(b"\x1b[18~"),
+                        Key::F8 => out.extend_from_slice(b"\x1b[19~"),
+                        Key::F9 => out.extend_from_slice(b"\x1b[20~"),
+                        Key::F10 => out.extend_from_slice(b"\x1b[21~"),
+                        Key::F11 => out.extend_from_slice(b"\x1b[23~"),
+                        Key::F12 => out.extend_from_slice(b"\x1b[24~"),
                         _ => {}
                     }
                 }
@@ -612,5 +676,59 @@ mod tests {
         let (_, copied) = frame_of(&ctx, &mut term, vec![press(at(1.0, 2.0), true), press(at(1.0, 2.0), false)], 7.1);
         assert!(copied.is_empty());
         assert!(term.selection.is_none());
+    }
+
+    /// Where cell (row, col) is on a lone terminal in the test page.
+    fn cell_point(ctx: &egui::Context, row: f32, col: f32) -> Pos2 {
+        let font = FontId::monospace(FONT);
+        let (mut cw, mut rh) = (0.0, 0.0);
+        let mut measured = ctx.run_ui(egui::RawInput::default(), |ui| {
+            (cw, rh) = ui.fonts_mut(|f| (f.glyph_width(&font, 'M'), f.row_height(&font)));
+        });
+        measured.textures_delta.clear();
+        Pos2::new(10.0 + (col + 0.5) * cw, 10.0 + (row + 0.5) * rh)
+    }
+
+    fn drag(ctx: &egui::Context, term: &mut Term, from: Pos2, to: Pos2, start: f64) -> Vec<String> {
+        let mut t = start;
+        let mut step = |events: Vec<Event>| {
+            t += 0.1;
+            frame_of(ctx, term, events, t).1
+        };
+        step(vec![Event::PointerMoved(from)]);
+        step(vec![press(from, true)]);
+        step(vec![Event::PointerMoved(to)]);
+        step(vec![Event::PointerMoved(to)]);
+        step(vec![press(to, false)])
+    }
+
+    /// A line that wrapped at the edge of the screen is copied as one line;
+    /// blank rows at the end are not copied; a double-click takes a whole
+    /// Chinese word.
+    #[test]
+    fn copying_follows_the_text_not_the_screen() {
+        let ctx = egui::Context::default();
+        let mut term = Term::new(2);
+        frame_of(&ctx, &mut term, vec![], 0.0);
+        let cols = term.size().1 as usize;
+        let long: String = (0..cols + 10).map(|i| char::from(b'a' + (i % 26) as u8)).collect();
+        term.feed(format!("{long}\r\n你好世界 abc\r\n").as_bytes());
+        frame_of(&ctx, &mut term, vec![], 0.5);
+
+        // From the start of the long line to the second screen row.
+        let copied = drag(&ctx, &mut term, cell_point(&ctx, 0.0, 0.0), cell_point(&ctx, 1.0, 5.0), 2.0);
+        assert_eq!(copied, [long[..cols + 6].to_string()]);
+
+        // Down to blank rows: only the text is copied.
+        let copied = drag(&ctx, &mut term, cell_point(&ctx, 1.0, 0.0), cell_point(&ctx, 8.0, 3.0), 4.0);
+        assert_eq!(copied.len(), 1);
+        assert!(copied[0].ends_with("你好世界 abc"), "{:?}", copied[0]);
+
+        // A double-click on the second character of the Chinese word.
+        let spot = cell_point(&ctx, 2.0, 2.0);
+        frame_of(&ctx, &mut term, vec![Event::PointerMoved(spot)], 9.0);
+        let click = vec![press(spot, true), press(spot, false), press(spot, true), press(spot, false)];
+        let (_, copied) = frame_of(&ctx, &mut term, click, 9.1);
+        assert_eq!(copied, ["你好世界"]);
     }
 }

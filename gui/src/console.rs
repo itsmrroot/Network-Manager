@@ -38,6 +38,8 @@ pub struct Console {
     /// The terminal fills the page: the title, the tabs, the list of sessions
     /// and the cards are hidden (the Restore button brings them back).
     zoomed: bool,
+    /// Frames to keep the serial terminal's keyboard after Paste was clicked.
+    paste_wait: u8,
     /// Development aid: the pictures of the guide, from this one on, three at a time.
     #[cfg(debug_assertions)]
     gallery: Option<usize>,
@@ -69,6 +71,7 @@ impl Default for Console {
             push: Default::default(),
             adb: Default::default(),
             zoomed: false,
+            paste_wait: 0,
             #[cfg(debug_assertions)]
             gallery: None,
             open: Vec::new(),
@@ -120,11 +123,17 @@ impl Console {
             while let Ok(bytes) = r.received.try_recv() {
                 o.term.feed(&bytes);
             }
-            if r.ended() && r.received.try_recv().is_err() {
+            if r.ended() {
+                // What came in since the last look is shown before the end.
+                while let Ok(bytes) = r.received.try_recv() {
+                    o.term.feed(&bytes);
+                }
                 o.remote = None;
                 o.term.feed(format!("\r\n\x1b[2m[{}]\x1b[0m\r\n", trl("Session ended")).as_bytes());
             }
         }
+        // The Android shell and log are read also while another page is shown.
+        self.adb.pump(sh);
         let Some(s) = &self.session else { return };
         while let Ok(bytes) = s.received.try_recv() {
             if let Some(f) = &mut self.log {
@@ -570,6 +579,7 @@ impl Console {
                 .clicked()
             {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+                o.term.expect_paste();
             }
             if zoom_button(ui, self.zoomed) {
                 self.zoomed = !self.zoomed;
@@ -849,6 +859,7 @@ impl Console {
                     {
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
                         self.focused = true;
+                        self.paste_wait = 90;
                     }
                 } else if theme::primary_button(
                     ui,
@@ -939,6 +950,12 @@ impl Console {
         } else if ui.input(|i| i.pointer.any_click()) && !click.hovered() {
             self.focused = false;
         }
+        // Paste was clicked: the text comes a moment later, and the click
+        // took the focus away from the terminal.
+        if self.paste_wait > 0 {
+            self.paste_wait -= 1;
+            self.focused = true;
+        }
         // Clicked, but not connected: Tab and Enter stay here too, instead of
         // moving to the sidebar and opening another page.
         if self.focused && !connected {
@@ -954,7 +971,22 @@ impl Console {
         for e in events {
             match e {
                 egui::Event::Text(t) => out.extend_from_slice(t.as_bytes()),
-                egui::Event::Paste(t) => out.extend_from_slice(t.replace("\r\n", "\r").replace('\n', "\r").as_bytes()),
+                egui::Event::Paste(t) => {
+                    self.paste_wait = 0;
+                    // Only text: control characters (and with them escape
+                    // sequences) are left out, as in the SSH terminal.
+                    let t: String = t
+                        .replace("\r\n", "\r")
+                        .replace('\n', "\r")
+                        .chars()
+                        .filter(|c| !c.is_control() || *c == '\t' || *c == '\r')
+                        .collect();
+                    out.extend_from_slice(t.as_bytes());
+                }
+                // Windows and Linux: egui turns Ctrl+C and Ctrl+X into Copy and
+                // Cut, and sends no key: in a terminal they stop a program.
+                egui::Event::Copy if !cfg!(target_os = "macos") => out.push(0x03),
+                egui::Event::Cut if !cfg!(target_os = "macos") => out.push(0x18),
                 egui::Event::Key { key, pressed: true, modifiers, .. } => {
                     // The physical Control key on every system (also on a Mac).
                     if modifiers.ctrl {
