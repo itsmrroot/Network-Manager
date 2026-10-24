@@ -2491,7 +2491,7 @@ dependencies = [
 
 [[package]]
 name = "netmgr"
-version = "0.9.6"
+version = "0.9.7"
 dependencies = [
  "aes",
  "anyhow",
@@ -2520,7 +2520,7 @@ dependencies = [
 
 [[package]]
 name = "netmgr-gui"
-version = "0.9.6"
+version = "0.9.7"
 dependencies = [
  "anyhow",
  "chrono",
