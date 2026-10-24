@@ -508,6 +508,9 @@ impl Console {
         });
         ui.add_space(4.0);
         let out = o.term.ui(ui, p.border, p.accent);
+        if out.copied {
+            sh.toast(tr("Copied."));
+        }
         if let Some(r) = &o.remote {
             if let Some((rows, cols)) = out.resized {
                 r.resize(rows, cols);

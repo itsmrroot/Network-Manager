@@ -7,6 +7,8 @@ pub struct Term {
     parser: vt100::Parser,
     focused: bool,
     id: egui::Id,
+    /// What the mouse selected: where it began and where it is now (row, column).
+    selection: Option<((u16, u16), (u16, u16))>,
 }
 
 /// What happened to the terminal this frame.
@@ -16,6 +18,8 @@ pub struct Out {
     pub input: Vec<u8>,
     /// The new size in rows and columns, when it changed.
     pub resized: Option<(u16, u16)>,
+    /// Text was copied (selected with the mouse, or by the copy keys).
+    pub copied: bool,
 }
 
 const FONT: f32 = 13.0;
@@ -38,7 +42,12 @@ pub fn capture_keys(ctx: &egui::Context, id: egui::Id) {
 
 impl Term {
     pub fn new(id: u64) -> Self {
-        Self { parser: vt100::Parser::new(24, 80, 5000), focused: true, id: egui::Id::new(("term", id)) }
+        Self {
+            parser: vt100::Parser::new(24, 80, 5000),
+            focused: true,
+            id: egui::Id::new(("term", id)),
+            selection: None,
+        }
     }
 
     pub fn feed(&mut self, bytes: &[u8]) {
@@ -54,6 +63,58 @@ impl Term {
         self.parser.screen().contents()
     }
 
+    /// The selection, first cell to last (the one nearer the top first).
+    fn selection_range(&self) -> Option<((u16, u16), (u16, u16))> {
+        let (a, b) = self.selection?;
+        Some(if a <= b { (a, b) } else { (b, a) })
+    }
+
+    /// The selected text: lines end where the text ends, as in a terminal.
+    fn selected_text(&self) -> String {
+        let Some((start, end)) = self.selection_range() else { return String::new() };
+        let screen = self.parser.screen();
+        let cols = screen.size().1;
+        let mut lines = Vec::new();
+        for r in start.0..=end.0 {
+            let first = if r == start.0 { start.1 } else { 0 };
+            let last = if r == end.0 { end.1 } else { cols.saturating_sub(1) };
+            let mut line = String::new();
+            for c in first..=last {
+                match screen.cell(r, c) {
+                    Some(cell) if cell.is_wide_continuation() => {}
+                    Some(cell) if cell.has_contents() => line.push_str(cell.contents()),
+                    _ => line.push(' '),
+                }
+            }
+            lines.push(line.trim_end().to_string());
+        }
+        lines.join("\n")
+    }
+
+    /// The word around a cell: letters, digits and the marks that belong to
+    /// paths and addresses; spaces and brackets end it.
+    fn word_at(&self, row: u16, col: u16) -> ((u16, u16), (u16, u16)) {
+        let screen = self.parser.screen();
+        let word = |c: u16| {
+            screen.cell(row, c).is_some_and(|cell| {
+                cell.has_contents()
+                    && !cell.contents().chars().any(|ch| ch.is_whitespace() || "()[]{}<>\"'`,;".contains(ch))
+            })
+        };
+        let cols = screen.size().1;
+        if !word(col) {
+            return ((row, col), (row, col));
+        }
+        let (mut a, mut b) = (col, col);
+        while a > 0 && word(a - 1) {
+            a -= 1;
+        }
+        while b + 1 < cols && word(b + 1) {
+            b += 1;
+        }
+        ((row, a), (row, b))
+    }
+
     pub fn ui(&mut self, ui: &mut Ui, border: Color32, accent: Color32) -> Out {
         let mut out = Out::default();
         let font = FontId::monospace(FONT);
@@ -65,7 +126,7 @@ impl Term {
             self.parser.screen_mut().set_size(rows, cols);
             out.resized = Some((rows, cols));
         }
-        let (rect, resp) = ui.allocate_exact_size(avail, Sense::click());
+        let (rect, resp) = ui.allocate_exact_size(avail, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
         painter.rect(
             rect,
@@ -125,6 +186,80 @@ impl Term {
             }
         }
 
+        // Selecting with the mouse: drag, double-click a word, triple-click a
+        // line. What is selected is copied when the mouse is let go.
+        let (cols_max, rows_max) = (cols.saturating_sub(1) as f32, rows.saturating_sub(1) as f32);
+        let cell_at = |pos: egui::Pos2| -> (u16, u16) {
+            let c = ((pos.x - origin.x) / cw).floor().clamp(0.0, cols_max) as u16;
+            let r = ((pos.y - origin.y) / rh).floor().clamp(0.0, rows_max) as u16;
+            (r, c)
+        };
+        if out.resized.is_some() {
+            self.selection = None;
+        }
+        let mut copy_now = false;
+        if let Some(pos) = resp.interact_pointer_pos() {
+            let cell = cell_at(pos);
+            if resp.drag_started() {
+                // From where the button went down: a drag only starts after
+                // the mouse has moved a little.
+                let from = ui.input(|i| i.pointer.press_origin()).map_or(cell, cell_at);
+                self.selection = Some((from, cell));
+                self.focused = true;
+            } else if resp.dragged()
+                && let Some((from, _)) = self.selection
+            {
+                self.selection = Some((from, cell));
+            }
+            if resp.triple_clicked() {
+                self.selection = Some(((cell.0, 0), (cell.0, cols_max as u16)));
+                copy_now = true;
+            } else if resp.double_clicked() {
+                self.selection = Some(self.word_at(cell.0, cell.1));
+                copy_now = true;
+            }
+        }
+        if resp.drag_stopped() && self.selection.is_some_and(|(a, b)| a != b) {
+            copy_now = true;
+        }
+        if resp.clicked() && !resp.double_clicked() && !resp.triple_clicked() {
+            self.selection = None;
+        }
+        if let Some((start, end)) = self.selection_range() {
+            for r in start.0..=end.0.min(rows_max as u16) {
+                let first = if r == start.0 { start.1 } else { 0 };
+                let last = if r == end.0 { end.1 } else { cols_max as u16 };
+                let x0 = origin.x + first as f32 * cw;
+                let w = (last - first + 1) as f32 * cw;
+                let band = Rect::from_min_size(egui::pos2(x0, origin.y + r as f32 * rh), Vec2::new(w, rh));
+                painter.rect_filled(band, 0.0, accent.gamma_multiply(0.4));
+            }
+        }
+        if copy_now {
+            let text = self.selected_text();
+            if !text.trim().is_empty() {
+                ui.ctx().copy_text(text);
+                out.copied = true;
+            }
+        }
+        // Cmd+C (Ctrl+Shift+C) copies the selection; with a selection Ctrl+C
+        // copies too, and without one it stops the program as in a terminal.
+        let copy_keys = ui.input(|i| {
+            i.events.iter().any(|e| {
+                matches!(e, egui::Event::Copy)
+                    || matches!(e, egui::Event::Key { key: Key::C, pressed: true, modifiers, .. } if modifiers.ctrl && modifiers.shift)
+            })
+        });
+        let selecting = self.focused && self.selection.is_some_and(|(a, b)| a != b);
+        let copy_selection = copy_keys && selecting;
+        if copy_selection {
+            let text = self.selected_text();
+            if !text.trim().is_empty() {
+                ui.ctx().copy_text(text);
+                out.copied = true;
+            }
+            self.selection = None;
+        }
         if resp.clicked() {
             self.focused = true;
         } else if ui.input(|i| i.pointer.any_click()) && !resp.hovered() {
@@ -140,9 +275,10 @@ impl Term {
             }
         }
         if self.focused {
-            out.input = self.keys(ui);
+            out.input = self.keys(ui, copy_selection);
             if !out.input.is_empty() {
                 self.parser.screen_mut().set_scrollback(0);
+                self.selection = None;
             }
             // Keep Tab and the arrows in the terminal.
             capture_keys(ui.ctx(), self.id);
@@ -151,7 +287,7 @@ impl Term {
     }
 
     /// Keys as an xterm sends them.
-    fn keys(&self, ui: &Ui) -> Vec<u8> {
+    fn keys(&self, ui: &Ui, copy_selection: bool) -> Vec<u8> {
         let app = self.parser.screen().application_cursor();
         let bracketed = self.parser.screen().bracketed_paste();
         let mut out = Vec::new();
@@ -163,7 +299,9 @@ impl Term {
                 // Cut (and sends no key): in a terminal they stop a program
                 // (top, ping) and cut, as everywhere. macOS copies with Cmd.
                 // Not Ctrl+Shift+C (copy in Linux terminals) or Ctrl+Insert.
-                egui::Event::Copy if !cfg!(target_os = "macos") && mods.ctrl && !mods.shift => out.push(0x03),
+                egui::Event::Copy if !copy_selection && !cfg!(target_os = "macos") && mods.ctrl && !mods.shift => {
+                    out.push(0x03)
+                }
                 egui::Event::Cut if !cfg!(target_os = "macos") => {
                     if mods.ctrl && !mods.shift {
                         out.push(0x18);
@@ -192,6 +330,9 @@ impl Term {
                 }
                 egui::Event::Key { key, pressed: true, modifiers, .. } => {
                     // Ctrl with Alt is AltGr on Windows: a character, sent as text.
+                    if modifiers.ctrl && modifiers.shift && key == Key::C && copy_selection {
+                        continue;
+                    }
                     if modifiers.ctrl && !modifiers.alt {
                         let name = key.name();
                         if name.len() == 1
@@ -394,5 +535,82 @@ mod tests {
         }
         // The test must show the old bug, or it proves nothing.
         assert!(type_a_command(false, &[Key::Tab, Key::Enter]).overview > 0, "the old code no longer shows the bug");
+    }
+
+    /// Text copied during a frame of a lone terminal.
+    fn frame_of(ctx: &egui::Context, term: &mut Term, events: Vec<Event>, time: f64) -> (Out, Vec<String>) {
+        let input = egui::RawInput {
+            events,
+            time: Some(time),
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 400.0))),
+            ..Default::default()
+        };
+        let mut result = None;
+        let mut output = ctx.run_ui(input, |ui| {
+            result = Some(term.ui(ui, Color32::GRAY, Color32::GREEN));
+        });
+        let copied = output
+            .platform_output
+            .commands
+            .drain(..)
+            .filter_map(|c| match c {
+                egui::OutputCommand::CopyText(t) => Some(t),
+                _ => None,
+            })
+            .collect();
+        output.textures_delta.clear();
+        (result.unwrap_or_default(), copied)
+    }
+
+    fn press(pos: Pos2, pressed: bool) -> Event {
+        Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
+    }
+
+    /// Dragging over text selects it and copies it; a double-click takes a
+    /// word, a triple-click the line; a plain click selects nothing.
+    #[test]
+    fn the_mouse_selects_text_and_copies_it() {
+        let ctx = egui::Context::default();
+        let mut term = Term::new(1);
+        term.feed(b"hello world foo\r\nsecond line\r\n");
+        // Where a cell is: the terminal starts 10 points in, in a page's corner.
+        let font = FontId::monospace(FONT);
+        let (mut cw, mut rh) = (0.0, 0.0);
+        let mut measured = ctx.run_ui(egui::RawInput::default(), |ui| {
+            (cw, rh) = ui.fonts_mut(|f| (f.glyph_width(&font, 'M'), f.row_height(&font)));
+        });
+        measured.textures_delta.clear();
+        let at = |row: f32, col: f32| Pos2::new(10.0 + (col + 0.5) * cw, 10.0 + (row + 0.5) * rh);
+        frame_of(&ctx, &mut term, vec![], 0.0);
+
+        // Drag from "h" to "o" of the first word.
+        frame_of(&ctx, &mut term, vec![Event::PointerMoved(at(0.0, 0.0))], 1.0);
+        frame_of(&ctx, &mut term, vec![press(at(0.0, 0.0), true)], 1.1);
+        frame_of(&ctx, &mut term, vec![Event::PointerMoved(at(0.0, 2.0))], 1.2);
+        frame_of(&ctx, &mut term, vec![Event::PointerMoved(at(0.0, 4.0))], 1.3);
+        let (out, copied) = frame_of(&ctx, &mut term, vec![press(at(0.0, 4.0), false)], 1.4);
+        assert_eq!(copied, ["hello"]);
+        assert!(out.copied);
+
+        // Across two lines.
+        frame_of(&ctx, &mut term, vec![Event::PointerMoved(at(0.0, 6.0))], 3.0);
+        frame_of(&ctx, &mut term, vec![press(at(0.0, 6.0), true)], 3.1);
+        frame_of(&ctx, &mut term, vec![Event::PointerMoved(at(1.0, 5.0))], 3.2);
+        frame_of(&ctx, &mut term, vec![Event::PointerMoved(at(1.0, 5.0))], 3.3);
+        let (_, copied) = frame_of(&ctx, &mut term, vec![press(at(1.0, 5.0), false)], 3.4);
+        assert_eq!(copied, ["world foo\nsecond"]);
+
+        // A double-click on "world".
+        let spot = at(0.0, 7.0);
+        frame_of(&ctx, &mut term, vec![Event::PointerMoved(spot)], 5.0);
+        let click = vec![press(spot, true), press(spot, false), press(spot, true), press(spot, false)];
+        let (_, copied) = frame_of(&ctx, &mut term, click, 5.1);
+        assert_eq!(copied, ["world"]);
+
+        // A click somewhere else selects nothing and copies nothing.
+        frame_of(&ctx, &mut term, vec![Event::PointerMoved(at(1.0, 2.0))], 7.0);
+        let (_, copied) = frame_of(&ctx, &mut term, vec![press(at(1.0, 2.0), true), press(at(1.0, 2.0), false)], 7.1);
+        assert!(copied.is_empty());
+        assert!(term.selection.is_none());
     }
 }

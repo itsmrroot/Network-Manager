@@ -545,6 +545,9 @@ impl AdbPage {
         let out = ui
             .allocate_ui(egui::vec2(ui.available_width(), height), |ui| self.shell_term.ui(ui, p.border, p.accent))
             .inner;
+        if out.copied {
+            sh.toast(tr("Copied."));
+        }
         self.size = self.shell_term.size();
         if let Some(r) = &self.shell {
             if let Some((rows, cols)) = out.resized {
@@ -663,6 +666,9 @@ impl AdbPage {
         let out = ui
             .allocate_ui(egui::vec2(ui.available_width(), height), |ui| self.log_term.ui(ui, p.border, p.accent))
             .inner;
+        if out.copied {
+            sh.toast(tr("Copied."));
+        }
         self.size = self.log_term.size();
         if let (Some(r), Some((rows, cols))) = (&self.logcat, out.resized) {
             r.resize(rows, cols);
