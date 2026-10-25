@@ -5,6 +5,17 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.13
+
+### New
+- **Drag a saved session onto a group** to move it there; drop it on "No group"
+  to take it out of its group.
+- **Drag a tab out of the row of tabs** to open that session in a window of its
+  own. In the window, drag the address at the top out of the window to bring it
+  back.
+- **The height of the terminal follows the mouse.** Drag the line under the
+  terminal; double-click it to fill the page again.
+
 ## 0.9.12
 
 ### Fixed
