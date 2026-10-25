@@ -222,7 +222,8 @@ mod imp {
             self.icons
                 .entry(glyph.to_string())
                 .or_insert_with(|| {
-                    let b = crate::menu_icon::render(glyph, 36, [140, 140, 146])?;
+                    // Black: the menu draws it as a template, in the colour that suits it.
+                    let b = crate::menu_icon::render(glyph, 36, [0, 0, 0])?;
                     muda::Icon::from_rgba(b.rgba, b.side, b.side).ok()
                 })
                 .clone()
@@ -436,6 +437,7 @@ mod imp {
 
             let menu = Menu::with_items(&[&app, &edit, &view, &go, &network, &console, &window, &help])?;
             menu.init_for_nsapp();
+            crate::dock::template_icons(menu.ns_menu());
             window.set_as_windows_menu_for_nsapp();
             help.set_as_help_menu_for_nsapp();
             self.menu = Some(menu);
@@ -451,6 +453,7 @@ mod imp {
             let d_scan = self.item(icon::DEVICES, tr("Scan for devices"), Command::Scan, None);
             let dock = Menu::with_items(&[&d_check, &d_renew, &d_ip, &d_scan, &sep(), &d_new, &d_saved, &d_serial])?;
             // The Dock is told of the new menu before the old one goes away.
+            crate::dock::template_icons(dock.ns_menu());
             crate::dock::set(dock.ns_menu());
             self.dock = Some(dock);
             Ok(())

@@ -7,7 +7,7 @@ use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
 use objc2::ffi::class_addMethod;
-use objc2::runtime::{AnyClass, AnyObject, Imp, Sel};
+use objc2::runtime::{AnyClass, AnyObject, Bool, Imp, Sel};
 use objc2::{class, msg_send, sel};
 
 /// The NSMenu to show (owned by the menu bar code, which keeps it alive).
@@ -27,6 +27,35 @@ pub fn set(menu: *mut c_void) {
     if !menu.is_null() && !INSTALLED.load(Ordering::Acquire) && install() {
         INSTALLED.store(true, Ordering::Release);
     }
+}
+
+/// Makes every picture in a menu (and its submenus) a template image: macOS
+/// then draws it black in a light menu, white in a dark one, and dimmed when
+/// the item is off, whatever colour the bitmap has (only its alpha is used).
+pub fn template_icons(menu: *mut c_void) {
+    unsafe fn walk(menu: *mut AnyObject, depth: u32) {
+        if menu.is_null() || depth > 4 {
+            return;
+        }
+        // SAFETY: plain reads of the menu's items, and a flag on their images.
+        unsafe {
+            let count: isize = msg_send![menu, numberOfItems];
+            for i in 0..count {
+                let item: *mut AnyObject = msg_send![menu, itemAtIndex: i];
+                if item.is_null() {
+                    continue;
+                }
+                let image: *mut AnyObject = msg_send![item, image];
+                if !image.is_null() {
+                    let _: () = msg_send![image, setTemplate: Bool::YES];
+                }
+                let sub: *mut AnyObject = msg_send![item, submenu];
+                walk(sub, depth + 1);
+            }
+        }
+    }
+    // SAFETY: the pointer is an NSMenu the caller owns; called on the main thread.
+    unsafe { walk(menu.cast(), 0) }
 }
 
 fn app_delegate() -> Option<(*mut AnyObject, *mut AnyObject)> {
@@ -112,7 +141,13 @@ pub fn describe_menu_bar() -> String {
             let text: *const std::ffi::c_char = msg_send![title, UTF8String];
             let image: *mut AnyObject = msg_send![item, image];
             let name = std::ffi::CStr::from_ptr(text).to_string_lossy().into_owned();
-            if image.is_null() { name } else { format!("{name}*") }
+            if image.is_null() {
+                name
+            } else {
+                // * a picture the system tints (a template), + one with its own colour.
+                let template: bool = msg_send![image, isTemplate];
+                format!("{name}{}", if template { "*" } else { "+" })
+            }
         }
     }
     let Some((app, _)) = app_delegate() else { return "no app".into() };
