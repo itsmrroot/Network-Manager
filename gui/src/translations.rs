@@ -2426,6 +2426,18 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("Docker", "Docker"),
     ("Podman", "Podman"),
     ("Virtual machine", "Virtuelle Maschine"),
+    ("Drag onto a group to move it there", "Auf eine Gruppe ziehen, um sie dorthin zu verschieben"),
+    ("No group", "Keine Gruppe"),
+    (
+        "Drag out of the tabs and let go to open it in a window",
+        "Aus den Tabs ziehen und loslassen, um sie in einem Fenster zu öffnen",
+    ),
+    ("Let go to open in a window", "Loslassen, um im Fenster zu öffnen"),
+    (
+        "Drag out of the window and let go to bring it back",
+        "Aus dem Fenster ziehen und loslassen, um sie zurückzuholen",
+    ),
+    ("Drag to change the height; double-click to fill the page", "Ziehen ändert die Höhe; Doppelklick füllt die Seite"),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4823,6 +4835,21 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("Docker", "Docker"),
     ("Podman", "Podman"),
     ("Virtual machine", "Máquina virtual"),
+    ("Drag onto a group to move it there", "Arrastra a un grupo para moverla allí"),
+    ("No group", "Sin grupo"),
+    (
+        "Drag out of the tabs and let go to open it in a window",
+        "Arrastra fuera de las pestañas y suelta para abrirla en una ventana",
+    ),
+    ("Let go to open in a window", "Suelta para abrir en una ventana"),
+    (
+        "Drag out of the window and let go to bring it back",
+        "Arrastra fuera de la ventana y suelta para traerla de vuelta",
+    ),
+    (
+        "Drag to change the height; double-click to fill the page",
+        "Arrastra para cambiar la altura; doble clic para llenar la página",
+    ),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7247,6 +7274,18 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("Docker", "Docker"),
     ("Podman", "Podman"),
     ("Virtual machine", "Machine virtuelle"),
+    ("Drag onto a group to move it there", "Glissez sur un groupe pour l'y déplacer"),
+    ("No group", "Aucun groupe"),
+    (
+        "Drag out of the tabs and let go to open it in a window",
+        "Glissez hors des onglets et relâchez pour l'ouvrir dans une fenêtre",
+    ),
+    ("Let go to open in a window", "Relâchez pour ouvrir dans une fenêtre"),
+    ("Drag out of the window and let go to bring it back", "Glissez hors de la fenêtre et relâchez pour la ramener"),
+    (
+        "Drag to change the height; double-click to fill the page",
+        "Glissez pour changer la hauteur ; double-clic pour remplir la page",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -9623,6 +9662,18 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("Docker", "Docker"),
     ("Podman", "Podman"),
     ("Virtual machine", "Sanal makine"),
+    ("Drag onto a group to move it there", "Bir gruba sürükleyerek oraya taşıyın"),
+    ("No group", "Grup yok"),
+    (
+        "Drag out of the tabs and let go to open it in a window",
+        "Sekmelerin dışına sürükleyip bırakın, bir pencerede açılır",
+    ),
+    ("Let go to open in a window", "Bırakın, pencerede açılsın"),
+    ("Drag out of the window and let go to bring it back", "Pencerenin dışına sürükleyip bırakın, geri gelir"),
+    (
+        "Drag to change the height; double-click to fill the page",
+        "Yüksekliği değiştirmek için sürükleyin; sayfayı doldurmak için çift tıklayın",
+    ),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -12020,6 +12071,18 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("Docker", "Docker"),
     ("Podman", "Podman"),
     ("Virtual machine", "Виртуальная машина"),
+    ("Drag onto a group to move it there", "Перетащите на группу, чтобы переместить туда"),
+    ("No group", "Без группы"),
+    (
+        "Drag out of the tabs and let go to open it in a window",
+        "Перетащите за пределы вкладок и отпустите, чтобы открыть в окне",
+    ),
+    ("Let go to open in a window", "Отпустите, чтобы открыть в окне"),
+    ("Drag out of the window and let go to bring it back", "Перетащите за пределы окна и отпустите, чтобы вернуть"),
+    (
+        "Drag to change the height; double-click to fill the page",
+        "Перетащите, чтобы изменить высоту; двойной щелчок — на всю страницу",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -14342,6 +14405,12 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Docker", "Docker"),
     ("Podman", "Podman"),
     ("Virtual machine", "آلة افتراضية"),
+    ("Drag onto a group to move it there", "اسحبها إلى مجموعة لنقلها إليها"),
+    ("No group", "بدون مجموعة"),
+    ("Drag out of the tabs and let go to open it in a window", "اسحبها خارج التبويبات ثم أفلتها لفتحها في نافذة"),
+    ("Let go to open in a window", "أفلت لفتحها في نافذة"),
+    ("Drag out of the window and let go to bring it back", "اسحبها خارج النافذة ثم أفلتها لإعادتها"),
+    ("Drag to change the height; double-click to fill the page", "اسحب لتغيير الارتفاع؛ انقر مرتين لملء الصفحة"),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -16625,4 +16694,10 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Docker", "Docker"),
     ("Podman", "Podman"),
     ("Virtual machine", "虚拟机"),
+    ("Drag onto a group to move it there", "拖到某个分组上，即可移到该组"),
+    ("No group", "无分组"),
+    ("Drag out of the tabs and let go to open it in a window", "拖出标签栏并松开，即可在窗口中打开"),
+    ("Let go to open in a window", "松开以在窗口中打开"),
+    ("Drag out of the window and let go to bring it back", "拖出窗口并松开，即可放回"),
+    ("Drag to change the height; double-click to fill the page", "拖动可调整高度；双击可占满页面"),
 ];

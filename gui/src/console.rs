@@ -58,6 +58,10 @@ pub struct Console {
     broadcast_armed: Option<(String, usize)>,
     /// Frames to keep the serial terminal's keyboard after Paste was clicked.
     paste_wait: u8,
+    /// The saved session (its place in the list) that is being dragged to a group.
+    drag_session: Option<usize>,
+    /// The tab that is being dragged out to a window of its own.
+    drag_tab: Option<usize>,
     /// Development aid: open the find bar with this text once the session shows it.
     #[cfg(debug_assertions)]
     debug_find: Option<String>,
@@ -95,6 +99,8 @@ impl Default for Console {
             push: Default::default(),
             adb: Default::default(),
             zoomed: false,
+            drag_session: None,
+            drag_tab: None,
             serial_popped: false,
             focus_host: false,
             #[cfg(debug_assertions)]
@@ -680,7 +686,23 @@ impl Console {
             groups.sort();
             groups.dedup();
             let mut connect = None;
+            let mut drag = None;
+            // Where a dragged session can be let go: each group's heading.
+            let mut targets: Vec<(String, egui::Rect)> = Vec::new();
+            let dragging = self.drag_session.is_some();
             egui::ScrollArea::vertical().id_salt("sessions").show(ui, |ui| {
+                if dragging && groups.iter().any(|g| !g.is_empty()) {
+                    let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 22.0), Sense::hover());
+                    ui.painter().rect_stroke(rect, 6.0, egui::Stroke::new(1.0, p.border), egui::StrokeKind::Inside);
+                    ui.painter().text(
+                        rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        tr("No group"),
+                        egui::FontId::proportional(13.0),
+                        p.weak,
+                    );
+                    targets.push((String::new(), rect));
+                }
                 for g in groups {
                     let items: Vec<(usize, &Saved)> = sh
                         .settings
@@ -724,15 +746,19 @@ impl Console {
                                     let r = ui
                                         .add(
                                             egui::Label::new(RichText::new(&s.name).color(p.text))
-                                                .sense(Sense::click())
+                                                .sense(Sense::click_and_drag())
                                                 .truncate(),
                                         )
                                         .on_hover_text(format!(
-                                            "{} {}\n{}",
+                                            "{} {}\n{}\n{}",
                                             s.protocol.label(),
                                             s.target(),
-                                            tr("Double-click to connect")
+                                            tr("Double-click to connect"),
+                                            tr("Drag onto a group to move it there")
                                         ));
+                                    if r.drag_started() {
+                                        drag = Some(i);
+                                    }
                                     if r.double_clicked() {
                                         connect = Some(s.clone());
                                     }
@@ -743,17 +769,57 @@ impl Console {
                     if g.is_empty() {
                         list(ui);
                     } else {
-                        egui::CollapsingHeader::new(RichText::new(&g).color(p.weak))
+                        let shown = egui::CollapsingHeader::new(RichText::new(&g).color(p.weak))
                             .id_salt(("group", &g))
                             .default_open(true)
                             .show(ui, list);
+                        targets.push((g.clone(), shown.header_response.rect));
                     }
                 }
             });
             if let Some(s) = connect {
                 self.connect(s, sh);
             }
+            if drag.is_some() {
+                self.drag_session = drag;
+            }
+            self.drop_session(ui, p, sh, &targets);
         });
+    }
+
+    /// A saved session that is dragged: shown at the pointer, and moved to the
+    /// group whose heading it is let go over.
+    fn drop_session(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared, targets: &[(String, egui::Rect)]) {
+        let Some(i) = self.drag_session else { return };
+        let (released, down, pos) =
+            ui.input(|x| (x.pointer.any_released(), x.pointer.any_down(), x.pointer.latest_pos()));
+        let Some(name) = sh.settings.sessions.get(i).map(|s| s.name.clone()) else {
+            self.drag_session = None;
+            return;
+        };
+        let over = pos.and_then(|pos| targets.iter().find(|(_, r)| r.contains(pos)));
+        if let Some((_, rect)) = over {
+            ui.painter().rect_stroke(*rect, 6.0, egui::Stroke::new(2.0, p.accent), egui::StrokeKind::Inside);
+        }
+        ui.set_cursor_icon(egui::CursorIcon::Grabbing);
+        if let Some(pos) = pos {
+            ghost(ui.ctx(), p, pos, &name);
+        }
+        if released || !down {
+            self.drag_session = None;
+            if let Some((group, _)) = over
+                && sh.settings.sessions[i].group != *group
+            {
+                sh.settings.sessions[i].group = group.clone();
+                sh.settings
+                    .sessions
+                    .sort_by(|a, b| (&a.group, a.name.to_lowercase()).cmp(&(&b.group, b.name.to_lowercase())));
+                if let Err(e) = netmgr::remote::save(&sh.settings.sessions) {
+                    sh.fail(trl("The sessions could not be saved."), &e);
+                }
+            }
+        }
+        ui.ctx().request_repaint();
     }
 
     fn session_tabs(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
@@ -774,7 +840,7 @@ impl Console {
         }
         self.active = self.active.min(self.open.len() - 1);
         let mut close = None;
-        ui.horizontal_wrapped(|ui| {
+        let strip = ui.horizontal_wrapped(|ui| {
             for (i, o) in self.open.iter().enumerate() {
                 let live = o.remote.is_some();
                 let dot = RichText::new("●").color(if live { p.success } else { p.weak }).size(10.0);
@@ -785,9 +851,15 @@ impl Console {
                             .color(if selected { p.text } else { p.weak }),
                     )
                     .fill(if selected { p.tint(p.accent) } else { egui::Color32::TRANSPARENT })
-                    .corner_radius(8);
+                    .corner_radius(8)
+                    .sense(Sense::click_and_drag());
                 ui.label(dot);
-                if ui.add(b).clicked() {
+                let tab = ui.add(b).on_hover_text(tr("Drag out of the tabs and let go to open it in a window"));
+                if tab.clicked() {
+                    self.active = i;
+                }
+                if tab.drag_started() {
+                    self.drag_tab = Some(i);
                     self.active = i;
                 }
                 if ui.small_button(icon::X).on_hover_text(tr("Close")).clicked() {
@@ -796,6 +868,7 @@ impl Console {
                 ui.add_space(6.0);
             }
         });
+        self.drop_tab(ui, p, strip.response.rect);
         if let Some(i) = close {
             self.open.remove(i);
             if self.open.is_empty() {
@@ -873,15 +946,57 @@ impl Console {
         self.session_view(ui, p, sh, index, false);
     }
 
+    /// A tab that is dragged: away from the row of tabs and let go, it opens
+    /// in a window of its own.
+    fn drop_tab(&mut self, ui: &mut Ui, p: &Palette, strip: egui::Rect) {
+        let Some(i) = self.drag_tab else { return };
+        let (released, down, pos) =
+            ui.input(|x| (x.pointer.any_released(), x.pointer.any_down(), x.pointer.latest_pos()));
+        let Some(name) = self.open.get(i).map(|o| o.saved.name.clone()) else {
+            self.drag_tab = None;
+            return;
+        };
+        let outside = pos.is_some_and(|pos| !strip.expand(30.0).contains(pos));
+        ui.set_cursor_icon(egui::CursorIcon::Grabbing);
+        if let Some(pos) = pos {
+            let text = if outside { tr("Let go to open in a window").to_string() } else { name };
+            ghost(ui.ctx(), p, pos, &text);
+        }
+        if released || !down {
+            self.drag_tab = None;
+            if outside && released {
+                self.open[i].popped = true;
+            }
+        }
+        ui.ctx().request_repaint();
+    }
+
     /// One session: its toolbar and its terminal, in the page or in a window.
     fn session_view(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared, index: usize, windowed: bool) {
         let o = &mut self.open[index];
         let mut reconnect = false;
         o.term.set_highlight(sh.settings.term_highlight);
         ui.horizontal_wrapped(|ui| {
-            ui.label(
-                RichText::new(format!("{} {}", o.saved.protocol.label(), o.saved.target())).color(p.weak).size(12.5),
-            );
+            let chip =
+                RichText::new(format!("{} {}", o.saved.protocol.label(), o.saved.target())).color(p.weak).size(12.5);
+            if windowed {
+                // Dragged out of the window and let go, the session goes back to the app.
+                let r = ui
+                    .add(egui::Label::new(chip).sense(Sense::drag()))
+                    .on_hover_text(tr("Drag out of the window and let go to bring it back"));
+                if r.dragged() {
+                    ui.set_cursor_icon(egui::CursorIcon::Grabbing);
+                }
+                if r.drag_stopped() {
+                    let inside =
+                        ui.input(|x| x.pointer.latest_pos()).is_some_and(|pos| ui.ctx().content_rect().contains(pos));
+                    if !inside {
+                        o.popped = false;
+                    }
+                }
+            } else {
+                ui.label(chip);
+            }
             if o.remote.is_none()
                 && o.pending.is_none()
                 && ui.button(icon_label(icon::ARROW_CLOCKWISE, "Reconnect")).clicked()
@@ -961,7 +1076,46 @@ impl Console {
             }
         });
         ui.add_space(4.0);
-        let out = o.term.ui(ui, p.border, p.accent);
+        let out = if windowed {
+            o.term.ui(ui, p.border, p.accent)
+        } else {
+            // The bottom edge moves with the mouse: a drag changes the height,
+            // a double-click gives the whole page back.
+            let grip = 12.0;
+            let most = (ui.available_height() - grip).max(120.0);
+            let height = if sh.settings.console_term_height > 0.0 {
+                sh.settings.console_term_height.clamp(120.0, most)
+            } else {
+                most
+            };
+            let out =
+                ui.allocate_ui(egui::vec2(ui.available_width(), height), |ui| o.term.ui(ui, p.border, p.accent)).inner;
+            let (rect, handle) =
+                ui.allocate_exact_size(egui::vec2(ui.available_width(), grip), Sense::click_and_drag());
+            let hot = handle.hovered() || handle.dragged();
+            if hot {
+                ui.set_cursor_icon(egui::CursorIcon::ResizeVertical);
+            }
+            let color = if handle.dragged() {
+                p.accent
+            } else if hot {
+                p.accent.gamma_multiply(0.6)
+            } else {
+                p.border
+            };
+            let c = rect.center();
+            ui.painter().line_segment(
+                [egui::pos2(c.x - 24.0, c.y), egui::pos2(c.x + 24.0, c.y)],
+                egui::Stroke::new(if hot { 3.0 } else { 2.0 }, color),
+            );
+            handle.clone().on_hover_text(tr("Drag to change the height; double-click to fill the page"));
+            if handle.double_clicked() {
+                sh.settings.console_term_height = 0.0;
+            } else if handle.dragged() {
+                sh.settings.console_term_height = (height + handle.drag_delta().y).clamp(120.0, most);
+            }
+            out
+        };
         if out.copied {
             sh.toast(tr("Copied."));
         }
@@ -1436,6 +1590,14 @@ impl Console {
 
 /// Maximize or Restore: the terminal fills the page, or the page is back.
 /// True when it was clicked.
+fn ghost(ctx: &egui::Context, p: &Palette, pos: egui::Pos2, text: &str) {
+    let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("drag-ghost")));
+    let galley = painter.layout_no_wrap(text.to_string(), egui::FontId::proportional(14.0), p.text);
+    let rect = egui::Rect::from_min_size(pos + egui::vec2(14.0, 10.0), galley.size()).expand2(egui::vec2(8.0, 4.0));
+    painter.rect(rect, 8.0, p.card, egui::Stroke::new(1.0, p.accent), egui::StrokeKind::Inside);
+    painter.galley(rect.min + egui::vec2(8.0, 4.0), galley, p.text);
+}
+
 fn zoom_button(ui: &mut Ui, zoomed: bool) -> bool {
     let (label, hint) = if zoomed {
         (icon_label(icon::ARROWS_IN_SIMPLE, "Restore"), tr("Show the title, the tabs and the list again"))
