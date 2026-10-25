@@ -1145,7 +1145,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 53] = [
+        let pages: [(Page, &str, u32); 55] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1198,6 +1198,8 @@ impl App {
             (Page::Console, "51-zoom-remote", 30),
             (Page::Console, "52-term-find", 90),
             (Page::Console, "53-dock-menu", 40),
+            (Page::Console, "54-menus-hold", 2400),
+            (Page::Console, "55-popout", 700),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_FROM=36-guide: begin at that step.
@@ -1424,11 +1426,24 @@ impl App {
                     self.dock_drag = Some(0);
                 }
             }
+            if name == "55-popout" {
+                self.shared.settings.guide.docked = false;
+                let target = std::env::var("NETMGR_TOUR_TELNET").ok();
+                self.console.demo(&mut self.shared, target.as_deref());
+                self.console.show(&mut self.shared, "popout");
+            }
+            if name == "54-menus-hold" {
+                self.shared.settings.guide.docked = false;
+                self.console.demo(&mut self.shared, None);
+            }
             if name == "53-dock-menu" {
                 self.shared.settings.guide.docked = false;
                 self.console.demo(&mut self.shared, None);
                 #[cfg(target_os = "macos")]
-                eprintln!("dock menu: {}", crate::dock::describe());
+                {
+                    eprintln!("dock menu: {}", crate::dock::describe());
+                    eprintln!("menu bar:\n{}", crate::dock::describe_menu_bar());
+                }
             }
             if name == "52-term-find" {
                 self.shared.settings.guide.docked = false;

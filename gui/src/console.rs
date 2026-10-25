@@ -57,6 +57,9 @@ pub struct Console {
     /// Development aid: open the find bar with this text once the session shows it.
     #[cfg(debug_assertions)]
     debug_find: Option<String>,
+    /// Development aid: put the first session in a window once it shows output.
+    #[cfg(debug_assertions)]
+    debug_popout: bool,
     /// Development aid: the pictures of the guide, from this one on, three at a time.
     #[cfg(debug_assertions)]
     gallery: Option<usize>,
@@ -92,6 +95,8 @@ impl Default for Console {
             focus_host: false,
             #[cfg(debug_assertions)]
             debug_find: None,
+            #[cfg(debug_assertions)]
+            debug_popout: false,
             broadcast_text: String::new(),
             broadcast_armed: None,
             paste_wait: 0,
@@ -247,6 +252,14 @@ impl Console {
         }
         // The Android shell and log are read also while another page is shown.
         self.adb.pump(sh);
+        #[cfg(debug_assertions)]
+        if self.debug_popout
+            && let Some(o) = self.open.get_mut(0)
+            && o.term.text().contains("Gi1/0/2")
+        {
+            self.debug_popout = false;
+            o.popped = true;
+        }
         #[cfg(debug_assertions)]
         if let Some(text) = self.debug_find.clone()
             && let Some(o) = self.open.get_mut(0)
@@ -409,6 +422,9 @@ impl Console {
         if view == "push" {
             self.view = View::Push;
             self.push.demo(&sh.settings.sessions);
+        } else if view == "popout" {
+            self.view = View::Remote;
+            self.debug_popout = true;
         } else if let Some(text) = view.strip_prefix("find-") {
             self.view = View::Remote;
             self.debug_find = Some(text.to_string());

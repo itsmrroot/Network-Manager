@@ -92,3 +92,49 @@ pub fn describe() -> String {
         format!("{count} items: {}", titles.join(" | "))
     }
 }
+
+/// Development aid: the menu bar as macOS has it: each menu with its items,
+/// and `*` after an item that has a picture.
+#[cfg(debug_assertions)]
+pub fn describe_menu_bar() -> String {
+    // SAFETY: reads titles and pictures of the main menu on the main thread.
+    unsafe fn title_of(item: *mut AnyObject) -> String {
+        unsafe {
+            let separator: bool = msg_send![item, isSeparatorItem];
+            if separator {
+                return "-".into();
+            }
+            let title: *mut AnyObject = msg_send![item, title];
+            let text: *const std::ffi::c_char = msg_send![title, UTF8String];
+            let image: *mut AnyObject = msg_send![item, image];
+            let name = std::ffi::CStr::from_ptr(text).to_string_lossy().into_owned();
+            if image.is_null() { name } else { format!("{name}*") }
+        }
+    }
+    let Some((app, _)) = app_delegate() else { return "no app".into() };
+    unsafe {
+        let main: *mut AnyObject = msg_send![app, mainMenu];
+        if main.is_null() {
+            return "no main menu".into();
+        }
+        let count: isize = msg_send![main, numberOfItems];
+        let mut out = Vec::new();
+        for i in 0..count {
+            let top: *mut AnyObject = msg_send![main, itemAtIndex: i];
+            let sub: *mut AnyObject = msg_send![top, submenu];
+            let mut line = title_of(top);
+            if !sub.is_null() {
+                let n: isize = msg_send![sub, numberOfItems];
+                let items: Vec<String> = (0..n)
+                    .map(|k| {
+                        let it: *mut AnyObject = msg_send![sub, itemAtIndex: k];
+                        title_of(it)
+                    })
+                    .collect();
+                line = format!("{line}: {}", items.join(" | "));
+            }
+            out.push(line);
+        }
+        out.join("\n")
+    }
+}
