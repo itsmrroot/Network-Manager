@@ -5,6 +5,16 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.9
+
+### New
+- **The update window shows what is new.** It lists the notes of the new
+  version (the first update that shows them is the one after this one), with a
+  link to the full release page.
+- **Docker, Podman and virtual machine icons** for saved sessions.
+- **The Dock menu has a symbol before each item,** and before each saved
+  session, matching the icon you chose for it.
+
 ## 0.9.8
 
 ### New
