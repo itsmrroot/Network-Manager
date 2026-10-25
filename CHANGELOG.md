@@ -5,6 +5,12 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.10
+
+### New
+- **Saved sessions from a menu open in a terminal window of their own.** Pick
+  one in the Dock menu or the Console menu; "Bring back" puts it in the app.
+
 ## 0.9.9
 
 ### New
