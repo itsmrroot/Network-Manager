@@ -42,7 +42,8 @@ pub struct Console {
     zoomed: bool,
     /// The command for all the open sessions, and whether its button was clicked once.
     broadcast_text: String,
-    broadcast_armed: bool,
+    /// The click that asked: for this text and this many live sessions.
+    broadcast_armed: Option<(String, usize)>,
     /// Frames to keep the serial terminal's keyboard after Paste was clicked.
     paste_wait: u8,
     /// Development aid: open the find bar with this text once the session shows it.
@@ -82,7 +83,7 @@ impl Default for Console {
             #[cfg(debug_assertions)]
             debug_find: None,
             broadcast_text: String::new(),
-            broadcast_armed: false,
+            broadcast_armed: None,
             paste_wait: 0,
             #[cfg(debug_assertions)]
             gallery: None,
@@ -147,6 +148,9 @@ impl Console {
                     o.term.feed(&bytes);
                 }
                 o.remote = None;
+                if let Some(l) = &mut o.log {
+                    l.finish();
+                }
                 o.term.feed(format!("\r\n\x1b[2m[{}]\x1b[0m\r\n", trl("Session ended")).as_bytes());
             }
         }
@@ -594,38 +598,49 @@ impl Console {
         if live >= 2 {
             let mut send = false;
             ui.horizontal(|ui| {
-                let r = crate::theme::field(
+                crate::theme::field(
                     ui,
                     egui::TextEdit::singleline(&mut self.broadcast_text)
                         .hint_text(tr("Command for all open sessions"))
                         .desired_width(300.0),
                 );
-                if r.changed() {
-                    self.broadcast_armed = false;
+                // Armed only for the text and the sessions that were asked about.
+                let armed = self.broadcast_armed.as_ref() == Some(&(self.broadcast_text.clone(), live));
+                if !armed {
+                    self.broadcast_armed = None;
                 }
-                let label = if self.broadcast_armed {
+                let label = if armed {
                     trf("Click again to send to {n} sessions", &[("n", &live)])
                 } else {
                     tr("Send to all sessions").to_string()
                 };
                 if ui.add_enabled(!self.broadcast_text.trim().is_empty(), egui::Button::new(label)).clicked() {
-                    if self.broadcast_armed {
+                    if armed {
                         send = true;
                     } else {
-                        self.broadcast_armed = true;
+                        self.broadcast_armed = Some((self.broadcast_text.clone(), live));
                     }
                 }
             });
             if send {
-                let line = format!("{}\r", self.broadcast_text.trim_end());
-                for o in &self.open {
+                // Text only: an escape or ^D pasted into the field is not sent.
+                let text: String = self.broadcast_text.chars().filter(|c| !c.is_control() || *c == '\t').collect();
+                let line = format!("{}\r", text.trim_end());
+                let mut sent = 0;
+                for o in &mut self.open {
                     if let Some(r) = &o.remote {
-                        let _ = r.send(line.as_bytes());
+                        if r.send(line.as_bytes()).is_ok() {
+                            sent += 1;
+                        } else {
+                            o.remote = None;
+                        }
                     }
                 }
-                self.broadcast_armed = false;
-                sh.toast(trlf("Sent to {n} sessions.", &[("n", &live)]));
+                self.broadcast_armed = None;
+                sh.toast(trlf("Sent to {n} sessions.", &[("n", &sent)]));
             }
+        } else {
+            self.broadcast_armed = None;
         }
         let o = &mut self.open[self.active];
         let mut reconnect = false;
@@ -668,7 +683,14 @@ impl Console {
                     .on_hover_text(tr("Write everything of this session to a text file"))
                     .clicked()
                 {
-                    let name = format!("{}-{}.log", o.saved.name, chrono::Local::now().format("%Y-%m-%d-%H%M%S"));
+                    // No slash or colon in the name offered for the file.
+                    let safe: String = o
+                        .saved
+                        .name
+                        .chars()
+                        .map(|c| if "/\\:*?\"<>|".contains(c) || c.is_control() { '_' } else { c })
+                        .collect();
+                    let name = format!("{safe}-{}.log", chrono::Local::now().format("%Y-%m-%d-%H%M%S"));
                     if let Some(path) = rfd::FileDialog::new().set_file_name(name).save_file() {
                         match std::fs::File::create(&path) {
                             Ok(f) => {

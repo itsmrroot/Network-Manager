@@ -238,6 +238,8 @@ pub struct SessionLog {
     /// What a split escape sequence or character left for the next piece.
     pending: Vec<u8>,
     state: Esc,
+    /// A carriage return came: the next character starts the line over.
+    cr: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -245,6 +247,8 @@ enum Esc {
     Text,
     /// After ESC.
     Start,
+    /// ESC ( B and the like: one more character belongs to it.
+    Skip,
     /// ESC [ … until a letter.
     Csi,
     /// ESC ] … until BEL or ESC \.
@@ -255,7 +259,7 @@ enum Esc {
 
 impl SessionLog {
     pub fn new(out: Box<dyn Write + Send>, stamps: bool) -> Self {
-        Self { out, stamps, line: String::new(), pending: Vec::new(), state: Esc::Text }
+        Self { out, stamps, line: String::new(), pending: Vec::new(), state: Esc::Text, cr: false }
     }
 
     /// Takes what the device sent.
@@ -292,21 +296,33 @@ impl SessionLog {
         match self.state {
             Esc::Text => match c {
                 '\x1b' => self.state = Esc::Start,
-                '\n' => self.end_line(),
-                '\r' => {}
+                '\n' => {
+                    self.cr = false;
+                    self.end_line();
+                }
+                // A line that starts over (a progress line, a prompt redrawn)
+                // replaces what was on it.
+                '\r' => self.cr = true,
                 '\x08' => {
                     self.line.pop();
                 }
                 c if c.is_control() && c != '\t' => {}
-                c => self.line.push(c),
+                c => {
+                    if std::mem::take(&mut self.cr) {
+                        self.line.clear();
+                    }
+                    self.line.push(c);
+                }
             },
             Esc::Start => {
                 self.state = match c {
                     '[' => Esc::Csi,
                     ']' => Esc::Osc,
+                    '(' | ')' | '*' | '+' | '#' | '%' => Esc::Skip,
                     _ => Esc::Text,
                 }
             }
+            Esc::Skip => self.state = Esc::Text,
             Esc::Csi => {
                 // Parameters and intermediates end with a byte from @ to ~.
                 if ('@'..='~').contains(&c) {
@@ -460,5 +476,16 @@ mod tests {
         log.write(b"abc\x08d\r\n");
         drop(log);
         assert_eq!(String::from_utf8(sink.0.lock().unwrap().clone()).unwrap(), "abd\n");
+    }
+
+    #[test]
+    fn a_log_skips_character_set_escapes_and_follows_progress_lines() {
+        let sink = Sink::default();
+        let mut log = SessionLog::new(Box::new(sink.clone()), false);
+        log.write(b"\x1b(Bhello\x1b)0 x\r\n");
+        // A line that starts over with a carriage return keeps the last text; CRLF is a normal end.
+        log.write(b"Progress 10%\rProgress 20%\rProgress 100%\r\ndone\r\n");
+        drop(log);
+        assert_eq!(String::from_utf8(sink.0.lock().unwrap().clone()).unwrap(), "hello x\nProgress 100%\ndone\n");
     }
 }

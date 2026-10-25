@@ -22,7 +22,12 @@ pub struct Term {
     highlight: bool,
     /// The find bar, when it is open.
     find: Option<Find>,
+    /// The key that closed the find bar is not for the device.
+    skip_keys: bool,
 }
+
+/// A line of the screen as lower-case characters, each with the column it starts in.
+type Line = (Vec<char>, Vec<usize>);
 
 /// The find bar: what is searched, and where it was found.
 struct Find {
@@ -36,6 +41,8 @@ struct Find {
     /// New output came in since the matches were looked for.
     dirty: bool,
     want_focus: bool,
+    /// When the matches were last looked for.
+    searched: std::time::Instant,
 }
 
 /// What happened to the terminal this frame.
@@ -78,6 +85,7 @@ impl Term {
             paste_wait: 0,
             highlight: true,
             find: None,
+            skip_keys: false,
         }
     }
 
@@ -122,28 +130,54 @@ impl Term {
             Some(f) => f.want_focus = true,
             None => {
                 let text = if selected.is_empty() || selected.contains('\n') { String::new() } else { selected };
-                self.find =
-                    Some(Find { text, matches: Vec::new(), current: 0, history: 0, dirty: true, want_focus: true });
+                self.find = Some(Find {
+                    text,
+                    matches: Vec::new(),
+                    current: 0,
+                    history: 0,
+                    dirty: true,
+                    want_focus: true,
+                    searched: std::time::Instant::now() - std::time::Duration::from_secs(1),
+                });
             }
         }
         // Typing goes to the find bar, not to the device.
         self.focused = false;
     }
 
-    /// Every line kept (the oldest first) and how many are above the screen.
-    fn all_lines(&mut self) -> (usize, Vec<String>) {
+    /// Every line kept (the oldest first) as lower-case characters, each with
+    /// the screen column it starts in (a wide character takes two), and how
+    /// many lines are above the screen.
+    fn all_lines(&mut self) -> (usize, Vec<Line>) {
         let (rows, cols) = self.parser.screen().size();
         let saved = self.parser.screen().scrollback();
         self.parser.screen_mut().set_scrollback(usize::MAX);
         let history = self.parser.screen().scrollback();
         let total = history + rows as usize;
-        let mut lines = vec![String::new(); total];
+        let mut lines = vec![(Vec::new(), Vec::new()); total];
         let mut offset = history;
         loop {
             self.parser.screen_mut().set_scrollback(offset);
-            for (i, row) in self.parser.screen().rows(0, cols).enumerate() {
-                if let Some(slot) = lines.get_mut(history - offset + i) {
-                    *slot = row;
+            let screen = self.parser.screen();
+            for r in 0..rows {
+                let (mut text, mut at) = (Vec::new(), Vec::new());
+                for c in 0..cols {
+                    match screen.cell(r, c) {
+                        Some(cell) if cell.is_wide_continuation() => {}
+                        Some(cell) if cell.has_contents() => {
+                            for ch in cell.contents().chars() {
+                                text.push(ch.to_lowercase().next().unwrap_or(ch));
+                                at.push(c as usize);
+                            }
+                        }
+                        _ => {
+                            text.push(' ');
+                            at.push(c as usize);
+                        }
+                    }
+                }
+                if let Some(slot) = lines.get_mut(history - offset + r as usize) {
+                    *slot = (text, at);
                 }
             }
             if offset == 0 {
@@ -157,24 +191,31 @@ impl Term {
 
     /// Looks for the text again, in every line kept. Returns how many were found.
     fn search(&mut self) -> usize {
-        let Some(needle) = self.find.as_ref().map(|f| f.text.to_lowercase().chars().collect::<Vec<char>>()) else {
+        let cols = self.parser.screen().size().1 as usize;
+        let Some(needle) = self
+            .find
+            .as_ref()
+            .map(|f| f.text.chars().map(|c| c.to_lowercase().next().unwrap_or(c)).collect::<Vec<char>>())
+        else {
             return 0;
         };
         let (history, lines) = self.all_lines();
         let mut matches = Vec::new();
         if !needle.is_empty() {
-            'lines: for (n, line) in lines.iter().enumerate() {
-                let chars: Vec<char> = line.to_lowercase().chars().collect();
-                let mut at = 0;
-                while at + needle.len() <= chars.len() {
-                    if chars[at..at + needle.len()] == needle[..] {
-                        matches.push((n, at, needle.len()));
+            'lines: for (n, (chars, at)) in lines.iter().enumerate() {
+                let mut i = 0;
+                while i + needle.len() <= chars.len() {
+                    if chars[i..i + needle.len()] == needle[..] {
+                        // Where it starts and how many cells it covers.
+                        let start = at[i];
+                        let end = at.get(i + needle.len()).copied().unwrap_or(cols);
+                        matches.push((n, start, end.saturating_sub(start).max(1)));
                         if matches.len() >= 5000 {
                             break 'lines;
                         }
-                        at += needle.len();
+                        i += needle.len();
                     } else {
-                        at += 1;
+                        i += 1;
                     }
                 }
             }
@@ -185,6 +226,7 @@ impl Term {
             f.matches = matches;
             f.current = f.current.min(found.saturating_sub(1));
             f.dirty = false;
+            f.searched = std::time::Instant::now();
         }
         found
     }
@@ -287,6 +329,9 @@ impl Term {
         if self.parser.screen().size() != (rows, cols) {
             self.parser.screen_mut().set_size(rows, cols);
             out.resized = Some((rows, cols));
+            if let Some(f) = &mut self.find {
+                f.dirty = true;
+            }
         }
         let (rect, resp) = ui.allocate_exact_size(avail, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
@@ -298,8 +343,16 @@ impl Term {
             egui::StrokeKind::Inside,
         );
         let origin = rect.min + Vec2::new(10.0, 10.0);
-        if self.find.as_ref().is_some_and(|f| f.dirty) {
-            self.search();
+        // New output makes the matches old: looked for again, not more often
+        // than a few times a second (a device that prints a lot).
+        if let Some(f) = &self.find
+            && f.dirty
+        {
+            if f.searched.elapsed() >= std::time::Duration::from_millis(150) {
+                self.search();
+            } else {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(150));
+            }
         }
         let screen = self.parser.screen();
         // The line number (0 = the oldest kept) of the screen's first row.
@@ -508,7 +561,7 @@ impl Term {
             if ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Paste(_)))) {
                 self.paste_wait = 0;
             }
-            out.input = self.keys(ui, copy_selection);
+            out.input = if std::mem::take(&mut self.skip_keys) { Vec::new() } else { self.keys(ui, copy_selection) };
             if !out.input.is_empty() {
                 self.parser.screen_mut().set_scrollback(0);
                 self.selection = None;
@@ -572,6 +625,7 @@ impl Term {
             });
         if close {
             self.focused = true;
+            self.skip_keys = true;
             return;
         }
         self.find = Some(f);
@@ -1043,7 +1097,33 @@ mod tests {
 
         // New output does not lose the matches.
         term.feed(b"row 300 Gi1/0/9 is down\r\n");
+        // Looked for again within a fraction of a second, not at every frame.
+        std::thread::sleep(std::time::Duration::from_millis(200));
         frame_of(&ctx, &mut term, vec![], 0.4);
         assert_eq!(term.find.as_ref().unwrap().matches.len(), 4);
+    }
+
+    /// Wide characters take two cells: a match is where it is drawn. The Esc
+    /// that closes the find bar is not sent to the device.
+    #[test]
+    fn find_knows_wide_characters_and_keeps_escape_to_itself() {
+        let ctx = egui::Context::default();
+        let mut term = Term::new(4);
+        frame_of(&ctx, &mut term, vec![], 0.0);
+        term.feed("日本語 abc\r\n".as_bytes());
+        frame_of(&ctx, &mut term, vec![], 0.1);
+        term.debug_find("abc");
+        let f = term.find.as_ref().unwrap();
+        assert_eq!(f.matches, [(f.history, 7, 3)], "three wide characters and a space come first: 7 cells");
+
+        // Esc closes the bar and does not reach the device.
+        term.open_find();
+        frame_of(&ctx, &mut term, vec![], 0.2);
+        let (out, _) = frame_of(&ctx, &mut term, vec![key(Key::Escape)], 0.3);
+        assert!(term.find.is_none(), "the bar is closed");
+        assert!(out.input.is_empty(), "Esc went to the device: {:?}", out.input);
+        // The next Esc is the device's.
+        let (out, _) = frame_of(&ctx, &mut term, vec![key(Key::Escape)], 0.4);
+        assert_eq!(out.input, [0x1b]);
     }
 }
