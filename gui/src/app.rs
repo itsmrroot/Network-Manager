@@ -182,6 +182,9 @@ pub struct App {
     monitor: monitor::Monitor,
     servers: servers::Servers,
     console: console::Console,
+    /// The app was minimised or hidden when a Dock menu item woke it: frames since then.
+    /// Once the session window draws, the main window goes away again.
+    away: Option<u32>,
     #[cfg(debug_assertions)]
     tour: Option<tour::Tour>,
 }
@@ -275,6 +278,7 @@ impl App {
             monitor: Default::default(),
             servers: Default::default(),
             console: Default::default(),
+            away: None,
             #[cfg(debug_assertions)]
             tour,
             #[cfg(debug_assertions)]
@@ -382,10 +386,11 @@ impl App {
                 // From a menu a session opens in a window of its own; "Bring back" puts it in the app.
                 self.console.open_saved(i, &mut self.shared);
                 self.console.pop_out();
-                // A minimised or hidden app draws nothing, so the window would wait for a click on the Dock icon.
-                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                // The Dock menu woke the app up; if the main window was away, only the session window stays.
+                #[cfg(target_os = "macos")]
+                if crate::dock::take_away() {
+                    self.away = Some(0);
+                }
                 ctx.request_repaint();
             }
             C::ConsoleTab(tab) => {
@@ -926,6 +931,18 @@ impl eframe::App for App {
         };
         // Sessions and the serial console that were opened in their own windows.
         self.console.windows(&ctx, &p, &mut self.shared);
+        if let Some(frames) = self.away {
+            // A minimised window draws nothing, but the window of a session keeps the frames coming.
+            if frames >= 5 && self.console.has_window() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                self.away = None;
+            } else if frames >= 120 {
+                self.away = None;
+            } else {
+                self.away = Some(frames + 1);
+                ctx.request_repaint();
+            }
+        }
         match guide_action {
             Some(crate::guide_view::Action::OpenTab) => self.shared.nav = Some(Nav::Tab(Page::Console, "guide")),
             Some(crate::guide_view::Action::OpenConsole) => self.shared.nav = Some(Nav::Tab(Page::Console, "serial")),

@@ -141,6 +141,11 @@ impl Console {
         }
     }
 
+    /// Whether a terminal is in a window of its own.
+    pub fn has_window(&self) -> bool {
+        self.serial_popped || self.open.iter().any(|o| o.popped)
+    }
+
     /// The terminal that is shown, in a window of its own.
     pub fn pop_out(&mut self) {
         match self.view {

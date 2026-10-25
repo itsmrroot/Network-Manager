@@ -198,6 +198,8 @@ pub fn wake() {
         if app.is_null() {
             return;
         }
+        let hidden: Bool = msg_send![app, isHidden];
+        let mut away = hidden.as_bool();
         let _: () = msg_send![app, unhide: std::ptr::null::<AnyObject>()];
         let _: () = msg_send![app, activateIgnoringOtherApps: Bool::YES];
         let windows: *mut AnyObject = msg_send![app, windows];
@@ -206,8 +208,20 @@ pub fn wake() {
             let window: *mut AnyObject = msg_send![windows, objectAtIndex: i];
             let minimised: Bool = msg_send![window, isMiniaturized];
             if minimised.as_bool() {
+                away = true;
                 let _: () = msg_send![window, deminiaturize: std::ptr::null::<AnyObject>()];
             }
         }
+        if away {
+            AWAY.store(true, Ordering::SeqCst);
+        }
     }
+}
+
+/// Whether the last `wake` found the app hidden or minimised.
+static AWAY: AtomicBool = AtomicBool::new(false);
+
+/// True once after a `wake` that found the app hidden or minimised.
+pub fn take_away() -> bool {
+    AWAY.swap(false, Ordering::SeqCst)
 }
