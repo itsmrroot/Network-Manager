@@ -1157,7 +1157,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 55] = [
+        let pages: [(Page, &str, u32); 56] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1212,6 +1212,7 @@ impl App {
             (Page::Console, "53-dock-menu", 40),
             (Page::Console, "54-menus-hold", 2400),
             (Page::Console, "55-popout", 700),
+            (Page::Overview, "56-update", 40),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_FROM=36-guide: begin at that step.
@@ -1437,6 +1438,9 @@ impl App {
                     self.dock_drag_split = true;
                     self.dock_drag = Some(0);
                 }
+            }
+            if name == "56-update" {
+                self.updater.demo_dialog();
             }
             if name == "55-popout" {
                 self.shared.settings.guide.docked = false;

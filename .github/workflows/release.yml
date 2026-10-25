@@ -50,6 +50,14 @@ jobs:
         run: |
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
           [[ "v$version" == "$TAG" ]] || { echo "Cargo.toml says $version, the tag is $TAG"; exit 1; }
+      # The notes of this version, from CHANGELOG.md (the release stops here
+      # when there are none): they are the text of the release page, and the
+      # app shows them in its update window.
+      - name: Release notes
+        shell: bash
+        run: |
+          py=$(command -v python3 || command -v python)
+          "$py" scripts/release-notes.py "$TAG" > release-notes.md
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -84,14 +92,15 @@ jobs:
           tag_name: ${{ env.TAG }}
           target_commitish: main
           files: ${{ env.ASSET }}
-      # And to this (private) repository, with notes from its history.
+          body_path: release-notes.md
+      # And to this repository, with the same notes.
       - if: ${{ !env.ACT }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
           files: ${{ env.ASSET }}
-          generate_release_notes: true
+          body_path: release-notes.md
 
       # Installers (configured in gui/Cargo.toml). They run after the archive is
       # published, so a failing installer never holds back the plain download.

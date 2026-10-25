@@ -51,6 +51,9 @@ struct GhRelease {
     prerelease: bool,
     #[serde(default)]
     assets: Vec<GhAsset>,
+    /// The notes of the release (what is new), in Markdown.
+    #[serde(default)]
+    body: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -68,6 +71,8 @@ pub struct Release {
     /// Without the leading `v`.
     pub version: String,
     pub page: String,
+    /// What is new in it (the release's notes).
+    pub notes: String,
     /// The installer for this system, if it can be installed from the app
     /// (and has already been published).
     asset: Option<Asset>,
@@ -200,7 +205,8 @@ pub fn check() -> Result<Option<Release>> {
             sha256: a.digest.and_then(|d| d.strip_prefix("sha256:").map(str::to_ascii_lowercase)),
         })
     });
-    Ok(Some(Release { version, page: gh.html_url, asset }))
+    let notes = gh.body.unwrap_or_default().chars().take(4000).collect();
+    Ok(Some(Release { version, page: gh.html_url, notes, asset }))
 }
 
 /// Downloads the installer of `release` into a new temporary folder and
@@ -503,6 +509,21 @@ impl Updater {
         });
     }
 
+    /// Development aid: the dialog, with the notes of the changelog's newest version.
+    #[cfg(debug_assertions)]
+    pub fn demo_dialog(&mut self) {
+        let log = include_str!("../../CHANGELOG.md");
+        let start = log.find("## 0.9.8").unwrap_or(0);
+        let notes: String = log[start..].chars().take(2600).collect();
+        self.release = Some(Release {
+            version: "0.9.9".into(),
+            page: "https://github.com/itsmrroot/Network-Manager-releases/releases/latest".into(),
+            notes,
+            asset: None,
+        });
+        self.dialog = true;
+    }
+
     /// The update dialog, while open. `busy`: a scan or save is running.
     pub fn dialog(&mut self, ctx: &egui::Context, p: &Palette, busy: bool) {
         if !self.dialog {
@@ -525,7 +546,15 @@ impl Updater {
                 14.5,
                 p.text,
             );
-            ui.hyperlink_to(icon_label(icon::LIST_BULLETS, "What's new"), &release.page);
+            ui.add_space(4.0);
+            ui.label(theme::semibold(tr("What's new"), 15.0).color(p.accent));
+            if !release.notes.trim().is_empty() {
+                egui::ScrollArea::vertical().id_salt("update-notes").max_height(230.0).auto_shrink([false, true]).show(
+                    ui,
+                    |ui| notes_ui(ui, p, &release.notes),
+                );
+            }
+            ui.hyperlink_to(icon_label(icon::LIST_BULLETS, "Open the release page"), &release.page);
             ui.add_space(8.0);
 
             if let Some(job) = &self.download {
@@ -596,6 +625,79 @@ impl Updater {
     }
 }
 
+/// A line of release notes.
+#[derive(Debug, PartialEq)]
+enum Note {
+    Heading(String),
+    Bullet(String),
+    Text(String),
+    Gap,
+}
+
+/// Release notes (Markdown as GitHub shows it) as lines to draw: headings,
+/// bullets and text, without the marks (`**`, backticks, links).
+fn parse_notes(text: &str) -> Vec<Note> {
+    let clean = |s: &str| {
+        let mut out = s.replace("**", "").replace('`', "");
+        // [text](address) → text
+        while let (Some(a), Some(b)) = (out.find("]("), out.find('[')) {
+            let Some(end) = out[a..].find(')') else { break };
+            if b >= a {
+                break;
+            }
+            let label = out[b + 1..a].to_string();
+            out.replace_range(b..a + end + 1, &label);
+        }
+        out.trim().to_string()
+    };
+    let mut notes = Vec::new();
+    for raw in text.lines() {
+        let line = raw.trim();
+        if line.is_empty() {
+            if !matches!(notes.last(), Some(Note::Gap) | None) {
+                notes.push(Note::Gap);
+            }
+        } else if let Some(h) = line.trim_start_matches('#').strip_prefix(' ').filter(|_| line.starts_with('#')) {
+            // The version heading repeats what the dialog says.
+            let h = clean(h);
+            if !h.chars().next().is_some_and(|c| c.is_ascii_digit() || c == 'v') {
+                notes.push(Note::Heading(h));
+            }
+        } else if let Some(b) = line.strip_prefix("- ").or_else(|| line.strip_prefix("* ")) {
+            notes.push(Note::Bullet(clean(b)));
+        } else if let Some(Note::Bullet(last)) = notes.last_mut() {
+            // A bullet written over several lines is one bullet.
+            last.push(' ');
+            last.push_str(&clean(line));
+        } else {
+            notes.push(Note::Text(clean(line)));
+        }
+    }
+    notes
+}
+
+fn notes_ui(ui: &mut Ui, p: &Palette, text: &str) {
+    for note in parse_notes(text) {
+        match note {
+            Note::Gap => ui.add_space(4.0),
+            Note::Heading(h) => {
+                ui.add_space(2.0);
+                ui.label(theme::semibold(h, 14.5).color(p.text));
+            }
+            Note::Bullet(b) => {
+                ui.horizontal_top(|ui| {
+                    ui.add_space(4.0);
+                    ui.label(RichText::new("•").color(p.accent));
+                    ui.add(egui::Label::new(RichText::new(b).color(p.text).size(13.5)).wrap());
+                });
+            }
+            Note::Text(t) => {
+                ui.add(egui::Label::new(RichText::new(t).color(p.weak).size(13.5)).wrap());
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -624,5 +726,39 @@ mod tests {
             assert!(workflow.contains(&format!("label: {label} ")), "{name}");
         }
         assert_eq!(asset_name(&Kind::Portable), None);
+    }
+}
+
+#[cfg(test)]
+mod notes_tests {
+    use super::*;
+
+    #[test]
+    fn release_notes_become_lines() {
+        let text = "## 0.9.8\n\n### New\n- **Find** in the terminal (see [the guide](https://example.com/guide))\n  and everything that scrolled by\n- Colours: `up` and `down`\n\nA closing remark.";
+        assert_eq!(
+            parse_notes(text),
+            [
+                Note::Heading("New".into()),
+                Note::Bullet("Find in the terminal (see the guide) and everything that scrolled by".into()),
+                Note::Bullet("Colours: up and down".into()),
+                Note::Gap,
+                Note::Text("A closing remark.".into()),
+            ]
+        );
+        assert!(parse_notes("").is_empty());
+    }
+
+    /// A version is never released without notes: its section must be in
+    /// CHANGELOG.md, and the release script finds it.
+    #[test]
+    fn the_changelog_has_the_current_version() {
+        let log = include_str!("../../CHANGELOG.md");
+        let version = env!("CARGO_PKG_VERSION");
+        let heading = format!("## {version}");
+        let at = log.lines().position(|l| l.trim() == heading);
+        let at = at.unwrap_or_else(|| panic!("CHANGELOG.md has no section \"{heading}\""));
+        let section: Vec<&str> = log.lines().skip(at + 1).take_while(|l| !l.starts_with("## ")).collect();
+        assert!(section.iter().any(|l| l.starts_with("- ")), "the section of {version} has no bullet points");
     }
 }
