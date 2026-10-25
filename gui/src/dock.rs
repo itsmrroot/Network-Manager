@@ -116,11 +116,22 @@ pub fn describe() -> String {
             let title: *mut AnyObject = msg_send![item, title];
             let text: *const std::ffi::c_char = msg_send![title, UTF8String];
             let separator: bool = msg_send![item, isSeparatorItem];
-            titles.push(if separator {
-                "-".to_string()
-            } else {
-                std::ffi::CStr::from_ptr(text).to_string_lossy().into_owned()
-            });
+            let mut line =
+                if separator { "-".to_string() } else { std::ffi::CStr::from_ptr(text).to_string_lossy().into_owned() };
+            let sub: *mut AnyObject = msg_send![item, submenu];
+            if !sub.is_null() {
+                let n: isize = msg_send![sub, numberOfItems];
+                let inner: Vec<String> = (0..n)
+                    .map(|k| {
+                        let it: *mut AnyObject = msg_send![sub, itemAtIndex: k];
+                        let t: *mut AnyObject = msg_send![it, title];
+                        let c: *const std::ffi::c_char = msg_send![t, UTF8String];
+                        std::ffi::CStr::from_ptr(c).to_string_lossy().into_owned()
+                    })
+                    .collect();
+                line = format!("{line} [{}]", inner.join(" | "));
+            }
+            titles.push(line);
         }
         format!("{count} items: {}", titles.join(" | "))
     }

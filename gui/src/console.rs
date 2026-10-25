@@ -472,6 +472,9 @@ impl Console {
             s("edge-router", "Datacenter", Protocol::Ssh, "10.0.0.1", "netops", "router"),
             s("old-ups", "Datacenter", Protocol::Telnet, "10.0.0.50", "", "power"),
             s("lab-firewall", "", Protocol::Ssh, "192.168.50.1", "root", "firewall"),
+            s("docker1(debian)", "Lab", Protocol::Ssh, "192.168.50.10", "root", "docker"),
+            s("proxmox", "Lab", Protocol::Ssh, "192.168.50.11", "root", "vm"),
+            s("pods", "Lab", Protocol::Ssh, "192.168.50.12", "root", "podman"),
         ];
         if let Some(t) = target {
             let mut saved = Saved::parse(Protocol::Telnet, t);
@@ -1454,7 +1457,7 @@ pub fn highlight_toggle(ui: &mut Ui, sh: &mut Shared) {
 }
 
 /// The pictures a saved session can have: a name kept in the file, and the icon.
-pub const SESSION_ICONS: [(&str, &str); 14] = [
+pub const SESSION_ICONS: [(&str, &str); 17] = [
     ("terminal", icon::TERMINAL_WINDOW),
     ("router", icon::BROADCAST),
     ("switch", icon::SHARE_NETWORK),
@@ -1469,6 +1472,9 @@ pub const SESSION_ICONS: [(&str, &str); 14] = [
     ("printer", icon::PRINTER),
     ("phone", icon::DEVICE_MOBILE),
     ("power", icon::LIGHTNING),
+    ("docker", icon::SHIPPING_CONTAINER),
+    ("podman", icon::PACKAGE),
+    ("vm", icon::MONITOR_PLAY),
 ];
 
 /// The icon of a saved session (the terminal when it has none or the name is not known).
@@ -1491,6 +1497,9 @@ fn session_icon_name(key: &str) -> &'static str {
         "printer" => tr("Printer"),
         "phone" => tr("Phone"),
         "power" => tr("Power"),
+        "docker" => tr("Docker"),
+        "podman" => tr("Podman"),
+        "vm" => tr("Virtual machine"),
         _ => tr("Terminal"),
     }
 }
@@ -1510,4 +1519,29 @@ fn cascade(ctx: &egui::Context, n: usize) -> egui::Pos2 {
     let origin =
         ctx.input_for(egui::ViewportId::ROOT, |i| i.viewport().outer_rect).map_or(egui::pos2(80.0, 80.0), |r| r.min);
     origin + egui::vec2(60.0 + 28.0 * n as f32, 60.0 + 28.0 * n as f32)
+}
+
+/// The symbol of a session icon for menus that cannot show pictures (the
+/// Dock's menu shows text only).
+#[cfg(target_os = "macos")]
+pub fn session_emoji(name: &str) -> &'static str {
+    match name {
+        "router" => "📡",
+        "switch" => "🔀",
+        "server" => "🗄️",
+        "firewall" => "🔥",
+        "access-point" => "📶",
+        "computer" => "🖥️",
+        "laptop" => "💻",
+        "database" => "🛢️",
+        "cloud" => "☁️",
+        "camera" => "📹",
+        "printer" => "🖨️",
+        "phone" => "📱",
+        "power" => "⚡",
+        "docker" => "🐳",
+        "podman" => "🦭",
+        "vm" => "🧊",
+        _ => "⌨️",
+    }
 }

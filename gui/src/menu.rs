@@ -263,6 +263,27 @@ mod imp {
             Ok(menu)
         }
 
+        /// An item for the Dock's menu, which shows text only: a symbol first.
+        fn dock_item(&mut self, symbol: &str, text: &str, c: Command) -> MenuItem {
+            let item = MenuItem::new(format!("{symbol}  {text}"), true, None);
+            self.ids.insert(item.id().clone(), c);
+            item
+        }
+
+        /// The saved sessions for the Dock's menu: the symbol of each one's icon.
+        fn dock_sessions(&mut self) -> muda::Result<Submenu> {
+            let menu = Submenu::new(format!("🔖  {}", tr("Saved sessions")), true);
+            if self.sessions.is_empty() {
+                menu.append(&MenuItem::new(tr("No saved sessions yet"), false, None))?;
+            }
+            let sessions = self.sessions.clone();
+            for (i, (name, key)) in sessions.iter().enumerate() {
+                let item = self.dock_item(crate::console::session_emoji(key), name, Command::OpenSession(i));
+                menu.append(&item)?;
+            }
+            Ok(menu)
+        }
+
         fn build(&mut self) -> muda::Result<()> {
             self.ids.clear();
             let cmd = Modifiers::SUPER;
@@ -444,18 +465,17 @@ mod imp {
             help.set_as_help_menu_for_nsapp();
             self.menu = Some(menu);
 
-            // The Dock's menu: the quick actions, and the connections.
-            let d_new = self.item(icon::PLUS, &format!("{}…", tr("New connection")), Command::NewConnection, None);
-            let d_saved = self.saved_sessions()?;
-            let d_serial = self.item(icon::USB, tr("Serial console"), Command::ConsoleTab("serial"), None);
-            let d_check = self.item(icon::CHECK_CIRCLE, tr("Check connection"), Command::CheckConnection, None);
-            let d_renew = self.item(icon::ARROWS_CLOCKWISE, tr("Renew IP"), Command::RenewIp, None);
-            let d_ip =
-                self.item(icon::PLUGS_CONNECTED, &format!("{}…", tr("Change IP settings")), Command::IpSettings, None);
-            let d_scan = self.item(icon::DEVICES, tr("Scan for devices"), Command::Scan, None);
+            // The Dock's menu: the quick actions, and the connections. It shows
+            // no pictures, so each item has a symbol in its title.
+            let d_new = self.dock_item("➕", &format!("{}…", tr("New connection")), Command::NewConnection);
+            let d_saved = self.dock_sessions()?;
+            let d_serial = self.dock_item("📟", tr("Serial console"), Command::ConsoleTab("serial"));
+            let d_check = self.dock_item("✅", tr("Check connection"), Command::CheckConnection);
+            let d_renew = self.dock_item("🔄", tr("Renew IP"), Command::RenewIp);
+            let d_ip = self.dock_item("🔌", &format!("{}…", tr("Change IP settings")), Command::IpSettings);
+            let d_scan = self.dock_item("🔎", tr("Scan for devices"), Command::Scan);
             let dock = Menu::with_items(&[&d_check, &d_renew, &d_ip, &d_scan, &sep(), &d_new, &d_saved, &d_serial])?;
             // The Dock is told of the new menu before the old one goes away.
-            crate::dock::template_icons(dock.ns_menu());
             crate::dock::set(dock.ns_menu());
             self.dock = Some(dock);
             Ok(())

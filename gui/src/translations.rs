@@ -2423,6 +2423,9 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("This session is open in a window of its own.", "Diese Sitzung ist in einem eigenen Fenster geöffnet."),
     ("No network adapter is connected.", "Kein Netzwerkadapter ist verbunden."),
     ("Open the release page", "Seite dieser Version öffnen"),
+    ("Docker", "Docker"),
+    ("Podman", "Podman"),
+    ("Virtual machine", "Virtuelle Maschine"),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4817,6 +4820,9 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("This session is open in a window of its own.", "Esta sesión está abierta en su propia ventana."),
     ("No network adapter is connected.", "Ningún adaptador de red está conectado."),
     ("Open the release page", "Abrir la página de la versión"),
+    ("Docker", "Docker"),
+    ("Podman", "Podman"),
+    ("Virtual machine", "Máquina virtual"),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7238,6 +7244,9 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("This session is open in a window of its own.", "Cette session est ouverte dans sa propre fenêtre."),
     ("No network adapter is connected.", "Aucune carte réseau n'est connectée."),
     ("Open the release page", "Ouvrir la page de la version"),
+    ("Docker", "Docker"),
+    ("Podman", "Podman"),
+    ("Virtual machine", "Machine virtuelle"),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -9611,6 +9620,9 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("This session is open in a window of its own.", "Bu oturum kendi penceresinde açık."),
     ("No network adapter is connected.", "Bağlı bir ağ bağdaştırıcısı yok."),
     ("Open the release page", "Sürüm sayfasını aç"),
+    ("Docker", "Docker"),
+    ("Podman", "Podman"),
+    ("Virtual machine", "Sanal makine"),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -12005,6 +12017,9 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("This session is open in a window of its own.", "Эта сессия открыта в отдельном окне."),
     ("No network adapter is connected.", "Нет подключённого сетевого адаптера."),
     ("Open the release page", "Открыть страницу версии"),
+    ("Docker", "Docker"),
+    ("Podman", "Podman"),
+    ("Virtual machine", "Виртуальная машина"),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -14324,6 +14339,9 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("This session is open in a window of its own.", "هذه الجلسة مفتوحة في نافذة خاصة."),
     ("No network adapter is connected.", "لا يوجد محول شبكة متصل."),
     ("Open the release page", "فتح صفحة الإصدار"),
+    ("Docker", "Docker"),
+    ("Podman", "Podman"),
+    ("Virtual machine", "آلة افتراضية"),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -16604,4 +16622,7 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("This session is open in a window of its own.", "此会话已在单独的窗口中打开。"),
     ("No network adapter is connected.", "没有已连接的网络适配器。"),
     ("Open the release page", "打开版本页面"),
+    ("Docker", "Docker"),
+    ("Podman", "Podman"),
+    ("Virtual machine", "虚拟机"),
 ];
