@@ -5,6 +5,12 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.12
+
+### Fixed
+- Choosing a saved session in the Dock menu while the app is minimised or
+  hidden opens only the terminal window; the main window stays away.
+
 ## 0.9.11
 
 ### Fixed
