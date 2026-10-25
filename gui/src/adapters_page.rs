@@ -80,6 +80,12 @@ impl AdaptersPage {
         self.ip = Some(e);
     }
 
+    /// Opens the IP settings of an adapter (from the menu).
+    pub fn edit_ip(&mut self, a: &Adapter) {
+        self.selected = Some(a.id.clone());
+        self.ip = Some(IpEditor::new(a));
+    }
+
     pub fn select(&mut self, id: &str) {
         self.selected = Some(id.to_string());
     }

@@ -13,6 +13,8 @@ mod backups;
 mod capture_page;
 mod console;
 mod devices;
+#[cfg(target_os = "macos")]
+mod dock;
 mod guide;
 mod guide_art;
 mod guide_view;
@@ -25,6 +27,7 @@ mod lab_servers;
 mod lan_extra;
 mod logstore;
 mod menu;
+mod menu_icon;
 mod monitor;
 mod more_tools;
 mod notify;

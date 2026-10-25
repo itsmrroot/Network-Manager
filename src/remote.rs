@@ -51,6 +51,9 @@ pub struct Saved {
     /// The command that prints the configuration ("show running-config");
     /// empty: not backed up.
     pub backup_command: String,
+    /// The picture of the session in the lists: router, switch, server… (a
+    /// name the app knows; empty: the terminal).
+    pub icon: String,
 }
 
 impl Saved {

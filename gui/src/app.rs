@@ -362,6 +362,28 @@ impl App {
                 self.overview.start_report(ctx, &self.shared);
             }
             C::Open(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
+            C::IpSettings => {
+                self.page = Page::Adapters;
+                if let Some(adapter) = self.shared.default_adapter().cloned() {
+                    self.adapters_page.edit_ip(&adapter);
+                }
+            }
+            C::NewConnection => {
+                self.page = Page::Console;
+                self.console.new_connection();
+            }
+            C::OpenSession(i) => {
+                self.page = Page::Console;
+                self.console.open_saved(i, &mut self.shared);
+            }
+            C::ConsoleTab(tab) => {
+                self.page = Page::Console;
+                self.console.open_tab(tab);
+            }
+            C::PopOut => {
+                self.page = Page::Console;
+                self.console.pop_out();
+            }
         }
     }
 
@@ -832,7 +854,9 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         self.fit_to_screen(&ctx);
         self.apply_settings(&ctx);
-        for c in self.menu.commands(&ctx, i18n::current()) {
+        let sessions: Vec<menu::SessionEntry> =
+            self.shared.settings.sessions.iter().map(|s| (s.name.clone(), s.icon.clone())).collect();
+        for c in self.menu.commands(&ctx, i18n::current(), &sessions) {
             self.run(&ctx, c);
         }
         self.refresh(&ctx);
@@ -882,6 +906,8 @@ impl eframe::App for App {
             let b = if g.popped { crate::guide_view::window(&ctx, &p, g, cfg) } else { None };
             a.or(b)
         };
+        // Sessions and the serial console that were opened in their own windows.
+        self.console.windows(&ctx, &p, &mut self.shared);
         match guide_action {
             Some(crate::guide_view::Action::OpenTab) => self.shared.nav = Some(Nav::Tab(Page::Console, "guide")),
             Some(crate::guide_view::Action::OpenConsole) => self.shared.nav = Some(Nav::Tab(Page::Console, "serial")),
@@ -1119,7 +1145,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 52] = [
+        let pages: [(Page, &str, u32); 53] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1171,6 +1197,7 @@ impl App {
             (Page::Console, "50-zoom-serial", 30),
             (Page::Console, "51-zoom-remote", 30),
             (Page::Console, "52-term-find", 90),
+            (Page::Console, "53-dock-menu", 40),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_FROM=36-guide: begin at that step.
@@ -1396,6 +1423,12 @@ impl App {
                     self.dock_drag_split = true;
                     self.dock_drag = Some(0);
                 }
+            }
+            if name == "53-dock-menu" {
+                self.shared.settings.guide.docked = false;
+                self.console.demo(&mut self.shared, None);
+                #[cfg(target_os = "macos")]
+                eprintln!("dock menu: {}", crate::dock::describe());
             }
             if name == "52-term-find" {
                 self.shared.settings.guide.docked = false;

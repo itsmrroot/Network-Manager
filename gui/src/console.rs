@@ -30,6 +30,10 @@ struct Open {
     term: crate::term::Term,
     /// The session is being written to a file.
     log: Option<crate::term_extras::SessionLog>,
+    /// A number that stays with the session (the name of its window).
+    uid: u64,
+    /// The session is in a window of its own.
+    popped: bool,
 }
 
 pub struct Console {
@@ -40,6 +44,10 @@ pub struct Console {
     /// The terminal fills the page: the title, the tabs, the list of sessions
     /// and the cards are hidden (the Restore button brings them back).
     zoomed: bool,
+    /// The serial console is in a window of its own.
+    serial_popped: bool,
+    /// The address field takes the keyboard on its next frame.
+    focus_host: bool,
     /// The command for all the open sessions, and whether its button was clicked once.
     broadcast_text: String,
     /// The click that asked: for this text and this many live sessions.
@@ -80,6 +88,8 @@ impl Default for Console {
             push: Default::default(),
             adb: Default::default(),
             zoomed: false,
+            serial_popped: false,
+            focus_host: false,
             #[cfg(debug_assertions)]
             debug_find: None,
             broadcast_text: String::new(),
@@ -106,6 +116,32 @@ impl Default for Console {
 }
 
 impl Console {
+    /// The SSH and Telnet page with the address field ready for typing.
+    pub fn new_connection(&mut self) {
+        self.zoomed = false;
+        self.view = View::Remote;
+        self.focus_host = true;
+    }
+
+    /// Opens a saved session (from the menu), by its place in the list.
+    pub fn open_saved(&mut self, index: usize, sh: &mut Shared) {
+        self.zoomed = false;
+        self.view = View::Remote;
+        if let Some(saved) = sh.settings.sessions.get(index).cloned() {
+            self.connect(saved, sh);
+        }
+    }
+
+    /// The terminal that is shown, in a window of its own.
+    pub fn pop_out(&mut self) {
+        if self.view == View::Serial {
+            self.serial_popped = true;
+        } else if let Some(o) = self.open.get_mut(self.active) {
+            self.view = View::Remote;
+            o.popped = true;
+        }
+    }
+
     /// Shows a tab by name (search).
     pub fn open_tab(&mut self, id: &str) {
         self.zoomed = false;
@@ -122,6 +158,53 @@ impl Console {
     /// Console → CLI guide is the tab being shown (the docked guide is then not).
     pub fn showing_guide(&self) -> bool {
         self.view == View::Guide
+    }
+
+    /// The sessions and the serial console that are in windows of their own.
+    /// Called on every frame, also while another page is shown.
+    pub fn windows(&mut self, ctx: &egui::Context, p: &Palette, sh: &mut Shared) {
+        let frame = || egui::Frame::new().fill(p.bg).inner_margin(egui::Margin::symmetric(12, 10));
+        for i in 0..self.open.len() {
+            if !self.open[i].popped {
+                continue;
+            }
+            let (uid, name) = (self.open[i].uid, self.open[i].saved.name.clone());
+            let builder = egui::ViewportBuilder::default()
+                .with_title(format!("{name} — Network Manager"))
+                .with_inner_size([900.0, 620.0])
+                .with_min_inner_size([420.0, 260.0]);
+            let mut closed = false;
+            ctx.show_viewport_immediate(egui::ViewportId::from_hash_of(("session-window", uid)), builder, |ui, _| {
+                if ui.ctx().input(|i| i.viewport().close_requested()) {
+                    closed = true;
+                }
+                egui::CentralPanel::default().frame(frame()).show(ui, |ui| self.session_view(ui, p, sh, i, true));
+            });
+            // Closing the window brings the session back to its page.
+            if closed && let Some(o) = self.open.get_mut(i) {
+                o.popped = false;
+            }
+        }
+        if self.serial_popped {
+            let builder = egui::ViewportBuilder::default()
+                .with_title(format!("{} — Network Manager", tr("Serial console")))
+                .with_inner_size([900.0, 620.0])
+                .with_min_inner_size([420.0, 260.0]);
+            let mut closed = false;
+            ctx.show_viewport_immediate(egui::ViewportId::from_hash_of("serial-window"), builder, |ui, _| {
+                if ui.ctx().input(|i| i.viewport().close_requested()) {
+                    closed = true;
+                }
+                egui::CentralPanel::default().frame(frame()).show(ui, |ui| {
+                    self.toolbar(ui, p, sh);
+                    ui.add_space(8.0);
+                    self.terminal(ui, p, sh);
+                });
+            });
+            if closed {
+                self.serial_popped = false;
+            }
+        }
     }
 
     pub fn connected(&self) -> bool {
@@ -243,6 +326,16 @@ impl Console {
             ui.add_space(8.0);
         }
         match self.view {
+            View::Serial if self.serial_popped => {
+                theme::card(ui, p, |ui| {
+                    ui.set_width(ui.available_width());
+                    theme::paragraph(ui, trl("The serial console is open in a window of its own."), 14.0, p.weak);
+                    ui.add_space(6.0);
+                    if ui.button(icon_label(icon::ARROW_SQUARE_IN, "Bring back")).clicked() {
+                        self.serial_popped = false;
+                    }
+                });
+            }
             View::Serial => {
                 self.toolbar(ui, p, sh);
                 ui.add_space(8.0);
@@ -282,7 +375,7 @@ impl Console {
     #[cfg(debug_assertions)]
     pub fn demo(&mut self, sh: &mut Shared, target: Option<&str>) {
         self.view = View::Remote;
-        let s = |name: &str, group: &str, protocol, host: &str, user: &str| Saved {
+        let s = |name: &str, group: &str, protocol, host: &str, user: &str, icon: &str| Saved {
             name: name.into(),
             group: group.into(),
             protocol,
@@ -290,13 +383,14 @@ impl Console {
             port: 0,
             user: user.into(),
             backup_command: String::new(),
+            icon: icon.into(),
         };
         sh.settings.sessions = vec![
-            s("core-sw1", "Building A", Protocol::Ssh, "10.10.0.2", "admin"),
-            s("access-sw-2F", "Building A", Protocol::Ssh, "10.10.0.12", "admin"),
-            s("edge-router", "Datacenter", Protocol::Ssh, "10.0.0.1", "netops"),
-            s("old-ups", "Datacenter", Protocol::Telnet, "10.0.0.50", ""),
-            s("lab-firewall", "", Protocol::Ssh, "192.168.50.1", "root"),
+            s("core-sw1", "Building A", Protocol::Ssh, "10.10.0.2", "admin", "switch"),
+            s("access-sw-2F", "Building A", Protocol::Ssh, "10.10.0.12", "admin", "switch"),
+            s("edge-router", "Datacenter", Protocol::Ssh, "10.0.0.1", "netops", "router"),
+            s("old-ups", "Datacenter", Protocol::Telnet, "10.0.0.50", "", "power"),
+            s("lab-firewall", "", Protocol::Ssh, "192.168.50.1", "root", "firewall"),
         ];
         if let Some(t) = target {
             let mut saved = Saved::parse(Protocol::Telnet, t);
@@ -349,7 +443,7 @@ impl Console {
         match Remote::open(&saved, rows, cols) {
             Ok(r) => {
                 sh.settings.remember_host(&saved.host);
-                self.open.push(Open { saved, remote: Some(r), term, log: None });
+                self.open.push(Open { saved, remote: Some(r), term, log: None, uid: self.next_id, popped: false });
                 self.active = self.open.len() - 1;
                 self.next_id += 1;
             }
@@ -378,6 +472,9 @@ impl Console {
                         .hint_text(tr("user@192.168.1.1 or a name"))
                         .desired_width(340.0),
                 );
+                if std::mem::take(&mut self.focus_host) {
+                    r.request_focus();
+                }
                 let enter = r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
                 ui.selectable_value(&mut self.telnet, false, "SSH");
                 ui.selectable_value(&mut self.telnet, true, tr("Telnet"));
@@ -515,27 +612,40 @@ impl Console {
                     }
                     let list = |ui: &mut Ui| {
                         for (i, s) in items {
-                            ui.horizontal(|ui| {
-                                let r = ui
-                                    .add(
-                                        egui::Label::new(RichText::new(&s.name).color(p.text))
-                                            .sense(Sense::click())
-                                            .truncate(),
-                                    )
-                                    .on_hover_text(format!(
-                                        "{} {}\n{}",
-                                        s.protocol.label(),
-                                        s.target(),
-                                        tr("Double-click to connect")
-                                    ));
-                                if r.double_clicked() {
+                            // The buttons take their place first, from the right: the
+                            // name gets what is left, and is cut short, never under them.
+                            let row = egui::vec2(ui.available_width(), 24.0);
+                            ui.allocate_ui_with_layout(row, egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                if ui
+                                    .add(egui::Button::new(icon::PENCIL_SIMPLE).frame(false))
+                                    .on_hover_text(tr("Edit"))
+                                    .clicked()
+                                {
+                                    self.editing = Some((Some(i), s.clone()));
+                                }
+                                if ui
+                                    .add(egui::Button::new(RichText::new(icon::PLAY).color(p.accent)).frame(false))
+                                    .on_hover_text(tr("Connect"))
+                                    .clicked()
+                                {
                                     connect = Some(s.clone());
                                 }
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    if ui.small_button(icon::PENCIL_SIMPLE).on_hover_text(tr("Edit")).clicked() {
-                                        self.editing = Some((Some(i), s.clone()));
-                                    }
-                                    if ui.small_button(icon::PLAY).on_hover_text(tr("Connect")).clicked() {
+                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                    ui.label(RichText::new(session_glyph(&s.icon)).color(p.accent).size(15.0));
+                                    let r = ui
+                                        .add(
+                                            egui::Label::new(RichText::new(&s.name).color(p.text))
+                                                .sense(Sense::click())
+                                                .truncate(),
+                                        )
+                                        .on_hover_text(format!(
+                                            "{} {}\n{}",
+                                            s.protocol.label(),
+                                            s.target(),
+                                            tr("Double-click to connect")
+                                        ));
+                                    if r.double_clicked() {
                                         connect = Some(s.clone());
                                     }
                                 });
@@ -581,7 +691,11 @@ impl Console {
                 let live = o.remote.is_some();
                 let dot = RichText::new("●").color(if live { p.success } else { p.weak }).size(10.0);
                 let selected = i == self.active;
-                let b = egui::Button::new(RichText::new(&o.saved.name).color(if selected { p.text } else { p.weak }))
+                let b =
+                    egui::Button::new(
+                        RichText::new(format!("{}  {}", session_glyph(&o.saved.icon), o.saved.name))
+                            .color(if selected { p.text } else { p.weak }),
+                    )
                     .fill(if selected { p.tint(p.accent) } else { egui::Color32::TRANSPARENT })
                     .corner_radius(8);
                 ui.label(dot);
@@ -652,7 +766,24 @@ impl Console {
         } else {
             self.broadcast_armed = None;
         }
-        let o = &mut self.open[self.active];
+        if self.open[self.active].popped {
+            theme::card(ui, p, |ui| {
+                ui.set_width(ui.available_width());
+                theme::paragraph(ui, trl("This session is open in a window of its own."), 14.0, p.weak);
+                ui.add_space(6.0);
+                if ui.button(icon_label(icon::ARROW_SQUARE_IN, "Bring back")).clicked() {
+                    self.open[self.active].popped = false;
+                }
+            });
+            return;
+        }
+        let index = self.active;
+        self.session_view(ui, p, sh, index, false);
+    }
+
+    /// One session: its toolbar and its terminal, in the page or in a window.
+    fn session_view(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared, index: usize, windowed: bool) {
+        let o = &mut self.open[index];
         let mut reconnect = false;
         o.term.set_highlight(sh.settings.term_highlight);
         ui.horizontal_wrapped(|ui| {
@@ -716,9 +847,22 @@ impl Console {
                 }
                 ui.checkbox(&mut sh.settings.log_timestamps, tr("Time on each line"));
             }
-            // Maximized, the button to go back is at the top of the page.
-            if !self.zoomed && zoom_button(ui, false) {
-                self.zoomed = true;
+            if windowed {
+                if ui.button(icon_label(icon::ARROW_SQUARE_IN, "Bring back")).clicked() {
+                    o.popped = false;
+                }
+            } else {
+                if ui
+                    .button(icon_label(icon::ARROW_SQUARE_OUT, "Open in window"))
+                    .on_hover_text(tr("Show this session in a window of its own, for another screen"))
+                    .clicked()
+                {
+                    o.popped = true;
+                }
+                // Maximized, the button to go back is at the top of the page.
+                if !self.zoomed && zoom_button(ui, false) {
+                    self.zoomed = true;
+                }
             }
         });
         ui.add_space(4.0);
@@ -745,7 +889,7 @@ impl Console {
                 Err(e) => sh.fail(trl("The session could not be opened."), &e),
             }
         }
-        if let Some(o) = self.open.get(self.active) {
+        if let Some(o) = self.open.get(index) {
             self.size = o.term.size();
         }
     }
@@ -766,6 +910,21 @@ impl Console {
                         ui,
                         egui::TextEdit::singleline(&mut s.name).hint_text(tr("e.g. Core switch")).desired_width(240.0),
                     );
+                    ui.end_row();
+                    ui.label(tr("Icon"));
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        for (key, glyph) in SESSION_ICONS {
+                            let chosen = s.icon == key || (s.icon.is_empty() && key == "terminal");
+                            if ui
+                                .selectable_label(chosen, RichText::new(glyph).size(18.0))
+                                .on_hover_text(session_icon_name(key))
+                                .clicked()
+                            {
+                                s.icon = if key == "terminal" { String::new() } else { key.to_string() };
+                            }
+                        }
+                    });
                     ui.end_row();
                     ui.label(tr("Group"));
                     ui.horizontal(|ui| {
@@ -1043,8 +1202,21 @@ impl Console {
                         }
                     }
                 }
-                if zoom_button(ui, self.zoomed) {
-                    self.zoomed = !self.zoomed;
+                if self.serial_popped {
+                    if ui.button(icon_label(icon::ARROW_SQUARE_IN, "Bring back")).clicked() {
+                        self.serial_popped = false;
+                    }
+                } else {
+                    if ui
+                        .button(icon_label(icon::ARROW_SQUARE_OUT, "Open in window"))
+                        .on_hover_text(tr("Show the serial console in a window of its own, for another screen"))
+                        .clicked()
+                    {
+                        self.serial_popped = true;
+                    }
+                    if zoom_button(ui, self.zoomed) {
+                        self.zoomed = !self.zoomed;
+                    }
                 }
             });
         });
@@ -1189,5 +1361,47 @@ pub fn highlight_toggle(ui: &mut Ui, sh: &mut Shared) {
         .clicked()
     {
         sh.settings.term_highlight = !on;
+    }
+}
+
+/// The pictures a saved session can have: a name kept in the file, and the icon.
+pub const SESSION_ICONS: [(&str, &str); 14] = [
+    ("terminal", icon::TERMINAL_WINDOW),
+    ("router", icon::BROADCAST),
+    ("switch", icon::SHARE_NETWORK),
+    ("server", icon::HARD_DRIVES),
+    ("firewall", icon::FIRE_SIMPLE),
+    ("access-point", icon::WIFI_HIGH),
+    ("computer", icon::DESKTOP),
+    ("laptop", icon::LAPTOP),
+    ("database", icon::DATABASE),
+    ("cloud", icon::CLOUD),
+    ("camera", icon::VIDEO_CAMERA),
+    ("printer", icon::PRINTER),
+    ("phone", icon::DEVICE_MOBILE),
+    ("power", icon::LIGHTNING),
+];
+
+/// The icon of a saved session (the terminal when it has none or the name is not known).
+pub fn session_glyph(name: &str) -> &'static str {
+    SESSION_ICONS.iter().find(|(key, _)| *key == name).map_or(icon::TERMINAL_WINDOW, |(_, glyph)| glyph)
+}
+
+fn session_icon_name(key: &str) -> &'static str {
+    match key {
+        "router" => tr("Router"),
+        "switch" => tr("Switch"),
+        "server" => tr("Server"),
+        "firewall" => tr("Firewall"),
+        "access-point" => tr("Access point"),
+        "computer" => tr("Computer"),
+        "laptop" => tr("Laptop"),
+        "database" => tr("Database"),
+        "cloud" => tr("Cloud"),
+        "camera" => tr("Camera"),
+        "printer" => tr("Printer"),
+        "phone" => tr("Phone"),
+        "power" => tr("Power"),
+        _ => tr("Terminal"),
     }
 }
