@@ -2,6 +2,7 @@
 //! and Telnet sessions (saved, in tabs) in a terminal inside the app.
 
 use std::io::Write;
+use std::sync::mpsc::{Receiver, channel};
 use std::time::Duration;
 
 use eframe::egui::{self, Key, RichText, Sense, Ui};
@@ -30,6 +31,9 @@ struct Open {
     term: crate::term::Term,
     /// The session is being written to a file.
     log: Option<crate::term_extras::SessionLog>,
+    /// The session is being opened away from the screen: a host that does not
+    /// answer takes seconds, and must not stop the app.
+    pending: Option<Receiver<anyhow::Result<Remote>>>,
     /// A number that stays with the session (the name of its window).
     uid: u64,
     /// The session is in a window of its own.
@@ -139,11 +143,47 @@ impl Console {
 
     /// The terminal that is shown, in a window of its own.
     pub fn pop_out(&mut self) {
-        if self.view == View::Serial {
-            self.serial_popped = true;
-        } else if let Some(o) = self.open.get_mut(self.active) {
-            self.view = View::Remote;
-            o.popped = true;
+        match self.view {
+            View::Serial => self.serial_popped = true,
+            View::Remote => {
+                if let Some(o) = self.open.get_mut(self.active) {
+                    o.popped = true;
+                }
+            }
+            // The other tabs have no terminal to put in a window.
+            _ => {}
+        }
+    }
+
+    fn session_window_id(uid: u64) -> egui::ViewportId {
+        egui::ViewportId::from_hash_of(("session-window", uid))
+    }
+
+    /// The window that has the keyboard: one of the windows of their own, or
+    /// the main window.
+    pub fn focused_window(&self, ctx: &egui::Context) -> egui::ViewportId {
+        let has_focus = |id| ctx.input_for(id, |i| i.viewport().focused == Some(true));
+        for o in self.open.iter().filter(|o| o.popped) {
+            let id = Self::session_window_id(o.uid);
+            if has_focus(id) {
+                return id;
+            }
+        }
+        if self.serial_popped && has_focus(egui::ViewportId::from_hash_of("serial-window")) {
+            return egui::ViewportId::from_hash_of("serial-window");
+        }
+        egui::ViewportId::ROOT
+    }
+
+    /// Brings the terminal of a window of its own back to its page.
+    pub fn bring_back(&mut self, window: egui::ViewportId) {
+        for o in &mut self.open {
+            if Self::session_window_id(o.uid) == window {
+                o.popped = false;
+            }
+        }
+        if window == egui::ViewportId::from_hash_of("serial-window") {
+            self.serial_popped = false;
         }
     }
 
@@ -174,12 +214,15 @@ impl Console {
                 continue;
             }
             let (uid, name) = (self.open[i].uid, self.open[i].saved.name.clone());
+            // Each window a little lower and to the right of the one before.
+            let before = self.open[..i].iter().filter(|o| o.popped).count();
             let builder = egui::ViewportBuilder::default()
                 .with_title(format!("{name} — Network Manager"))
                 .with_inner_size([900.0, 620.0])
-                .with_min_inner_size([420.0, 260.0]);
+                .with_min_inner_size([420.0, 260.0])
+                .with_position(cascade(ctx, before));
             let mut closed = false;
-            ctx.show_viewport_immediate(egui::ViewportId::from_hash_of(("session-window", uid)), builder, |ui, _| {
+            ctx.show_viewport_immediate(Self::session_window_id(uid), builder, |ui, _| {
                 if ui.ctx().input(|i| i.viewport().close_requested()) {
                     closed = true;
                 }
@@ -194,7 +237,8 @@ impl Console {
             let builder = egui::ViewportBuilder::default()
                 .with_title(format!("{} — Network Manager", tr("Serial console")))
                 .with_inner_size([900.0, 620.0])
-                .with_min_inner_size([420.0, 260.0]);
+                .with_min_inner_size([420.0, 260.0])
+                .with_position(cascade(ctx, self.open.iter().filter(|o| o.popped).count()));
             let mut closed = false;
             ctx.show_viewport_immediate(egui::ViewportId::from_hash_of("serial-window"), builder, |ui, _| {
                 if ui.ctx().input(|i| i.viewport().close_requested()) {
@@ -219,6 +263,30 @@ impl Console {
     /// Takes in what the devices sent (also while another page is shown).
     pub fn poll(&mut self, ctx: &egui::Context, sh: &mut Shared) {
         self.backups.tick(ctx, sh);
+        // Sessions that were being opened: connected now, or not.
+        let mut failed: Vec<(u64, anyhow::Error)> = Vec::new();
+        for o in &mut self.open {
+            if let Some(rx) = &o.pending
+                && let Ok(result) = rx.try_recv()
+            {
+                o.pending = None;
+                match result {
+                    Ok(r) => o.remote = Some(r),
+                    Err(e) => failed.push((o.uid, e)),
+                }
+            }
+        }
+        if self.open.iter().any(|o| o.pending.is_some()) {
+            ctx.request_repaint_after(Duration::from_millis(100));
+        }
+        for (uid, e) in failed {
+            // No session of it is left to show: the error says why.
+            if let Some(at) = self.open.iter().position(|o| o.uid == uid) {
+                self.open.remove(at);
+                self.active = self.active.min(self.open.len().saturating_sub(1));
+            }
+            sh.fail(trl("The session could not be opened."), &e);
+        }
         for o in &mut self.open {
             let Some(r) = &o.remote else { continue };
             while let Ok(bytes) = r.received.try_recv() {
@@ -307,7 +375,7 @@ impl Console {
             self.ports = nc::ports();
             self.forget_missing_port(sh);
         }
-        if self.connected() {
+        if self.connected() || self.open.iter().any(|o| o.pending.is_some()) {
             ui.ctx().request_repaint_after(Duration::from_millis(50));
         }
         // Only the two terminals can fill the page.
@@ -456,15 +524,11 @@ impl Console {
         let mut term = crate::term::Term::new(self.next_id);
         let (rows, cols) = self.size;
         term.feed(format!("\x1b[2m{} {} …\x1b[0m\r\n", saved.protocol.label(), saved.target()).as_bytes());
-        match Remote::open(&saved, rows, cols) {
-            Ok(r) => {
-                sh.settings.remember_host(&saved.host);
-                self.open.push(Open { saved, remote: Some(r), term, log: None, uid: self.next_id, popped: false });
-                self.active = self.open.len() - 1;
-                self.next_id += 1;
-            }
-            Err(e) => sh.fail(trl("The session could not be opened."), &e),
-        }
+        sh.settings.remember_host(&saved.host);
+        let pending = Some(open_away(&saved, rows, cols));
+        self.open.push(Open { saved, remote: None, pending, term, log: None, uid: self.next_id, popped: false });
+        self.active = self.open.len() - 1;
+        self.next_id += 1;
     }
 
     fn remote_ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
@@ -729,6 +793,10 @@ impl Console {
             if self.open.is_empty() {
                 return;
             }
+            // A tab before the active one went: the active one moved up.
+            if i < self.active {
+                self.active -= 1;
+            }
             self.active = self.active.min(self.open.len() - 1);
         }
         // One command for every open session: a click asks, the second sends.
@@ -806,7 +874,10 @@ impl Console {
             ui.label(
                 RichText::new(format!("{} {}", o.saved.protocol.label(), o.saved.target())).color(p.weak).size(12.5),
             );
-            if o.remote.is_none() && ui.button(icon_label(icon::ARROW_CLOCKWISE, "Reconnect")).clicked() {
+            if o.remote.is_none()
+                && o.pending.is_none()
+                && ui.button(icon_label(icon::ARROW_CLOCKWISE, "Reconnect")).clicked()
+            {
                 reconnect = true;
             }
             if ui.button(icon_label(icon::COPY, "Copy screen")).clicked() {
@@ -898,12 +969,10 @@ impl Console {
             }
         }
         if reconnect {
-            let saved = o.saved.clone();
             let (rows, cols) = o.term.size();
-            match Remote::open(&saved, rows, cols) {
-                Ok(r) => o.remote = Some(r),
-                Err(e) => sh.fail(trl("The session could not be opened."), &e),
-            }
+            o.term
+                .feed(format!("\r\n\x1b[2m{} {} …\x1b[0m\r\n", o.saved.protocol.label(), o.saved.target()).as_bytes());
+            o.pending = Some(open_away(&o.saved, rows, cols));
         }
         if let Some(o) = self.open.get(index) {
             self.size = o.term.size();
@@ -928,17 +997,21 @@ impl Console {
                     );
                     ui.end_row();
                     ui.label(tr("Icon"));
-                    ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing.x = 4.0;
-                        for (key, glyph) in SESSION_ICONS {
-                            let chosen = s.icon == key || (s.icon.is_empty() && key == "terminal");
-                            if ui
-                                .selectable_label(chosen, RichText::new(glyph).size(18.0))
-                                .on_hover_text(session_icon_name(key))
-                                .clicked()
-                            {
-                                s.icon = if key == "terminal" { String::new() } else { key.to_string() };
-                            }
+                    ui.vertical(|ui| {
+                        for row in SESSION_ICONS.chunks(7) {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 4.0;
+                                for (key, glyph) in row {
+                                    let chosen = s.icon == *key || (s.icon.is_empty() && *key == "terminal");
+                                    if ui
+                                        .selectable_label(chosen, RichText::new(*glyph).size(18.0))
+                                        .on_hover_text(session_icon_name(key))
+                                        .clicked()
+                                    {
+                                        s.icon = if *key == "terminal" { String::new() } else { key.to_string() };
+                                    }
+                                }
+                            });
                         }
                     });
                     ui.end_row();
@@ -1420,4 +1493,21 @@ fn session_icon_name(key: &str) -> &'static str {
         "power" => tr("Power"),
         _ => tr("Terminal"),
     }
+}
+
+/// Opens a session in a thread of its own: the answer comes on the channel.
+fn open_away(saved: &Saved, rows: u16, cols: u16) -> Receiver<anyhow::Result<Remote>> {
+    let (tx, rx) = channel();
+    let saved = saved.clone();
+    std::thread::spawn(move || {
+        let _ = tx.send(Remote::open(&saved, rows, cols));
+    });
+    rx
+}
+
+/// Where the `n`-th window of its own opens: down and to the right of the main window.
+fn cascade(ctx: &egui::Context, n: usize) -> egui::Pos2 {
+    let origin =
+        ctx.input_for(egui::ViewportId::ROOT, |i| i.viewport().outer_rect).map_or(egui::pos2(80.0, 80.0), |r| r.min);
+    origin + egui::vec2(60.0 + 28.0 * n as f32, 60.0 + 28.0 * n as f32)
 }

@@ -132,9 +132,9 @@ pub fn page_glyph(page: Page) -> &'static str {
 /// A saved session as the menus need it: its name and its icon.
 pub type SessionEntry = (String, String);
 
-/// Runs an edit command on the focused text field. The menu takes the key
+/// Runs an edit command on the focused text field (of the window `window`). The menu takes the key
 /// press itself, so the field gets the same event it would have.
-pub fn edit(ctx: &egui::Context, c: Command) {
+pub fn edit(ctx: &egui::Context, c: Command, window: egui::ViewportId) {
     let key = |key: egui::Key, shift: bool| egui::Event::Key {
         key,
         physical_key: None,
@@ -143,9 +143,11 @@ pub fn edit(ctx: &egui::Context, c: Command) {
         modifiers: egui::Modifiers { shift, ..egui::Modifiers::COMMAND },
     };
     match c {
-        Command::Cut => ctx.send_viewport_cmd(egui::ViewportCommand::RequestCut),
-        Command::Copy => ctx.send_viewport_cmd(egui::ViewportCommand::RequestCopy),
-        Command::Paste => ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste),
+        // To the window that has the keyboard: a terminal in a window of its own
+        // is not the main window.
+        Command::Cut => ctx.send_viewport_cmd_to(window, egui::ViewportCommand::RequestCut),
+        Command::Copy => ctx.send_viewport_cmd_to(window, egui::ViewportCommand::RequestCopy),
+        Command::Paste => ctx.send_viewport_cmd_to(window, egui::ViewportCommand::RequestPaste),
         Command::Undo => ctx.input_mut(|i| i.events.push(key(egui::Key::Z, false))),
         Command::Redo => ctx.input_mut(|i| i.events.push(key(egui::Key::Z, true))),
         Command::SelectAll => ctx.input_mut(|i| i.events.push(key(egui::Key::A, false))),

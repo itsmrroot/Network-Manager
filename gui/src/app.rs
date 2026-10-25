@@ -330,7 +330,9 @@ impl App {
                 self.page = Page::About;
                 self.updater.check(ctx, true);
             }
-            C::Undo | C::Redo | C::Cut | C::Copy | C::Paste | C::SelectAll => menu::edit(ctx, c),
+            C::Undo | C::Redo | C::Cut | C::Copy | C::Paste | C::SelectAll => {
+                menu::edit(ctx, c, self.console.focused_window(ctx));
+            }
             C::ZoomIn => self.zoom(1),
             C::ZoomOut => self.zoom(-1),
             C::ZoomReset => self.zoom(0),
@@ -343,6 +345,8 @@ impl App {
                 if let Some(a) = self.shared.default_adapter().cloned() {
                     self.page = Page::Overview;
                     self.overview.renew(ctx, a);
+                } else {
+                    self.shared.toast(tr("No network adapter is connected."));
                 }
             }
             C::FlushDns => {
@@ -366,6 +370,8 @@ impl App {
                 self.page = Page::Adapters;
                 if let Some(adapter) = self.shared.default_adapter().cloned() {
                     self.adapters_page.edit_ip(&adapter);
+                } else {
+                    self.shared.toast(tr("No network adapter is connected."));
                 }
             }
             C::NewConnection => {
@@ -381,8 +387,14 @@ impl App {
                 self.console.open_tab(tab);
             }
             C::PopOut => {
-                self.page = Page::Console;
-                self.console.pop_out();
+                // In a window of its own already: the same key brings it back.
+                let window = self.console.focused_window(ctx);
+                if window != egui::ViewportId::ROOT {
+                    self.console.bring_back(window);
+                } else {
+                    self.page = Page::Console;
+                    self.console.pop_out();
+                }
             }
         }
     }

@@ -2421,6 +2421,7 @@ pub const GERMAN: &[(&str, &str)] = &[
         "Die serielle Konsole ist in einem eigenen Fenster geöffnet.",
     ),
     ("This session is open in a window of its own.", "Diese Sitzung ist in einem eigenen Fenster geöffnet."),
+    ("No network adapter is connected.", "Kein Netzwerkadapter ist verbunden."),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4813,6 +4814,7 @@ pub const SPANISH: &[(&str, &str)] = &[
     ),
     ("The serial console is open in a window of its own.", "La consola serie está abierta en su propia ventana."),
     ("This session is open in a window of its own.", "Esta sesión está abierta en su propia ventana."),
+    ("No network adapter is connected.", "Ningún adaptador de red está conectado."),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7232,6 +7234,7 @@ pub const FRENCH: &[(&str, &str)] = &[
     ),
     ("The serial console is open in a window of its own.", "La console série est ouverte dans sa propre fenêtre."),
     ("This session is open in a window of its own.", "Cette session est ouverte dans sa propre fenêtre."),
+    ("No network adapter is connected.", "Aucune carte réseau n'est connectée."),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -9603,6 +9606,7 @@ pub const TURKISH: &[(&str, &str)] = &[
     ),
     ("The serial console is open in a window of its own.", "Seri konsol kendi penceresinde açık."),
     ("This session is open in a window of its own.", "Bu oturum kendi penceresinde açık."),
+    ("No network adapter is connected.", "Bağlı bir ağ bağdaştırıcısı yok."),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -11995,6 +11999,7 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ),
     ("The serial console is open in a window of its own.", "Последовательная консоль открыта в отдельном окне."),
     ("This session is open in a window of its own.", "Эта сессия открыта в отдельном окне."),
+    ("No network adapter is connected.", "Нет подключённого сетевого адаптера."),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -14312,6 +14317,7 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Show this session in a window of its own, for another screen", "عرض هذه الجلسة في نافذة خاصة، لشاشة أخرى"),
     ("The serial console is open in a window of its own.", "وحدة التحكم التسلسلية مفتوحة في نافذة خاصة."),
     ("This session is open in a window of its own.", "هذه الجلسة مفتوحة في نافذة خاصة."),
+    ("No network adapter is connected.", "لا يوجد محول شبكة متصل."),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -16590,4 +16596,5 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Show this session in a window of its own, for another screen", "在单独的窗口中显示此会话，用于另一块屏幕"),
     ("The serial console is open in a window of its own.", "串口控制台已在单独的窗口中打开。"),
     ("This session is open in a window of its own.", "此会话已在单独的窗口中打开。"),
+    ("No network adapter is connected.", "没有已连接的网络适配器。"),
 ];
