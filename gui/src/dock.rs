@@ -4,8 +4,7 @@
 //! the menu the menu bar code builds (`menu.rs`).
 
 use std::ffi::c_void;
-use std::sync::Once;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
 use objc2::ffi::class_addMethod;
 use objc2::runtime::{AnyClass, AnyObject, Imp, Sel};
@@ -13,7 +12,8 @@ use objc2::{class, msg_send, sel};
 
 /// The NSMenu to show (owned by the menu bar code, which keeps it alive).
 static MENU: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
-static INSTALLED: Once = Once::new();
+/// The method is on the delegate (tried again on the next call until it is).
+static INSTALLED: AtomicBool = AtomicBool::new(false);
 
 /// `- (NSMenu *)applicationDockMenu:(NSApplication *)sender`
 extern "C-unwind" fn dock_menu(_this: *mut AnyObject, _cmd: Sel, _sender: *mut AnyObject) -> *mut c_void {
@@ -21,9 +21,12 @@ extern "C-unwind" fn dock_menu(_this: *mut AnyObject, _cmd: Sel, _sender: *mut A
 }
 
 /// Shows this menu from now on (and installs the method the first time).
+/// A null pointer: no menu (the owner is gone).
 pub fn set(menu: *mut c_void) {
     MENU.store(menu, Ordering::Release);
-    INSTALLED.call_once(install);
+    if !menu.is_null() && !INSTALLED.load(Ordering::Acquire) && install() {
+        INSTALLED.store(true, Ordering::Release);
+    }
 }
 
 fn app_delegate() -> Option<(*mut AnyObject, *mut AnyObject)> {
@@ -38,10 +41,10 @@ fn app_delegate() -> Option<(*mut AnyObject, *mut AnyObject)> {
     }
 }
 
-fn install() {
+fn install() -> bool {
     let Some((_, delegate)) = app_delegate() else {
         log::warn!("dock menu: the app has no delegate yet");
-        return;
+        return false;
     };
     // SAFETY: the method has the signature the Dock expects (id, SEL, id) -> id,
     // and is added to the delegate's class before the Dock asks.
@@ -58,6 +61,7 @@ fn install() {
             c"@@:@".as_ptr(),
         );
         log::debug!("dock menu: method added: {}", added.as_bool());
+        added.as_bool()
     }
 }
 

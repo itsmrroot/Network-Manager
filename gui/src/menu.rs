@@ -177,6 +177,13 @@ mod imp {
         icons: HashMap<String, Option<muda::Icon>>,
     }
 
+    impl Drop for MenuBar {
+        fn drop(&mut self) {
+            // The Dock must not be left with a menu that is gone.
+            crate::dock::set(std::ptr::null_mut());
+        }
+    }
+
     fn acc(mods: Modifiers, code: Code) -> Option<Accelerator> {
         Some(Accelerator::new(Some(mods), code))
     }
@@ -201,18 +208,13 @@ mod imp {
                 self.sessions = sessions.to_vec();
                 if let Err(e) = self.build() {
                     log::warn!("menu bar: {e}");
-                }
-                if let Some(menu) = self.dock_menu() {
-                    crate::dock::set(menu);
+                    // No Dock menu whose items nothing answers to.
+                    self.dock = None;
+                    crate::dock::set(std::ptr::null_mut());
                 }
             }
             let ids: Vec<MenuId> = self.events.lock().map(|mut v| std::mem::take(&mut *v)).unwrap_or_default();
             ids.iter().filter_map(|id| self.ids.get(id).copied()).collect()
-        }
-
-        /// The Dock's menu, for the app's delegate (see `dock.rs`).
-        pub fn dock_menu(&self) -> Option<*mut std::ffi::c_void> {
-            self.dock.as_ref().map(|m| m.ns_menu())
         }
 
         /// The picture of an icon, drawn once.
@@ -448,6 +450,8 @@ mod imp {
                 self.item(icon::PLUGS_CONNECTED, &format!("{}…", tr("Change IP settings")), Command::IpSettings, None);
             let d_scan = self.item(icon::DEVICES, tr("Scan for devices"), Command::Scan, None);
             let dock = Menu::with_items(&[&d_check, &d_renew, &d_ip, &d_scan, &sep(), &d_new, &d_saved, &d_serial])?;
+            // The Dock is told of the new menu before the old one goes away.
+            crate::dock::set(dock.ns_menu());
             self.dock = Some(dock);
             Ok(())
         }
