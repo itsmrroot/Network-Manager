@@ -26,6 +26,15 @@ pub struct Term {
     skip_keys: bool,
 }
 
+/// One match: where it starts (line, column), how many cells it covers, and
+/// the same for the rest of it when it goes on in the next screen row.
+struct Match {
+    line: usize,
+    col: usize,
+    len: usize,
+    tail: Vec<(usize, usize, usize)>,
+}
+
 /// A line of the screen as lower-case characters, each with the column it starts in.
 type Line = (Vec<char>, Vec<usize>);
 
@@ -34,7 +43,9 @@ struct Find {
     text: String,
     /// (line, first column, length) of each match: line 0 is the oldest one
     /// kept, and the last `rows` lines are the screen.
-    matches: Vec<(usize, usize, usize)>,
+    matches: Vec<Match>,
+    /// More were found than are kept: the oldest are left out.
+    capped: bool,
     current: usize,
     /// How many lines are kept above the screen.
     history: usize,
@@ -133,6 +144,7 @@ impl Term {
                 self.find = Some(Find {
                     text,
                     matches: Vec::new(),
+                    capped: false,
                     current: 0,
                     history: 0,
                     dirty: true,
@@ -148,13 +160,14 @@ impl Term {
     /// Every line kept (the oldest first) as lower-case characters, each with
     /// the screen column it starts in (a wide character takes two), and how
     /// many lines are above the screen.
-    fn all_lines(&mut self) -> (usize, Vec<Line>) {
+    fn all_lines(&mut self) -> (usize, Vec<Line>, Vec<bool>) {
         let (rows, cols) = self.parser.screen().size();
         let saved = self.parser.screen().scrollback();
         self.parser.screen_mut().set_scrollback(usize::MAX);
         let history = self.parser.screen().scrollback();
         let total = history + rows as usize;
         let mut lines = vec![(Vec::new(), Vec::new()); total];
+        let mut wrapped = vec![false; total];
         let mut offset = history;
         loop {
             self.parser.screen_mut().set_scrollback(offset);
@@ -178,6 +191,7 @@ impl Term {
                 }
                 if let Some(slot) = lines.get_mut(history - offset + r as usize) {
                     *slot = (text, at);
+                    wrapped[history - offset + r as usize] = screen.row_wrapped(r);
                 }
             }
             if offset == 0 {
@@ -186,7 +200,7 @@ impl Term {
             offset = offset.saturating_sub(rows as usize);
         }
         self.parser.screen_mut().set_scrollback(saved);
-        (history, lines)
+        (history, lines, wrapped)
     }
 
     /// Looks for the text again, in every line kept. Returns how many were found.
@@ -199,31 +213,70 @@ impl Term {
         else {
             return 0;
         };
-        let (history, lines) = self.all_lines();
-        let mut matches = Vec::new();
+        let (history, lines, wrapped) = self.all_lines();
+        let mut matches: Vec<Match> = Vec::new();
+        let mut capped = false;
         if !needle.is_empty() {
-            'lines: for (n, (chars, at)) in lines.iter().enumerate() {
+            // The rows of a line that wrapped at the edge are one line.
+            let mut groups: Vec<(usize, usize)> = Vec::new();
+            let mut first = 0;
+            for (n, wraps) in wrapped.iter().enumerate() {
+                if !wraps || n + 1 == lines.len() {
+                    groups.push((first, n));
+                    first = n + 1;
+                }
+            }
+            // The newest first: when there are too many, the oldest are left out.
+            'groups: for &(from, to) in groups.iter().rev() {
+                let (mut chars, mut place) = (Vec::new(), Vec::new());
+                for (row, (text, at)) in lines.iter().enumerate().take(to + 1).skip(from) {
+                    for (ch, col) in text.iter().zip(at) {
+                        chars.push(*ch);
+                        place.push((row, *col));
+                    }
+                }
+                let mut found_here = Vec::new();
                 let mut i = 0;
                 while i + needle.len() <= chars.len() {
                     if chars[i..i + needle.len()] == needle[..] {
-                        // Where it starts and how many cells it covers.
-                        let start = at[i];
-                        let end = at.get(i + needle.len()).copied().unwrap_or(cols);
-                        matches.push((n, start, end.saturating_sub(start).max(1)));
-                        if matches.len() >= 5000 {
-                            break 'lines;
+                        // The cells it covers in each row it is in.
+                        let mut parts: Vec<(usize, usize, usize)> = Vec::new();
+                        let mut k = i;
+                        while k < i + needle.len() {
+                            let (row, start) = place[k];
+                            let mut last = k;
+                            while last + 1 < i + needle.len() && place[last + 1].0 == row {
+                                last += 1;
+                            }
+                            let end = match place.get(last + 1) {
+                                Some(&(r2, c2)) if r2 == row => c2,
+                                _ => cols,
+                            };
+                            parts.push((row, start, end.saturating_sub(start).max(1)));
+                            k = last + 1;
                         }
+                        let (line, col, len) = parts[0];
+                        found_here.push(Match { line, col, len, tail: parts[1..].to_vec() });
                         i += needle.len();
                     } else {
                         i += 1;
                     }
                 }
+                for m in found_here.into_iter().rev() {
+                    if matches.len() >= 5000 {
+                        capped = true;
+                        break 'groups;
+                    }
+                    matches.push(m);
+                }
             }
+            matches.reverse();
         }
         let found = matches.len();
         if let Some(f) = &mut self.find {
             f.history = history;
             f.matches = matches;
+            f.capped = capped;
             f.current = f.current.min(found.saturating_sub(1));
             f.dirty = false;
             f.searched = std::time::Instant::now();
@@ -235,9 +288,11 @@ impl Term {
     fn show_match(&mut self) {
         let rows = self.parser.screen().size().0 as usize;
         let Some(f) = &self.find else { return };
-        let Some(&(line, _, _)) = f.matches.get(f.current) else { return };
+        let Some(line) = f.matches.get(f.current).map(|m| m.line) else { return };
         let offset = (f.history + rows / 2).saturating_sub(line).min(f.history);
         self.parser.screen_mut().set_scrollback(offset);
+        // The selection is on screen cells: it would cover other text now.
+        self.selection = None;
     }
 
     /// The Paste button was clicked: the text comes in a moment, and the
@@ -376,10 +431,14 @@ impl Term {
                     }
                 }
             }
-            if let Some(f) = &self.find {
+            if let Some(f) = self.find.as_ref().filter(|f| !f.dirty) {
                 let line = first_line + r as usize;
-                for (i, &(l, col, len)) in f.matches.iter().enumerate() {
-                    if l == line {
+                for (i, m) in f.matches.iter().enumerate() {
+                    let parts = std::iter::once((m.line, m.col, m.len)).chain(m.tail.iter().copied());
+                    for (l, col, len) in parts {
+                        if l != line {
+                            continue;
+                        }
                         let band = Rect::from_min_size(
                             egui::pos2(origin.x + col as f32 * cw, y),
                             Vec2::new(len as f32 * cw, rh),
@@ -610,7 +669,7 @@ impl Term {
                 } else if f.matches.is_empty() {
                     tr("No match").to_string()
                 } else {
-                    format!("{}/{}", f.current + 1, f.matches.len())
+                    format!("{}/{}{}", f.current + 1, f.matches.len(), if f.capped { "+" } else { "" })
                 };
                 ui.label(egui::RichText::new(count).size(12.0).color(Color32::from_rgb(170, 178, 190)));
                 if ui.add(egui::Button::new(icon::CARET_UP).frame(false)).on_hover_text(tr("Previous")).clicked() {
@@ -1085,7 +1144,7 @@ mod tests {
         let f = term.find.as_ref().expect("the bar is open");
         assert_eq!(f.text, "is DOWN");
         // Found in two lines, one of them long gone from the screen; the newest first.
-        assert_eq!(f.matches.len(), 3, "{:?}", f.matches);
+        assert_eq!(f.matches.len(), 3);
         assert_eq!(f.current, 2);
         assert!(term.text().contains("row 207"), "the newest match is on the screen");
 
@@ -1114,7 +1173,11 @@ mod tests {
         frame_of(&ctx, &mut term, vec![], 0.1);
         term.debug_find("abc");
         let f = term.find.as_ref().unwrap();
-        assert_eq!(f.matches, [(f.history, 7, 3)], "three wide characters and a space come first: 7 cells");
+        assert_eq!(
+            f.matches.iter().map(|m| (m.line, m.col, m.len)).collect::<Vec<_>>(),
+            [(f.history, 7, 3)],
+            "three wide characters and a space come first: 7 cells"
+        );
 
         // Esc closes the bar and does not reach the device.
         term.open_find();
@@ -1125,5 +1188,42 @@ mod tests {
         // The next Esc is the device's.
         let (out, _) = frame_of(&ctx, &mut term, vec![key(Key::Escape)], 0.4);
         assert_eq!(out.input, [0x1b]);
+    }
+
+    /// A match that wraps over two screen rows is found, and with too many
+    /// matches it is the oldest that are left out.
+    #[test]
+    fn find_follows_wrapped_lines_and_keeps_the_newest() {
+        let ctx = egui::Context::default();
+        let mut term = Term::new(5);
+        frame_of(&ctx, &mut term, vec![], 0.0);
+        let cols = term.size().1 as usize;
+        // "NEEDLE" cut by the end of the row.
+        let line: String = std::iter::repeat_n('x', cols - 3).collect::<String>() + "NEEDLE tail";
+        term.feed(format!("{line}\r\n").as_bytes());
+        frame_of(&ctx, &mut term, vec![], 0.1);
+        term.debug_find("needle");
+        let f = term.find.as_ref().unwrap();
+        assert_eq!(f.matches.len(), 1, "the wrapped match is found");
+        assert_eq!(f.matches[0].tail.len(), 1, "and it goes on in the next row");
+
+        // Many matches: the count stops at 5000 and the newest are kept.
+        let mut many = String::new();
+        for i in 0..3000 {
+            many.push_str(&format!("hit hit {i}\r\n"));
+        }
+        term.feed(many.as_bytes());
+        term.debug_find("hit");
+        let f = term.find.as_ref().unwrap();
+        assert_eq!(f.matches.len(), 5000);
+        assert!(f.capped, "the count says there are more");
+        // The last one is the newest line.
+        term.find.as_mut().unwrap().current = 4999;
+        term.show_match();
+        assert!(term.text().contains("hit hit 2999"), "{}", term.text());
+        // The first one kept is not the very first line of the log.
+        term.find.as_mut().unwrap().current = 0;
+        term.show_match();
+        assert!(!term.text().contains("NEEDLE"), "the oldest matches were dropped");
     }
 }

@@ -139,6 +139,14 @@ impl Console {
                 }
                 o.term.feed(&bytes);
             }
+            // The file cannot be written to (a full disk, a drive that is gone).
+            if o.log.as_ref().is_some_and(|l| l.failed()) {
+                o.log = None;
+                sh.fail(
+                    trl("The log file could not be written: the log was stopped."),
+                    &anyhow::anyhow!("the disk may be full, or the drive is gone"),
+                );
+            }
             if r.ended() {
                 // What came in since the last look is shown before the end.
                 while let Ok(bytes) = r.received.try_recv() {

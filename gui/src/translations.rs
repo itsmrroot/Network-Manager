@@ -2391,6 +2391,10 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("Sent to {n} sessions.", "An {n} Sitzungen gesendet."),
     ("Time on each line", "Uhrzeit in jeder Zeile"),
     ("Write everything of this session to a text file", "Alles aus dieser Sitzung in eine Textdatei schreiben"),
+    (
+        "The log file could not be written: the log was stopped.",
+        "In die Protokolldatei konnte nicht geschrieben werden: die Aufzeichnung wurde beendet.",
+    ),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4756,6 +4760,10 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("Sent to {n} sessions.", "Enviado a {n} sesiones."),
     ("Time on each line", "Hora en cada línea"),
     ("Write everything of this session to a text file", "Escribe todo lo de esta sesión en un archivo de texto"),
+    (
+        "The log file could not be written: the log was stopped.",
+        "No se pudo escribir en el archivo de registro: el registro se detuvo.",
+    ),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7148,6 +7156,10 @@ pub const FRENCH: &[(&str, &str)] = &[
         "Write everything of this session to a text file",
         "Écrire tout ce qui se passe dans cette session dans un fichier texte",
     ),
+    (
+        "The log file could not be written: the log was stopped.",
+        "Le fichier de journal n'a pas pu être écrit : l'enregistrement a été arrêté.",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -9495,6 +9507,7 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("Sent to {n} sessions.", "{n} oturuma gönderildi."),
     ("Time on each line", "Her satırda saat"),
     ("Write everything of this session to a text file", "Bu oturumdaki her şeyi bir metin dosyasına yazar"),
+    ("The log file could not be written: the log was stopped.", "Günlük dosyasına yazılamadı: kayıt durduruldu."),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -11860,6 +11873,10 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("Sent to {n} sessions.", "Отправлено в сессии: {n}."),
     ("Time on each line", "Время в каждой строке"),
     ("Write everything of this session to a text file", "Записывать всё из этой сессии в текстовый файл"),
+    (
+        "The log file could not be written: the log was stopped.",
+        "Не удалось записать в файл журнала: запись остановлена.",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -14156,6 +14173,7 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Sent to {n} sessions.", "تم الإرسال إلى {n} جلسات."),
     ("Time on each line", "الوقت في كل سطر"),
     ("Write everything of this session to a text file", "كتابة كل ما في هذه الجلسة في ملف نصي"),
+    ("The log file could not be written: the log was stopped.", "تعذرت الكتابة في ملف السجل: تم إيقاف التسجيل."),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -16413,4 +16431,5 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Sent to {n} sessions.", "已发送到 {n} 个会话。"),
     ("Time on each line", "每行带时间"),
     ("Write everything of this session to a text file", "把此会话的全部内容写入文本文件"),
+    ("The log file could not be written: the log was stopped.", "无法写入日志文件：日志已停止。"),
 ];
