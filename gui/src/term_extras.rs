@@ -22,7 +22,7 @@ pub enum Kind {
 }
 
 /// Words that mean good news, bad news and "look at this".
-const GOOD: &[&str] = &["up", "connected", "established", "forwarding", "active", "ok", "full", "success", "enabled"];
+const GOOD: &[&str] = &["up", "connected", "established", "forwarding"];
 const BAD: &[&str] = &[
     "down",
     "error",
@@ -247,6 +247,25 @@ fn ipv6_at(line: &[char], at: usize) -> Option<usize> {
     Some(n)
 }
 
+/// The `n`-th word before `at` (1 is the one just before), in lower case,
+/// without the marks around it; empty when there is none.
+fn previous_word(line: &[char], at: usize, n: usize) -> String {
+    let mut end = at;
+    let mut word = String::new();
+    for _ in 0..n {
+        while end > 0 && line[end - 1].is_whitespace() {
+            end -= 1;
+        }
+        let mut start = end;
+        while start > 0 && !line[start - 1].is_whitespace() {
+            start -= 1;
+        }
+        word = line[start..end].iter().collect::<String>().to_lowercase();
+        end = start;
+    }
+    word.trim_matches([',', ';', ':', '(', ')']).to_string()
+}
+
 /// What deserves a colour in one line of text, as (first character, length, kind).
 pub fn highlights(line: &[char]) -> Vec<(usize, usize, Kind)> {
     let mut out = Vec::new();
@@ -300,6 +319,17 @@ pub fn highlights(line: &[char]) -> Vec<(usize, usize, Kind)> {
                 Some(Kind::Warn)
             } else {
                 None
+            };
+            // A count of zero ("0 CRC errors") is no problem, and "not connected"
+            // is not good news.
+            let before = previous_word(line, start, 1);
+            // "0 CRC errors": the zero can be one word further back.
+            let zero = |w: &str| !w.is_empty() && w.chars().all(|c| c == '0');
+            let counted_zero = zero(&before) || zero(&previous_word(line, start, 2));
+            let kind = match (kind, before.as_str()) {
+                (Some(Kind::Bad), w) if w == "no" || w == "not" || counted_zero => None,
+                (Some(Kind::Good), "not" | "no" | "never" | "isn't") => None,
+                (kind, _) => kind,
             };
             if let Some(kind) = kind {
                 out.push((start, end - start, kind));
@@ -814,5 +844,15 @@ mod tests {
         assert!(
             kinds("12:34:56 2026-10-24 15.2(7)E3 aa:bb:cc").iter().all(|(_, k)| *k != Kind::Address && *k != Kind::Mac)
         );
+    }
+
+    #[test]
+    fn counts_of_zero_and_negations_are_not_news() {
+        let none = |t: &str| kinds(t).iter().all(|(w, _)| w != "errors" && w != "CRC" && w != "connected" && w != "ok");
+        assert!(none("0 input errors, 0 CRC, 0 frame"));
+        assert!(none("Port is not connected"));
+        assert!(none("Disk full, Active Directory ok"));
+        assert!(kinds("12 CRC errors").iter().any(|(w, k)| w == "errors" && *k == Kind::Bad));
+        assert!(kinds("Gi1/0/1 is connected").iter().any(|(w, k)| w == "connected" && *k == Kind::Good));
     }
 }

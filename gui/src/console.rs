@@ -418,7 +418,7 @@ impl Console {
         // The list and the terminal share the width: a handle between them
         // moves the border with the mouse.
         let total = ui.available_width();
-        let (least, most) = (170.0, (total - 340.0).max(170.0));
+        let (least, most) = (210.0, (total - 340.0).max(210.0));
         let list_width = sh.settings.console_list_width.clamp(least, most);
         ui.horizontal_top(|ui| {
             ui.allocate_ui_with_layout(
@@ -645,6 +645,8 @@ impl Console {
                     }
                 }
                 self.broadcast_armed = None;
+                // Not left in the field: two more clicks would send it again.
+                self.broadcast_text.clear();
                 sh.toast(trlf("Sent to {n} sessions.", &[("n", &sent)]));
             }
         } else {
@@ -714,8 +716,9 @@ impl Console {
                 }
                 ui.checkbox(&mut sh.settings.log_timestamps, tr("Time on each line"));
             }
-            if zoom_button(ui, self.zoomed) {
-                self.zoomed = !self.zoomed;
+            // Maximized, the button to go back is at the top of the page.
+            if !self.zoomed && zoom_button(ui, false) {
+                self.zoomed = true;
             }
         });
         ui.add_space(4.0);

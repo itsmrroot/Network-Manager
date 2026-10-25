@@ -461,6 +461,7 @@ impl Term {
                 // Only text in the plain colour is coloured: a program that
                 // sets its own colours keeps them.
                 if cell.fgcolor() == vt100::Color::Default
+                    && cell.bgcolor() == vt100::Color::Default
                     && !cell.inverse()
                     && let Some(Some(tinted)) = tint.get(c as usize)
                 {
