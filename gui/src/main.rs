@@ -40,6 +40,7 @@ mod settings;
 mod snmp_tool;
 mod switchport;
 mod term;
+mod term_extras;
 mod theme;
 mod tools;
 mod translations;

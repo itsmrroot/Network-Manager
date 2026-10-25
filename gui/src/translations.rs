@@ -2373,6 +2373,24 @@ pub const GERMAN: &[(&str, &str)] = &[
         "The device is being set up. Wait a moment: it should be ready soon.",
         "Das Gerät wird eingerichtet. Einen Moment warten: es sollte gleich bereit sein.",
     ),
+    ("Click again to send to {n} sessions", "Noch einmal klicken: an {n} Sitzungen senden"),
+    (
+        "Colour addresses, interface names and words like up, down and error",
+        "Adressen, Schnittstellennamen und Wörter wie up, down und error farbig hervorheben",
+    ),
+    ("Command for all open sessions", "Befehl für alle offenen Sitzungen"),
+    ("Find", "Suchen"),
+    ("Find in the terminal", "Im Terminal suchen"),
+    ("Highlight", "Hervorheben"),
+    ("No match", "Kein Treffer"),
+    (
+        "Search the screen and what scrolled by: Cmd+F (Ctrl+Shift+F)",
+        "Den Bildschirm und das bereits Gescrollte durchsuchen: Cmd+F (Strg+Umschalt+F)",
+    ),
+    ("Send to all sessions", "An alle Sitzungen senden"),
+    ("Sent to {n} sessions.", "An {n} Sitzungen gesendet."),
+    ("Time on each line", "Uhrzeit in jeder Zeile"),
+    ("Write everything of this session to a text file", "Alles aus dieser Sitzung in eine Textdatei schreiben"),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4720,6 +4738,24 @@ pub const SPANISH: &[(&str, &str)] = &[
         "The device is being set up. Wait a moment: it should be ready soon.",
         "El dispositivo se está preparando. Espera un momento: pronto estará listo.",
     ),
+    ("Click again to send to {n} sessions", "Haz clic otra vez: enviar a {n} sesiones"),
+    (
+        "Colour addresses, interface names and words like up, down and error",
+        "Colorea direcciones, nombres de interfaz y palabras como up, down y error",
+    ),
+    ("Command for all open sessions", "Comando para todas las sesiones abiertas"),
+    ("Find", "Buscar"),
+    ("Find in the terminal", "Buscar en el terminal"),
+    ("Highlight", "Resaltar"),
+    ("No match", "Sin resultados"),
+    (
+        "Search the screen and what scrolled by: Cmd+F (Ctrl+Shift+F)",
+        "Busca en la pantalla y en lo que ya se desplazó: Cmd+F (Ctrl+Mayús+F)",
+    ),
+    ("Send to all sessions", "Enviar a todas las sesiones"),
+    ("Sent to {n} sessions.", "Enviado a {n} sesiones."),
+    ("Time on each line", "Hora en cada línea"),
+    ("Write everything of this session to a text file", "Escribe todo lo de esta sesión en un archivo de texto"),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7091,6 +7127,27 @@ pub const FRENCH: &[(&str, &str)] = &[
         "The device is being set up. Wait a moment: it should be ready soon.",
         "L'appareil est en cours de préparation. Patientez un instant : il sera bientôt prêt.",
     ),
+    ("Click again to send to {n} sessions", "Cliquez encore : envoyer à {n} sessions"),
+    (
+        "Colour addresses, interface names and words like up, down and error",
+        "Colorer les adresses, les noms d'interface et des mots comme up, down et error",
+    ),
+    ("Command for all open sessions", "Commande pour toutes les sessions ouvertes"),
+    ("Find", "Rechercher"),
+    ("Find in the terminal", "Rechercher dans le terminal"),
+    ("Highlight", "Surligner"),
+    ("No match", "Aucun résultat"),
+    (
+        "Search the screen and what scrolled by: Cmd+F (Ctrl+Shift+F)",
+        "Chercher dans l'écran et dans ce qui a défilé : Cmd+F (Ctrl+Maj+F)",
+    ),
+    ("Send to all sessions", "Envoyer à toutes les sessions"),
+    ("Sent to {n} sessions.", "Envoyé à {n} sessions."),
+    ("Time on each line", "Heure sur chaque ligne"),
+    (
+        "Write everything of this session to a text file",
+        "Écrire tout ce qui se passe dans cette session dans un fichier texte",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -9420,6 +9477,24 @@ pub const TURKISH: &[(&str, &str)] = &[
         "The device is being set up. Wait a moment: it should be ready soon.",
         "Cihaz hazırlanıyor. Biraz bekleyin: birazdan hazır olmalı.",
     ),
+    ("Click again to send to {n} sessions", "Tekrar tıklayın: {n} oturuma gönder"),
+    (
+        "Colour addresses, interface names and words like up, down and error",
+        "Adresleri, arayüz adlarını ve up, down, error gibi sözcükleri renklendirir",
+    ),
+    ("Command for all open sessions", "Tüm açık oturumlar için komut"),
+    ("Find", "Bul"),
+    ("Find in the terminal", "Terminalde ara"),
+    ("Highlight", "Vurgula"),
+    ("No match", "Eşleşme yok"),
+    (
+        "Search the screen and what scrolled by: Cmd+F (Ctrl+Shift+F)",
+        "Ekranda ve kayıp giden satırlarda ara: Cmd+F (Ctrl+Shift+F)",
+    ),
+    ("Send to all sessions", "Tüm oturumlara gönder"),
+    ("Sent to {n} sessions.", "{n} oturuma gönderildi."),
+    ("Time on each line", "Her satırda saat"),
+    ("Write everything of this session to a text file", "Bu oturumdaki her şeyi bir metin dosyasına yazar"),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -11767,6 +11842,24 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "The device is being set up. Wait a moment: it should be ready soon.",
         "Устройство настраивается. Подождите немного: скоро оно будет готово.",
     ),
+    ("Click again to send to {n} sessions", "Нажмите ещё раз: отправить в сессии ({n})"),
+    (
+        "Colour addresses, interface names and words like up, down and error",
+        "Подсвечивать адреса, имена интерфейсов и слова вроде up, down и error",
+    ),
+    ("Command for all open sessions", "Команда для всех открытых сессий"),
+    ("Find", "Найти"),
+    ("Find in the terminal", "Искать в терминале"),
+    ("Highlight", "Подсветка"),
+    ("No match", "Нет совпадений"),
+    (
+        "Search the screen and what scrolled by: Cmd+F (Ctrl+Shift+F)",
+        "Поиск по экрану и по прокрученному тексту: Cmd+F (Ctrl+Shift+F)",
+    ),
+    ("Send to all sessions", "Отправить во все сессии"),
+    ("Sent to {n} sessions.", "Отправлено в сессии: {n}."),
+    ("Time on each line", "Время в каждой строке"),
+    ("Write everything of this session to a text file", "Записывать всё из этой сессии в текстовый файл"),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -14045,6 +14138,24 @@ pub const ARABIC: &[(&str, &str)] = &[
         "The device is being set up. Wait a moment: it should be ready soon.",
         "يجري إعداد الجهاز. انتظر قليلًا: سيكون جاهزًا قريبًا.",
     ),
+    ("Click again to send to {n} sessions", "انقر مرة أخرى للإرسال إلى {n} جلسات"),
+    (
+        "Colour addresses, interface names and words like up, down and error",
+        "تلوين العناوين وأسماء الواجهات وكلمات مثل up وdown وerror",
+    ),
+    ("Command for all open sessions", "أمر لجميع الجلسات المفتوحة"),
+    ("Find", "بحث"),
+    ("Find in the terminal", "بحث في الطرفية"),
+    ("Highlight", "تمييز"),
+    ("No match", "لا توجد نتيجة"),
+    (
+        "Search the screen and what scrolled by: Cmd+F (Ctrl+Shift+F)",
+        "البحث في الشاشة وفيما تم تمريره: Cmd+F (Ctrl+Shift+F)",
+    ),
+    ("Send to all sessions", "إرسال إلى كل الجلسات"),
+    ("Sent to {n} sessions.", "تم الإرسال إلى {n} جلسات."),
+    ("Time on each line", "الوقت في كل سطر"),
+    ("Write everything of this session to a text file", "كتابة كل ما في هذه الجلسة في ملف نصي"),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -16284,4 +16395,22 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Click again to confirm", "再次点击以确认"),
     ("Connecting…", "正在连接…"),
     ("The device is being set up. Wait a moment: it should be ready soon.", "设备正在准备中。请稍等：很快就会就绪。"),
+    ("Click again to send to {n} sessions", "再点一次：发送到 {n} 个会话"),
+    (
+        "Colour addresses, interface names and words like up, down and error",
+        "为地址、接口名以及 up、down、error 等词着色",
+    ),
+    ("Command for all open sessions", "发给所有已打开会话的命令"),
+    ("Find", "查找"),
+    ("Find in the terminal", "在终端中查找"),
+    ("Highlight", "高亮"),
+    ("No match", "无匹配"),
+    (
+        "Search the screen and what scrolled by: Cmd+F (Ctrl+Shift+F)",
+        "搜索屏幕和已滚动出去的内容：Cmd+F（Ctrl+Shift+F）",
+    ),
+    ("Send to all sessions", "发送到所有会话"),
+    ("Sent to {n} sessions.", "已发送到 {n} 个会话。"),
+    ("Time on each line", "每行带时间"),
+    ("Write everything of this session to a text file", "把此会话的全部内容写入文本文件"),
 ];

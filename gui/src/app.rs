@@ -1119,7 +1119,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 51] = [
+        let pages: [(Page, &str, u32); 52] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1170,6 +1170,7 @@ impl App {
             (Page::Console, "49-split-drag", 60),
             (Page::Console, "50-zoom-serial", 30),
             (Page::Console, "51-zoom-remote", 30),
+            (Page::Console, "52-term-find", 90),
             (Page::Overview, "26-search", 30),
         ];
         // NETMGR_TOUR_FROM=36-guide: begin at that step.
@@ -1395,6 +1396,12 @@ impl App {
                     self.dock_drag_split = true;
                     self.dock_drag = Some(0);
                 }
+            }
+            if name == "52-term-find" {
+                self.shared.settings.guide.docked = false;
+                let target = std::env::var("NETMGR_TOUR_TELNET").ok();
+                self.console.demo(&mut self.shared, target.as_deref());
+                self.console.show(&mut self.shared, "find-is down");
             }
             if name == "30-push" {
                 self.console.show(&mut self.shared, "push");

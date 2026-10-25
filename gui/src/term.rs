@@ -2,6 +2,10 @@
 //! programs) for SSH and Telnet sessions.
 
 use eframe::egui::{self, Color32, FontId, Key, Rect, Sense, Stroke, Ui, Vec2, text::LayoutJob};
+use egui_phosphor::regular as icon;
+
+use crate::i18n::tr;
+use crate::term_extras::{self, Kind};
 
 pub struct Term {
     parser: vt100::Parser,
@@ -14,6 +18,24 @@ pub struct Term {
     /// Frames to keep the keyboard after Paste was clicked: the clipboard's
     /// text arrives a little later, and the click took the focus away.
     paste_wait: u8,
+    /// Colour addresses, interface names and words like up, down and error.
+    highlight: bool,
+    /// The find bar, when it is open.
+    find: Option<Find>,
+}
+
+/// The find bar: what is searched, and where it was found.
+struct Find {
+    text: String,
+    /// (line, first column, length) of each match: line 0 is the oldest one
+    /// kept, and the last `rows` lines are the screen.
+    matches: Vec<(usize, usize, usize)>,
+    current: usize,
+    /// How many lines are kept above the screen.
+    history: usize,
+    /// New output came in since the matches were looked for.
+    dirty: bool,
+    want_focus: bool,
 }
 
 /// What happened to the terminal this frame.
@@ -54,10 +76,15 @@ impl Term {
             selection: None,
             dragging: false,
             paste_wait: 0,
+            highlight: true,
+            find: None,
         }
     }
 
     pub fn feed(&mut self, bytes: &[u8]) {
+        if let Some(f) = &mut self.find {
+            f.dirty = true;
+        }
         // The highlight is kept to screen cells: new output would move the
         // text under it (except while the mouse is held, so a selection can be
         // made in a log that keeps scrolling).
@@ -65,6 +92,110 @@ impl Term {
             self.selection = None;
         }
         self.parser.process(bytes);
+    }
+
+    /// Development aid: the find bar open, with this text found.
+    #[cfg(debug_assertions)]
+    pub fn debug_find(&mut self, text: &str) {
+        self.open_find();
+        if let Some(f) = &mut self.find {
+            f.text = text.to_string();
+            f.want_focus = false;
+        }
+        if self.search() > 0
+            && let Some(f) = &mut self.find
+        {
+            f.current = 0;
+        }
+        self.show_match();
+    }
+
+    /// Colour addresses, interface names and the words that tell how things are.
+    pub fn set_highlight(&mut self, on: bool) {
+        self.highlight = on;
+    }
+
+    /// Opens the find bar (or puts the cursor in it again).
+    pub fn open_find(&mut self) {
+        let selected = self.selected_text();
+        match &mut self.find {
+            Some(f) => f.want_focus = true,
+            None => {
+                let text = if selected.is_empty() || selected.contains('\n') { String::new() } else { selected };
+                self.find =
+                    Some(Find { text, matches: Vec::new(), current: 0, history: 0, dirty: true, want_focus: true });
+            }
+        }
+        // Typing goes to the find bar, not to the device.
+        self.focused = false;
+    }
+
+    /// Every line kept (the oldest first) and how many are above the screen.
+    fn all_lines(&mut self) -> (usize, Vec<String>) {
+        let (rows, cols) = self.parser.screen().size();
+        let saved = self.parser.screen().scrollback();
+        self.parser.screen_mut().set_scrollback(usize::MAX);
+        let history = self.parser.screen().scrollback();
+        let total = history + rows as usize;
+        let mut lines = vec![String::new(); total];
+        let mut offset = history;
+        loop {
+            self.parser.screen_mut().set_scrollback(offset);
+            for (i, row) in self.parser.screen().rows(0, cols).enumerate() {
+                if let Some(slot) = lines.get_mut(history - offset + i) {
+                    *slot = row;
+                }
+            }
+            if offset == 0 {
+                break;
+            }
+            offset = offset.saturating_sub(rows as usize);
+        }
+        self.parser.screen_mut().set_scrollback(saved);
+        (history, lines)
+    }
+
+    /// Looks for the text again, in every line kept. Returns how many were found.
+    fn search(&mut self) -> usize {
+        let Some(needle) = self.find.as_ref().map(|f| f.text.to_lowercase().chars().collect::<Vec<char>>()) else {
+            return 0;
+        };
+        let (history, lines) = self.all_lines();
+        let mut matches = Vec::new();
+        if !needle.is_empty() {
+            'lines: for (n, line) in lines.iter().enumerate() {
+                let chars: Vec<char> = line.to_lowercase().chars().collect();
+                let mut at = 0;
+                while at + needle.len() <= chars.len() {
+                    if chars[at..at + needle.len()] == needle[..] {
+                        matches.push((n, at, needle.len()));
+                        if matches.len() >= 5000 {
+                            break 'lines;
+                        }
+                        at += needle.len();
+                    } else {
+                        at += 1;
+                    }
+                }
+            }
+        }
+        let found = matches.len();
+        if let Some(f) = &mut self.find {
+            f.history = history;
+            f.matches = matches;
+            f.current = f.current.min(found.saturating_sub(1));
+            f.dirty = false;
+        }
+        found
+    }
+
+    /// Scrolls back to where the current match is.
+    fn show_match(&mut self) {
+        let rows = self.parser.screen().size().0 as usize;
+        let Some(f) = &self.find else { return };
+        let Some(&(line, _, _)) = f.matches.get(f.current) else { return };
+        let offset = (f.history + rows / 2).saturating_sub(line).min(f.history);
+        self.parser.screen_mut().set_scrollback(offset);
     }
 
     /// The Paste button was clicked: the text comes in a moment, and the
@@ -167,16 +298,62 @@ impl Term {
             egui::StrokeKind::Inside,
         );
         let origin = rect.min + Vec2::new(10.0, 10.0);
+        if self.find.as_ref().is_some_and(|f| f.dirty) {
+            self.search();
+        }
         let screen = self.parser.screen();
+        // The line number (0 = the oldest kept) of the screen's first row.
+        let first_line = self.find.as_ref().map_or(0, |f| f.history.saturating_sub(screen.scrollback()));
         for r in 0..rows {
             let mut job = LayoutJob::default();
             let y = origin.y + r as f32 * rh;
+            // What to colour in this row: one character for each cell.
+            let mut tint: Vec<Option<Color32>> = Vec::new();
+            if self.highlight {
+                let text: Vec<char> = (0..cols)
+                    .map(|c| match screen.cell(r, c) {
+                        Some(cell) if cell.has_contents() => cell.contents().chars().next().unwrap_or(' '),
+                        _ => ' ',
+                    })
+                    .collect();
+                tint = vec![None; cols as usize];
+                for (at, len, kind) in term_extras::highlights(&text) {
+                    for slot in tint.iter_mut().skip(at).take(len) {
+                        *slot = Some(kind_color(kind));
+                    }
+                }
+            }
+            if let Some(f) = &self.find {
+                let line = first_line + r as usize;
+                for (i, &(l, col, len)) in f.matches.iter().enumerate() {
+                    if l == line {
+                        let band = Rect::from_min_size(
+                            egui::pos2(origin.x + col as f32 * cw, y),
+                            Vec2::new(len as f32 * cw, rh),
+                        );
+                        let color = if i == f.current {
+                            Color32::from_rgba_unmultiplied(255, 140, 0, 170)
+                        } else {
+                            Color32::from_rgba_unmultiplied(255, 214, 0, 90)
+                        };
+                        painter.rect_filled(band, 2.0, color);
+                    }
+                }
+            }
             for c in 0..cols {
                 let Some(cell) = screen.cell(r, c) else { continue };
                 if cell.is_wide_continuation() {
                     continue;
                 }
                 let (mut fg, mut bg) = (color(cell.fgcolor(), FG, cell.bold()), color(cell.bgcolor(), BG, false));
+                // Only text in the plain colour is coloured: a program that
+                // sets its own colours keeps them.
+                if cell.fgcolor() == vt100::Color::Default
+                    && !cell.inverse()
+                    && let Some(Some(tinted)) = tint.get(c as usize)
+                {
+                    fg = *tinted;
+                }
                 if cell.inverse() {
                     std::mem::swap(&mut fg, &mut bg);
                 }
@@ -309,6 +486,20 @@ impl Term {
                 self.parser.screen_mut().set_scrollback((now + lines).max(0) as usize);
             }
         }
+        // Cmd+F (Ctrl+Shift+F elsewhere, where Ctrl+F belongs to the shell)
+        // opens the find bar.
+        let find_key = ui.input(|i| {
+            i.events.iter().any(|e| {
+                matches!(e, egui::Event::Key { key: Key::F, pressed: true, modifiers, .. }
+                    if if cfg!(target_os = "macos") { modifiers.mac_cmd } else { modifiers.ctrl && modifiers.shift })
+            })
+        });
+        if find_key && (self.focused || resp.hovered()) {
+            self.open_find();
+        }
+        if self.find.is_some() {
+            self.find_bar(ui, rect, accent);
+        }
         if self.paste_wait > 0 {
             self.paste_wait -= 1;
             self.focused = true;
@@ -326,6 +517,80 @@ impl Term {
             capture_keys(ui.ctx(), self.id);
         }
         out
+    }
+
+    /// The find bar, on the top right of the terminal.
+    fn find_bar(&mut self, ui: &mut Ui, area: Rect, accent: Color32) {
+        let Some(mut f) = self.find.take() else { return };
+        let width = 372.0_f32.min(area.width() - 16.0).max(200.0);
+        let bar = Rect::from_min_size(egui::pos2(area.right() - width - 8.0, area.top() + 8.0), Vec2::new(width, 36.0));
+        let mut child =
+            ui.new_child(egui::UiBuilder::new().max_rect(bar).layout(egui::Layout::left_to_right(egui::Align::Center)));
+        let (mut close, mut changed, mut step) = (false, false, 0i32);
+        let field = self.id.with("find-field");
+        egui::Frame::new()
+            .fill(Color32::from_rgb(28, 32, 40))
+            .stroke(Stroke::new(1.0, accent.gamma_multiply(0.6)))
+            .corner_radius(8)
+            .inner_margin(egui::Margin::symmetric(8, 4))
+            .show(&mut child, |ui| {
+                let r = ui.add(
+                    egui::TextEdit::singleline(&mut f.text)
+                        .id(field)
+                        .hint_text(tr("Find in the terminal"))
+                        .desired_width(width - 150.0),
+                );
+                if f.want_focus {
+                    r.request_focus();
+                    f.want_focus = false;
+                }
+                changed = r.changed();
+                if (r.has_focus() || r.lost_focus()) && ui.input(|i| i.key_pressed(Key::Escape)) {
+                    close = true;
+                }
+                if r.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+                    step = if ui.input(|i| i.modifiers.shift) { -1 } else { 1 };
+                    r.request_focus();
+                }
+                let count = if f.text.is_empty() {
+                    String::new()
+                } else if f.matches.is_empty() {
+                    tr("No match").to_string()
+                } else {
+                    format!("{}/{}", f.current + 1, f.matches.len())
+                };
+                ui.label(egui::RichText::new(count).size(12.0).color(Color32::from_rgb(170, 178, 190)));
+                if ui.add(egui::Button::new(icon::CARET_UP).frame(false)).on_hover_text(tr("Previous")).clicked() {
+                    step = -1;
+                }
+                if ui.add(egui::Button::new(icon::CARET_DOWN).frame(false)).on_hover_text(tr("Next")).clicked() {
+                    step = 1;
+                }
+                if ui.add(egui::Button::new(icon::X).frame(false)).on_hover_text(tr("Close")).clicked() {
+                    close = true;
+                }
+            });
+        if close {
+            self.focused = true;
+            return;
+        }
+        self.find = Some(f);
+        if changed {
+            if self.search() > 0
+                && let Some(f) = &mut self.find
+            {
+                // The newest match first: that is what was just printed.
+                f.current = f.matches.len() - 1;
+            }
+            self.show_match();
+        } else if step != 0
+            && let Some(f) = &mut self.find
+            && !f.matches.is_empty()
+        {
+            let n = f.matches.len() as i32;
+            f.current = (f.current as i32 + step).rem_euclid(n) as usize;
+            self.show_match();
+        }
     }
 
     /// Keys as an xterm sends them.
@@ -373,7 +638,7 @@ impl Term {
                 egui::Event::Key { key, pressed: true, modifiers, .. } => {
                     // Ctrl with Alt is AltGr on Windows: a character, sent as text.
                     // Ctrl+Shift+C is copy (Linux terminals): never a ^C.
-                    if modifiers.ctrl && modifiers.shift && key == Key::C {
+                    if modifiers.ctrl && modifiers.shift && matches!(key, Key::C | Key::F) {
                         continue;
                     }
                     if modifiers.ctrl && !modifiers.alt {
@@ -437,6 +702,18 @@ impl Term {
             }
         }
         out
+    }
+}
+
+/// The colour of a kind of text (the terminal is dark in every theme).
+fn kind_color(kind: Kind) -> Color32 {
+    match kind {
+        Kind::Address => Color32::from_rgb(90, 200, 250),
+        Kind::Mac => Color32::from_rgb(200, 150, 250),
+        Kind::Interface => Color32::from_rgb(240, 200, 110),
+        Kind::Good => Color32::from_rgb(80, 220, 140),
+        Kind::Bad => Color32::from_rgb(255, 100, 100),
+        Kind::Warn => Color32::from_rgb(255, 170, 70),
     }
 }
 
@@ -730,5 +1007,43 @@ mod tests {
         let click = vec![press(spot, true), press(spot, false), press(spot, true), press(spot, false)];
         let (_, copied) = frame_of(&ctx, &mut term, click, 9.1);
         assert_eq!(copied, ["你好世界"]);
+    }
+
+    /// The find bar looks in the screen and in what scrolled by, shows the
+    /// match, and typing in it does not reach the device.
+    #[test]
+    fn the_find_bar_searches_the_scrollback() {
+        let ctx = egui::Context::default();
+        let mut term = Term::new(3);
+        frame_of(&ctx, &mut term, vec![], 0.0);
+        let mut lines = String::new();
+        for i in 0..300 {
+            lines.push_str(&format!("row {i} marker {}\r\n", if i % 100 == 7 { "Gi1/0/7 is down" } else { "ok" }));
+        }
+        term.feed(lines.as_bytes());
+        frame_of(&ctx, &mut term, vec![], 0.1);
+
+        // The bar opens and takes the typing.
+        term.open_find();
+        let (_, _) = frame_of(&ctx, &mut term, vec![], 0.2);
+        let (out, _) = frame_of(&ctx, &mut term, vec![Event::Text("is DOWN".into())], 0.3);
+        assert!(out.input.is_empty(), "the typing went to the device: {:?}", out.input);
+        let f = term.find.as_ref().expect("the bar is open");
+        assert_eq!(f.text, "is DOWN");
+        // Found in two lines, one of them long gone from the screen; the newest first.
+        assert_eq!(f.matches.len(), 3, "{:?}", f.matches);
+        assert_eq!(f.current, 2);
+        assert!(term.text().contains("row 207"), "the newest match is on the screen");
+
+        // Next goes round to the oldest one, which is in the scrollback.
+        term.find.as_mut().unwrap().current = 0;
+        term.show_match();
+        assert!(term.text().contains("row 7 marker"), "{}", term.text());
+        assert!(!term.text().contains("row 207"));
+
+        // New output does not lose the matches.
+        term.feed(b"row 300 Gi1/0/9 is down\r\n");
+        frame_of(&ctx, &mut term, vec![], 0.4);
+        assert_eq!(term.find.as_ref().unwrap().matches.len(), 4);
     }
 }

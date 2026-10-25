@@ -28,6 +28,8 @@ struct Open {
     saved: Saved,
     remote: Option<Remote>,
     term: crate::term::Term,
+    /// The session is being written to a file.
+    log: Option<crate::term_extras::SessionLog>,
 }
 
 pub struct Console {
@@ -38,8 +40,14 @@ pub struct Console {
     /// The terminal fills the page: the title, the tabs, the list of sessions
     /// and the cards are hidden (the Restore button brings them back).
     zoomed: bool,
+    /// The command for all the open sessions, and whether its button was clicked once.
+    broadcast_text: String,
+    broadcast_armed: bool,
     /// Frames to keep the serial terminal's keyboard after Paste was clicked.
     paste_wait: u8,
+    /// Development aid: open the find bar with this text once the session shows it.
+    #[cfg(debug_assertions)]
+    debug_find: Option<String>,
     /// Development aid: the pictures of the guide, from this one on, three at a time.
     #[cfg(debug_assertions)]
     gallery: Option<usize>,
@@ -71,6 +79,10 @@ impl Default for Console {
             push: Default::default(),
             adb: Default::default(),
             zoomed: false,
+            #[cfg(debug_assertions)]
+            debug_find: None,
+            broadcast_text: String::new(),
+            broadcast_armed: false,
             paste_wait: 0,
             #[cfg(debug_assertions)]
             gallery: None,
@@ -121,11 +133,17 @@ impl Console {
         for o in &mut self.open {
             let Some(r) = &o.remote else { continue };
             while let Ok(bytes) = r.received.try_recv() {
+                if let Some(l) = &mut o.log {
+                    l.write(&bytes);
+                }
                 o.term.feed(&bytes);
             }
             if r.ended() {
                 // What came in since the last look is shown before the end.
                 while let Ok(bytes) = r.received.try_recv() {
+                    if let Some(l) = &mut o.log {
+                        l.write(&bytes);
+                    }
                     o.term.feed(&bytes);
                 }
                 o.remote = None;
@@ -134,6 +152,14 @@ impl Console {
         }
         // The Android shell and log are read also while another page is shown.
         self.adb.pump(sh);
+        #[cfg(debug_assertions)]
+        if let Some(text) = self.debug_find.clone()
+            && let Some(o) = self.open.get_mut(0)
+            && o.term.text().contains("Gi1/0/2")
+        {
+            self.debug_find = None;
+            o.term.debug_find(&text);
+        }
         let Some(s) = &self.session else { return };
         while let Ok(bytes) = s.received.try_recv() {
             if let Some(f) = &mut self.log {
@@ -277,6 +303,9 @@ impl Console {
         if view == "push" {
             self.view = View::Push;
             self.push.demo(&sh.settings.sessions);
+        } else if let Some(text) = view.strip_prefix("find-") {
+            self.view = View::Remote;
+            self.debug_find = Some(text.to_string());
         } else if view == "split" {
             self.view = View::Remote;
         } else if view == "zoom-serial" {
@@ -308,7 +337,7 @@ impl Console {
         match Remote::open(&saved, rows, cols) {
             Ok(r) => {
                 sh.settings.remember_host(&saved.host);
-                self.open.push(Open { saved, remote: Some(r), term });
+                self.open.push(Open { saved, remote: Some(r), term, log: None });
                 self.active = self.open.len() - 1;
                 self.next_id += 1;
             }
@@ -560,9 +589,48 @@ impl Console {
             }
             self.active = self.active.min(self.open.len() - 1);
         }
+        // One command for every open session: a click asks, the second sends.
+        let live = self.open.iter().filter(|o| o.remote.is_some()).count();
+        if live >= 2 {
+            let mut send = false;
+            ui.horizontal(|ui| {
+                let r = crate::theme::field(
+                    ui,
+                    egui::TextEdit::singleline(&mut self.broadcast_text)
+                        .hint_text(tr("Command for all open sessions"))
+                        .desired_width(300.0),
+                );
+                if r.changed() {
+                    self.broadcast_armed = false;
+                }
+                let label = if self.broadcast_armed {
+                    trf("Click again to send to {n} sessions", &[("n", &live)])
+                } else {
+                    tr("Send to all sessions").to_string()
+                };
+                if ui.add_enabled(!self.broadcast_text.trim().is_empty(), egui::Button::new(label)).clicked() {
+                    if self.broadcast_armed {
+                        send = true;
+                    } else {
+                        self.broadcast_armed = true;
+                    }
+                }
+            });
+            if send {
+                let line = format!("{}\r", self.broadcast_text.trim_end());
+                for o in &self.open {
+                    if let Some(r) = &o.remote {
+                        let _ = r.send(line.as_bytes());
+                    }
+                }
+                self.broadcast_armed = false;
+                sh.toast(trlf("Sent to {n} sessions.", &[("n", &live)]));
+            }
+        }
         let o = &mut self.open[self.active];
         let mut reconnect = false;
-        ui.horizontal(|ui| {
+        o.term.set_highlight(sh.settings.term_highlight);
+        ui.horizontal_wrapped(|ui| {
             ui.label(
                 RichText::new(format!("{} {}", o.saved.protocol.label(), o.saved.target())).color(p.weak).size(12.5),
             );
@@ -580,6 +648,41 @@ impl Console {
             {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
                 o.term.expect_paste();
+            }
+            if ui
+                .button(icon_label(icon::MAGNIFYING_GLASS, "Find"))
+                .on_hover_text(tr("Search the screen and what scrolled by: Cmd+F (Ctrl+Shift+F)"))
+                .clicked()
+            {
+                o.term.open_find();
+            }
+            highlight_toggle(ui, sh);
+            // The session as a text file, with the time of each line.
+            if o.log.is_some() {
+                if ui.button(icon_label(icon::FLOPPY_DISK, "Stop log")).clicked() {
+                    o.log = None;
+                }
+            } else {
+                if ui
+                    .button(icon_label(icon::FLOPPY_DISK, "Log to file…"))
+                    .on_hover_text(tr("Write everything of this session to a text file"))
+                    .clicked()
+                {
+                    let name = format!("{}-{}.log", o.saved.name, chrono::Local::now().format("%Y-%m-%d-%H%M%S"));
+                    if let Some(path) = rfd::FileDialog::new().set_file_name(name).save_file() {
+                        match std::fs::File::create(&path) {
+                            Ok(f) => {
+                                let mut log =
+                                    crate::term_extras::SessionLog::new(Box::new(f), sh.settings.log_timestamps);
+                                log.write(o.term.text().as_bytes());
+                                log.write(b"\n");
+                                o.log = Some(log);
+                            }
+                            Err(e) => sh.fail(trl("The log file could not be created."), &e.into()),
+                        }
+                    }
+                }
+                ui.checkbox(&mut sh.settings.log_timestamps, tr("Time on each line"));
             }
             if zoom_button(ui, self.zoomed) {
                 self.zoomed = !self.zoomed;
@@ -1041,4 +1144,17 @@ fn zoom_button(ui: &mut Ui, zoomed: bool) -> bool {
         )
     };
     ui.button(label).on_hover_text(hint).clicked()
+}
+
+/// Colouring of addresses, interface names and up, down and error: on or off
+/// for every terminal.
+pub fn highlight_toggle(ui: &mut Ui, sh: &mut Shared) {
+    let on = sh.settings.term_highlight;
+    if ui
+        .selectable_label(on, icon_label(icon::PALETTE, "Highlight"))
+        .on_hover_text(tr("Colour addresses, interface names and words like up, down and error"))
+        .clicked()
+    {
+        sh.settings.term_highlight = !on;
+    }
 }

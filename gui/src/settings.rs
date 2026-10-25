@@ -130,6 +130,10 @@ pub struct Settings {
     /// Console → SSH and Telnet: the width of the list of saved sessions,
     /// as dragged with the mouse.
     pub console_list_width: f32,
+    /// Colour addresses, interface names and up/down/error in the terminals.
+    pub term_highlight: bool,
+    /// A session log has the time on each line.
+    pub log_timestamps: bool,
 }
 
 fn yes() -> bool {
@@ -182,6 +186,8 @@ impl Default for Settings {
             wifi_manual: None,
             guide: Default::default(),
             console_list_width: 250.0,
+            term_highlight: true,
+            log_timestamps: true,
         }
     }
 }

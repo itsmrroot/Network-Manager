@@ -567,6 +567,10 @@ impl AdbPage {
                 if theme::danger_button(ui, p, &icon_label(icon::PLUGS, "Close shell")).clicked() {
                     self.shell = None;
                 }
+                if ui.button(icon_label(icon::MAGNIFYING_GLASS, "Find")).clicked() {
+                    self.shell_term.open_find();
+                }
+                crate::console::highlight_toggle(ui, sh);
                 if ui.button(icon_label(icon::COPY, "Copy screen")).clicked() {
                     ui.ctx().copy_text(self.shell_term.text());
                     sh.toast(tr("Copied."));
@@ -599,6 +603,7 @@ impl AdbPage {
         });
         ui.add_space(4.0);
         let height = self.terminal_height(ui, since);
+        self.shell_term.set_highlight(sh.settings.term_highlight);
         let out = ui
             .allocate_ui(egui::vec2(ui.available_width(), height), |ui| self.shell_term.ui(ui, p.border, p.accent))
             .inner;
@@ -684,6 +689,10 @@ impl AdbPage {
                 });
                 self.sub = Sub::Log;
             }
+            if ui.button(icon_label(icon::MAGNIFYING_GLASS, "Find")).clicked() {
+                self.log_term.open_find();
+            }
+            crate::console::highlight_toggle(ui, sh);
             if ui.button(icon_label(icon::COPY, "Copy screen")).clicked() {
                 ui.ctx().copy_text(self.log_term.text());
                 sh.toast(tr("Copied."));
@@ -724,6 +733,7 @@ impl AdbPage {
         }
         ui.add_space(4.0);
         let height = self.terminal_height(ui, since);
+        self.log_term.set_highlight(sh.settings.term_highlight);
         let out = ui
             .allocate_ui(egui::vec2(ui.available_width(), height), |ui| self.log_term.ui(ui, p.border, p.accent))
             .inner;
