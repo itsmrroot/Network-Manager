@@ -379,8 +379,9 @@ impl App {
                 self.console.new_connection();
             }
             C::OpenSession(i) => {
-                self.page = Page::Console;
+                // From a menu a session opens in a window of its own; "Bring back" puts it in the app.
                 self.console.open_saved(i, &mut self.shared);
+                self.console.pop_out();
             }
             C::ConsoleTab(tab) => {
                 self.page = Page::Console;
