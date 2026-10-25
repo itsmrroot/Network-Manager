@@ -382,6 +382,11 @@ impl App {
                 // From a menu a session opens in a window of its own; "Bring back" puts it in the app.
                 self.console.open_saved(i, &mut self.shared);
                 self.console.pop_out();
+                // A minimised or hidden app draws nothing, so the window would wait for a click on the Dock icon.
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                ctx.request_repaint();
             }
             C::ConsoleTab(tab) => {
                 self.page = Page::Console;

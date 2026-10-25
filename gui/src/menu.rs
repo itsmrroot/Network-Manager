@@ -202,6 +202,7 @@ mod imp {
                     if let Ok(mut v) = events.lock() {
                         v.push(e.id);
                     }
+                    crate::dock::wake();
                     ctx.request_repaint();
                 }));
             }

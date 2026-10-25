@@ -188,3 +188,26 @@ pub fn describe_menu_bar() -> String {
         out.join("\n")
     }
 }
+
+/// Shows the app again when a Dock menu item is chosen while it is hidden or
+/// minimised: such a window draws nothing, so the command would wait until the
+/// user clicks the Dock icon.
+pub fn wake() {
+    unsafe {
+        let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+        if app.is_null() {
+            return;
+        }
+        let _: () = msg_send![app, unhide: std::ptr::null::<AnyObject>()];
+        let _: () = msg_send![app, activateIgnoringOtherApps: Bool::YES];
+        let windows: *mut AnyObject = msg_send![app, windows];
+        let count: usize = msg_send![windows, count];
+        for i in 0..count {
+            let window: *mut AnyObject = msg_send![windows, objectAtIndex: i];
+            let minimised: Bool = msg_send![window, isMiniaturized];
+            if minimised.as_bool() {
+                let _: () = msg_send![window, deminiaturize: std::ptr::null::<AnyObject>()];
+            }
+        }
+    }
+}
