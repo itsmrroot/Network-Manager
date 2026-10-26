@@ -185,6 +185,9 @@ pub struct App {
     /// The app was minimised or hidden when a Dock menu item woke it: frames since then.
     /// Once the session window draws, the main window goes away again.
     away: Option<u32>,
+    /// The main window is invisible while only terminal windows of their own are wanted.
+    #[cfg(target_os = "macos")]
+    faded: bool,
     #[cfg(debug_assertions)]
     tour: Option<tour::Tour>,
 }
@@ -279,6 +282,8 @@ impl App {
             servers: Default::default(),
             console: Default::default(),
             away: None,
+            #[cfg(target_os = "macos")]
+            faded: false,
             #[cfg(debug_assertions)]
             tour,
             #[cfg(debug_assertions)]
@@ -932,9 +937,14 @@ impl eframe::App for App {
         // Sessions and the serial console that were opened in their own windows.
         self.console.windows(&ctx, &p, &mut self.shared);
         if let Some(frames) = self.away {
-            // A minimised window draws nothing, but the window of a session keeps the frames coming.
+            // The main window must stay shown, or the windows of the sessions stop answering
+            // (they are drawn by it): it is made invisible instead of minimised.
             if frames >= 5 && self.console.has_window() {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                #[cfg(target_os = "macos")]
+                {
+                    crate::dock::fade_main(true);
+                    self.faded = true;
+                }
                 self.away = None;
             } else if frames >= 120 {
                 self.away = None;
@@ -942,6 +952,12 @@ impl eframe::App for App {
                 self.away = Some(frames + 1);
                 ctx.request_repaint();
             }
+        }
+        // The last window of its own is gone: the main window is there again.
+        #[cfg(target_os = "macos")]
+        if self.faded && !self.console.has_window() {
+            crate::dock::fade_main(false);
+            self.faded = false;
         }
         match guide_action {
             Some(crate::guide_view::Action::OpenTab) => self.shared.nav = Some(Nav::Tab(Page::Console, "guide")),

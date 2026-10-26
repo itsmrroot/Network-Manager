@@ -1685,7 +1685,9 @@ fn open_away(saved: &Saved, rows: u16, cols: u16) -> Receiver<anyhow::Result<Rem
 fn cascade(ctx: &egui::Context, n: usize) -> egui::Pos2 {
     let origin =
         ctx.input_for(egui::ViewportId::ROOT, |i| i.viewport().outer_rect).map_or(egui::pos2(80.0, 80.0), |r| r.min);
-    origin + egui::vec2(60.0 + 28.0 * n as f32, 60.0 + 28.0 * n as f32)
+    let at = origin + egui::vec2(60.0 + 28.0 * n as f32, 60.0 + 28.0 * n as f32);
+    // Never so far up that the title bar is under the menu bar, or off the screen.
+    egui::pos2(at.x.max(0.0), at.y.max(80.0))
 }
 
 /// The symbol of a session icon for menus that cannot show pictures (the

@@ -236,3 +236,29 @@ pub fn no_window_tabs() {
         let _: () = msg_send![class!(NSWindow), setAllowsAutomaticWindowTabbing: Bool::NO];
     }
 }
+
+/// Makes the main window invisible (and deaf to the mouse), or shows it again.
+/// It is not minimised: a minimised window draws no frames, and the windows of
+/// the terminals are drawn by it, so they would not answer a click.
+pub fn fade_main(hide: bool) {
+    // SAFETY: AppKit calls on the main thread (the frame loop runs there).
+    unsafe {
+        let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+        if app.is_null() {
+            return;
+        }
+        let windows: *mut AnyObject = msg_send![app, windows];
+        let count: usize = msg_send![windows, count];
+        for i in 0..count {
+            let window: *mut AnyObject = msg_send![windows, objectAtIndex: i];
+            let title: *mut AnyObject = msg_send![window, title];
+            let text: *const std::ffi::c_char = msg_send![title, UTF8String];
+            if text.is_null() || std::ffi::CStr::from_ptr(text).to_bytes() != b"Network Manager" {
+                continue;
+            }
+            let alpha: f64 = if hide { 0.0 } else { 1.0 };
+            let _: () = msg_send![window, setAlphaValue: alpha];
+            let _: () = msg_send![window, setIgnoresMouseEvents: Bool::new(hide)];
+        }
+    }
+}
