@@ -5,6 +5,12 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.17
+
+### Fixed
+- The Windows download is back. Version 0.9.16 came out without its Windows
+  files; this version has everything 0.9.16 has.
+
 ## 0.9.16
 
 ### New
