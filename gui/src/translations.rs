@@ -2438,6 +2438,7 @@ pub const GERMAN: &[(&str, &str)] = &[
         "Aus dem Fenster ziehen und loslassen, um sie zurückzuholen",
     ),
     ("Drag to change the height; double-click to fill the page", "Ziehen ändert die Höhe; Doppelklick füllt die Seite"),
+    ("Hide or show sidebar", "Seitenleiste aus- oder einblenden"),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -4850,6 +4851,7 @@ pub const SPANISH: &[(&str, &str)] = &[
         "Drag to change the height; double-click to fill the page",
         "Arrastra para cambiar la altura; doble clic para llenar la página",
     ),
+    ("Hide or show sidebar", "Ocultar o mostrar la barra lateral"),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7286,6 +7288,7 @@ pub const FRENCH: &[(&str, &str)] = &[
         "Drag to change the height; double-click to fill the page",
         "Glissez pour changer la hauteur ; double-clic pour remplir la page",
     ),
+    ("Hide or show sidebar", "Masquer ou afficher la barre latérale"),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -9674,6 +9677,7 @@ pub const TURKISH: &[(&str, &str)] = &[
         "Drag to change the height; double-click to fill the page",
         "Yüksekliği değiştirmek için sürükleyin; sayfayı doldurmak için çift tıklayın",
     ),
+    ("Hide or show sidebar", "Kenar çubuğunu gizle veya göster"),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -12083,6 +12087,7 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "Drag to change the height; double-click to fill the page",
         "Перетащите, чтобы изменить высоту; двойной щелчок — на всю страницу",
     ),
+    ("Hide or show sidebar", "Скрыть или показать боковую панель"),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -14411,6 +14416,7 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Let go to open in a window", "أفلت لفتحها في نافذة"),
     ("Drag out of the window and let go to bring it back", "اسحبها خارج النافذة ثم أفلتها لإعادتها"),
     ("Drag to change the height; double-click to fill the page", "اسحب لتغيير الارتفاع؛ انقر مرتين لملء الصفحة"),
+    ("Hide or show sidebar", "إخفاء الشريط الجانبي أو إظهاره"),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -16700,4 +16706,5 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Let go to open in a window", "松开以在窗口中打开"),
     ("Drag out of the window and let go to bring it back", "拖出窗口并松开，即可放回"),
     ("Drag to change the height; double-click to fill the page", "拖动可调整高度；双击可占满页面"),
+    ("Hide or show sidebar", "隐藏或显示侧边栏"),
 ];

@@ -342,6 +342,7 @@ impl App {
             C::Undo | C::Redo | C::Cut | C::Copy | C::Paste | C::SelectAll => {
                 menu::edit(ctx, c, self.console.focused_window(ctx));
             }
+            C::ToggleSidebar => self.shared.settings.sidebar_hidden = !self.shared.settings.sidebar_hidden,
             C::ZoomIn => self.zoom(1),
             C::ZoomOut => self.zoom(-1),
             C::ZoomReset => self.zoom(0),
@@ -576,6 +577,8 @@ impl App {
             (Layout::left_to_right(Align::Center), Layout::right_to_left(Align::Center))
         };
         ui.with_layout(outer, |ui| {
+            self.sidebar_button(ui, white);
+            ui.add_space(6.0);
             ui.add(egui::Image::new(&self.logo).fit_to_exact_size(Vec2::splat(30.0)));
             ui.add_space(4.0);
             // The name reads "Network Manager" either way (this row runs from
@@ -623,6 +626,17 @@ impl App {
         });
     }
 
+    /// The button that hides the list of pages on the left, and brings it back.
+    fn sidebar_button(&mut self, ui: &mut Ui, color: Color32) {
+        let hidden = self.shared.settings.sidebar_hidden;
+        let button = egui::Button::new(RichText::new(icon::SIDEBAR_SIMPLE).size(19.0).color(color)).frame(false);
+        let key = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
+        let hint = format!("{} ({key}+\\)", tr("Hide or show sidebar"));
+        if ui.add(button.selected(hidden)).on_hover_text(hint).clicked() {
+            self.shared.settings.sidebar_hidden = !hidden;
+        }
+    }
+
     fn sidebar(&mut self, ui: &mut Ui, p: &Palette) {
         if p.header.is_none() {
             ui.add_space(18.0);
@@ -634,6 +648,7 @@ impl App {
                     ui.label(theme::semibold("Network", 16.0).color(p.text));
                     ui.label(RichText::new("Manager").color(p.weak).size(13.0));
                 });
+                ui.with_layout(Layout::right_to_left(Align::TOP), |ui| self.sidebar_button(ui, p.weak));
             });
         }
         ui.add_space(14.0);
@@ -919,13 +934,18 @@ impl eframe::App for App {
         }
         // Arabic reads from the right: the sidebar is there too.
         let sidebar = if i18n::is_rtl() { egui::Panel::right("sidebar") } else { egui::Panel::left("sidebar") };
-        sidebar
-            .exact_size(236.0)
-            .resizable(false)
-            .frame(
-                Frame::new().fill(p.sidebar).stroke(Stroke::new(1.0, p.border)).inner_margin(Margin::symmetric(12, 0)),
-            )
-            .show(ui, |ui| self.sidebar(ui, &p));
+        if !self.shared.settings.sidebar_hidden {
+            sidebar
+                .exact_size(236.0)
+                .resizable(false)
+                .frame(
+                    Frame::new()
+                        .fill(p.sidebar)
+                        .stroke(Stroke::new(1.0, p.border))
+                        .inner_margin(Margin::symmetric(12, 0)),
+                )
+                .show(ui, |ui| self.sidebar(ui, &p));
+        }
         // The CLI guide beside the console, or in a window of its own.
         let guide_action = {
             let (g, cfg) = (&mut self.shared.guide, &mut self.shared.settings.guide);
@@ -963,6 +983,14 @@ impl eframe::App for App {
             Some(crate::guide_view::Action::OpenTab) => self.shared.nav = Some(Nav::Tab(Page::Console, "guide")),
             Some(crate::guide_view::Action::OpenConsole) => self.shared.nav = Some(Nav::Tab(Page::Console, "serial")),
             None => {}
+        }
+        // Without the header there is no button for the sidebar once it is hidden.
+        if self.shared.settings.sidebar_hidden && p.header.is_none() {
+            let at = if i18n::is_rtl() { egui::Align2::RIGHT_TOP } else { egui::Align2::LEFT_TOP };
+            egui::Area::new(egui::Id::new("sidebar-button"))
+                .anchor(at, egui::vec2(if i18n::is_rtl() { -10.0 } else { 10.0 }, 8.0))
+                .order(egui::Order::Foreground)
+                .show(&ctx, |ui| self.sidebar_button(ui, p.weak));
         }
         egui::CentralPanel::default()
             .frame(Frame::new().fill(p.bg).inner_margin(Margin { left: 30, right: 30, top: 26, bottom: 22 }))
@@ -1260,6 +1288,10 @@ impl App {
             && let Some(i) = pages.iter().position(|(_, n, _)| n.starts_with(prefix.as_str()))
         {
             (t.step, t.start) = (i, i);
+        }
+        // NETMGR_TOUR_SIDEBAR=hide: the list of pages hidden.
+        if t.frames == 1 && t.step == t.start && std::env::var("NETMGR_TOUR_SIDEBAR").as_deref() == Ok("hide") {
+            self.shared.settings.sidebar_hidden = true;
         }
         // NETMGR_TOUR_LIGHT: the light theme instead.
         if t.frames == 1 && t.step == t.start && std::env::var_os("NETMGR_TOUR_LIGHT").is_some() {

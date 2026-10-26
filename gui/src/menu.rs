@@ -23,6 +23,8 @@ pub enum Command {
     Paste,
     SelectAll,
     ZoomIn,
+    /// Hide or show the list of pages on the left.
+    ToggleSidebar,
     ZoomOut,
     ZoomReset,
     Theme(ThemeChoice),
@@ -61,6 +63,7 @@ pub const ICONS: &[&str] = &[
     icon::MAGNIFYING_GLASS,
     icon::MAGNIFYING_GLASS_PLUS,
     icon::MAGNIFYING_GLASS_MINUS,
+    icon::SIDEBAR_SIMPLE,
     icon::DESKTOP,
     icon::SUN,
     icon::MOON,
@@ -331,6 +334,12 @@ mod imp {
                 self.item(icon::MAGNIFYING_GLASS, tr("Actual Size"), Command::ZoomReset, acc(cmd, Code::Digit0));
             let zin = self.item(icon::MAGNIFYING_GLASS_PLUS, tr("Zoom In"), Command::ZoomIn, acc(cmd, Code::Equal));
             let zout = self.item(icon::MAGNIFYING_GLASS_MINUS, tr("Zoom Out"), Command::ZoomOut, acc(cmd, Code::Minus));
+            let sidebar = self.item(
+                icon::SIDEBAR_SIMPLE,
+                tr("Hide or show sidebar"),
+                Command::ToggleSidebar,
+                acc(cmd, Code::Backslash),
+            );
             let themes = [
                 (ThemeChoice::System, icon::DESKTOP, tr("System")),
                 (ThemeChoice::Light, icon::SUN, tr("Light")),
@@ -350,6 +359,7 @@ mod imp {
                     &zin,
                     &zout,
                     &sep(),
+                    &sidebar,
                     &appearance,
                     &sep(),
                     &PredefinedMenuItem::fullscreen(Some(tr("Enter Full Screen"))),
@@ -507,6 +517,9 @@ mod imp {
                 }
                 if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Comma)) {
                     out.push(Command::Page(Page::Settings));
+                }
+                if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Backslash)) {
+                    out.push(Command::ToggleSidebar);
                 }
                 if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::K)) {
                     out.push(Command::Search);
