@@ -32,7 +32,9 @@ def main() -> int:
     if notes is None:
         print(f"CHANGELOG.md has no notes for {version}", file=sys.stderr)
         return 1
-    print(notes)
+    # Bytes, as UTF-8: a Windows console would use its own code page and fail
+    # on a character such as an arrow.
+    sys.stdout.buffer.write((notes + "\n").encode("utf-8"))
     return 0
 
 
