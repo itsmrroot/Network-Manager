@@ -5,6 +5,13 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.16
+
+### New
+- **Hide the list of pages on the left** for more room. Use the button at the
+  top left, View → "Hide or show sidebar", or Cmd+\ (Ctrl+\ on Windows and
+  Linux). The app remembers your choice.
+
 ## 0.9.15
 
 ### Fixed
