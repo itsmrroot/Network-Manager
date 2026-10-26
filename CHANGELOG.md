@@ -5,6 +5,14 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.14
+
+### Fixed
+- A session opened from the Dock menu while the app is minimised now gets a
+  terminal window with its own title bar and buttons, and Bring back and Paste
+  work in it.
+- On the Mac, windows of the app are no longer merged into tabs.
+
 ## 0.9.13
 
 ### New
