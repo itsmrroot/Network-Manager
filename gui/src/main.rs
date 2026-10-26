@@ -127,6 +127,8 @@ fn main() -> eframe::Result {
     unsafe {
         libc::signal(libc::SIGHUP, libc::SIG_IGN);
     }
+    #[cfg(target_os = "macos")]
+    dock::no_window_tabs();
     if let Some(level) = std::env::var("RUST_LOG").ok().and_then(|l| l.parse::<log::LevelFilter>().ok()) {
         let file = std::fs::File::create(problem_log().with_file_name("debug.log")).ok();
         let _ = log::set_boxed_logger(Box::new(Logger(level, std::sync::Mutex::new(file))))

@@ -225,3 +225,14 @@ static AWAY: AtomicBool = AtomicBool::new(false);
 pub fn take_away() -> bool {
     AWAY.swap(false, Ordering::SeqCst)
 }
+
+/// Keeps macOS from merging the windows of the app into tabs ("Merge All
+/// Windows", or "prefer tabs" in full screen): a terminal merged into the
+/// main window has no title bar of its own and cannot be told apart from it.
+/// Called before the first window is made.
+pub fn no_window_tabs() {
+    // SAFETY: a class method of AppKit with a BOOL argument.
+    unsafe {
+        let _: () = msg_send![class!(NSWindow), setAllowsAutomaticWindowTabbing: Bool::NO];
+    }
+}
