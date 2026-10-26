@@ -199,6 +199,12 @@ pub fn wake() {
             return;
         }
         let hidden: Bool = msg_send![app, isHidden];
+        let active: Bool = msg_send![app, isActive];
+        // A menu item (or Cmd+V) chosen in the app itself needs no waking: it would
+        // bring the main window up over the terminal that was being used.
+        if active.as_bool() && !hidden.as_bool() {
+            return;
+        }
         let mut away = hidden.as_bool();
         let _: () = msg_send![app, unhide: std::ptr::null::<AnyObject>()];
         let _: () = msg_send![app, activateIgnoringOtherApps: Bool::YES];
