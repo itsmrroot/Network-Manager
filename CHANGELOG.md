@@ -5,6 +5,12 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.15
+
+### Fixed
+- Cmd+V (and any other menu item) in a terminal window of its own no longer
+  brings the main window up.
+
 ## 0.9.14
 
 ### Fixed
