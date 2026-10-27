@@ -9,7 +9,7 @@
 [![Downloads](https://img.shields.io/github/downloads/itsmrroot/Network-Manager-releases/total?color=16a34a)](https://github.com/itsmrroot/Network-Manager-releases/releases)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-6b7280)](#-install)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-dea584?logo=rust&logoColor=white)](https://www.rust-lang.org)
-[![License: MIT](https://img.shields.io/github/license/itsmrroot/Network-Manager?color=a78bfa)](LICENSE)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-a78bfa)](LICENSE)
 
 **Change IP and MAC addresses, see saved Wi-Fi passwords, find every device on your network, see which switch port<br>you are plugged into, watch hosts and paths, and run TFTP, syslog and a console — in one modern app.**
 
@@ -783,7 +783,9 @@ pushed (see [`.github/workflows/release.yml`](.github/workflows/release.yml)).
 
 **Powered by Bashar Salmo**
 
-Released under the [MIT License](LICENSE). MAC vendor names from the
+Free for personal and other non-commercial use under the [PolyForm Noncommercial License 1.0.0](LICENSE); selling it,
+or using it in a commercial product, needs written permission from Bashar Salmo. Versions up to 0.9.17 were released
+under the MIT License, and stay under it for those who received them. MAC vendor names from the
 [IEEE Registration Authority](https://standards.ieee.org/products-programs/regauth/). The desktop app bundles
 [Noto Sans Arabic](https://github.com/notofonts/arabic) and [Noto Sans SC](https://github.com/notofonts/noto-cjk)
 under the SIL Open Font License ([Arabic](gui/assets/fonts/OFL.txt), [SC](gui/assets/fonts/OFL-NotoSansSC.txt)).

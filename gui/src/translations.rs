@@ -472,7 +472,6 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("MAC address", "MAC-Adresse"),
     ("MAC address of {name}", "MAC-Adresse von {name}"),
     ("MAC lookup", "MAC-Abfrage"),
-    ("MIT License", "MIT-Lizenz"),
     ("Mail", "E-Mail"),
     (
         "Make everything larger or smaller (also Ctrl/⌘ + and −).",
@@ -2439,6 +2438,7 @@ pub const GERMAN: &[(&str, &str)] = &[
     ),
     ("Drag to change the height; double-click to fill the page", "Ziehen ändert die Höhe; Doppelklick füllt die Seite"),
     ("Hide or show sidebar", "Seitenleiste aus- oder einblenden"),
+    ("PolyForm Noncommercial License", "PolyForm-Noncommercial-Lizenz"),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -2903,7 +2903,6 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("MAC address", "Dirección MAC"),
     ("MAC address of {name}", "Dirección MAC de {name}"),
     ("MAC lookup", "Consulta MAC"),
-    ("MIT License", "Licencia MIT"),
     ("Mail", "Correo"),
     (
         "Make everything larger or smaller (also Ctrl/⌘ + and −).",
@@ -4852,6 +4851,7 @@ pub const SPANISH: &[(&str, &str)] = &[
         "Arrastra para cambiar la altura; doble clic para llenar la página",
     ),
     ("Hide or show sidebar", "Ocultar o mostrar la barra lateral"),
+    ("PolyForm Noncommercial License", "Licencia PolyForm Noncommercial"),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -5325,7 +5325,6 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("MAC address", "Adresse MAC"),
     ("MAC address of {name}", "Adresse MAC de {name}"),
     ("MAC lookup", "Recherche MAC"),
-    ("MIT License", "Licence MIT"),
     ("Mail", "Messagerie"),
     ("Make everything larger or smaller (also Ctrl/⌘ + and −).", "Tout agrandir ou réduire (aussi Ctrl/⌘ + et −)."),
     ("Maker", "Fabricant"),
@@ -7289,6 +7288,7 @@ pub const FRENCH: &[(&str, &str)] = &[
         "Glissez pour changer la hauteur ; double-clic pour remplir la page",
     ),
     ("Hide or show sidebar", "Masquer ou afficher la barre latérale"),
+    ("PolyForm Noncommercial License", "Licence PolyForm Noncommercial"),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -7741,7 +7741,6 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("MAC address", "MAC adresi"),
     ("MAC address of {name}", "{name} MAC adresi"),
     ("MAC lookup", "MAC sorgusu"),
-    ("MIT License", "MIT Lisansı"),
     ("Mail", "E-posta"),
     ("Make everything larger or smaller (also Ctrl/⌘ + and −).", "Her şeyi büyüt veya küçült (ayrıca Ctrl/⌘ + ve −)."),
     ("Maker", "Üretici"),
@@ -9678,6 +9677,7 @@ pub const TURKISH: &[(&str, &str)] = &[
         "Yüksekliği değiştirmek için sürükleyin; sayfayı doldurmak için çift tıklayın",
     ),
     ("Hide or show sidebar", "Kenar çubuğunu gizle veya göster"),
+    ("PolyForm Noncommercial License", "PolyForm Noncommercial Lisansı"),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -10142,7 +10142,6 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("MAC address", "MAC-адрес"),
     ("MAC address of {name}", "MAC-адрес: {name}"),
     ("MAC lookup", "Поиск MAC"),
-    ("MIT License", "Лицензия MIT"),
     ("Mail", "Почта"),
     (
         "Make everything larger or smaller (also Ctrl/⌘ + and −).",
@@ -12088,6 +12087,7 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "Перетащите, чтобы изменить высоту; двойной щелчок — на всю страницу",
     ),
     ("Hide or show sidebar", "Скрыть или показать боковую панель"),
+    ("PolyForm Noncommercial License", "Лицензия PolyForm Noncommercial"),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -12531,7 +12531,6 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("MAC address", "عنوان MAC"),
     ("MAC address of {name}", "عنوان MAC: {name}"),
     ("MAC lookup", "البحث عن MAC"),
-    ("MIT License", "رخصة MIT"),
     ("Mail", "البريد"),
     ("Make everything larger or smaller (also Ctrl/⌘ + and −).", "كبّر أو صغّر كل شيء (أيضًا Ctrl/⌘ + و−)."),
     ("Maker", "الشركة المصنعة"),
@@ -14417,6 +14416,7 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Drag out of the window and let go to bring it back", "اسحبها خارج النافذة ثم أفلتها لإعادتها"),
     ("Drag to change the height; double-click to fill the page", "اسحب لتغيير الارتفاع؛ انقر مرتين لملء الصفحة"),
     ("Hide or show sidebar", "إخفاء الشريط الجانبي أو إظهاره"),
+    ("PolyForm Noncommercial License", "رخصة PolyForm Noncommercial"),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -14851,7 +14851,6 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("MAC address", "MAC 地址"),
     ("MAC address of {name}", "MAC 地址：{name}"),
     ("MAC lookup", "MAC 查询"),
-    ("MIT License", "MIT 许可证"),
     ("Mail", "邮件"),
     ("Make everything larger or smaller (also Ctrl/⌘ + and −).", "放大或缩小所有内容（也可用 Ctrl/⌘ + 和 −）。"),
     ("Maker", "制造商"),
@@ -16707,4 +16706,5 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Drag out of the window and let go to bring it back", "拖出窗口并松开，即可放回"),
     ("Drag to change the height; double-click to fill the page", "拖动可调整高度；双击可占满页面"),
     ("Hide or show sidebar", "隐藏或显示侧边栏"),
+    ("PolyForm Noncommercial License", "PolyForm Noncommercial 许可证"),
 ];

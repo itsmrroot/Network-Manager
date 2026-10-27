@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.88"
 description = "Desktop app for Network Manager"
 authors = ["Bashar Salmo"]
-license = "MIT"
+license = "PolyForm-Noncommercial-1.0.0"
 build = "build.rs"
 
 [dependencies]
@@ -93,7 +93,7 @@ depends = ["libc6", "libgl1 | libvulkan1", "libxkbcommon0", "pkexec | policykit-
 [package.metadata.generate-rpm]
 name = "netmgr"
 summary = "Change IP and MAC addresses, see saved Wi-Fi passwords and the devices on your network"
-license = "MIT"
+license = "PolyForm-Noncommercial-1.0.0"
 assets = [
     { source = "target/release/netmgr-gui", dest = "/usr/bin/netmgr-gui", mode = "755" },
     { source = "target/release/netmgr", dest = "/usr/bin/netmgr", mode = "755" },

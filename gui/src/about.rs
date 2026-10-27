@@ -38,7 +38,7 @@ pub fn page(ui: &mut Ui, p: &Palette, logo: &egui::TextureHandle, updater: &mut 
                 ui.add_space(12.0);
                 ui.hyperlink_to(icon_label(icon::DOWNLOAD_SIMPLE, "Latest version"), format!("{REPO}/releases/latest"));
                 ui.add_space(12.0);
-                ui.hyperlink_to(icon_label(icon::SCALES, "MIT License"), format!("{REPO}/blob/main/LICENSE"));
+                ui.hyperlink_to(icon_label(icon::SCALES, "PolyForm Noncommercial License"), format!("{REPO}/blob/main/LICENSE"));
             });
         });
         ui.add_space(14.0);
