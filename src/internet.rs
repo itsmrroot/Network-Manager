@@ -67,18 +67,21 @@ impl PublicInfo {
     }
 }
 
+fn fetch_info(url: &str) -> Option<PublicInfo> {
+    let mut r = agent(Duration::from_secs(10)).get(url).header("Accept", "application/json").call().ok()?;
+    if r.status() != 200 {
+        return None;
+    }
+    let info = serde_json::from_str::<PublicInfo>(&r.body_mut().read_to_string().ok()?).ok()?;
+    (!info.ip.is_empty()).then_some(info)
+}
+
 /// The public address, with the provider and the place when available.
 pub fn public_info() -> Result<PublicInfo> {
-    let a = agent(Duration::from_secs(10));
-    if let Ok(mut r) = a.get("https://ipinfo.io/json").header("Accept", "application/json").call()
-        && r.status() == 200
-        && let Ok(text) = r.body_mut().read_to_string()
-        && let Ok(info) = serde_json::from_str::<PublicInfo>(&text)
-        && !info.ip.is_empty()
-    {
+    if let Some(info) = fetch_info("https://ipinfo.io/json") {
         return Ok(info);
     }
-    let ip = a
+    let ip = agent(Duration::from_secs(10))
         .get("https://api.ipify.org")
         .call()
         .context("the internet could not be reached")?
@@ -87,6 +90,17 @@ pub fn public_info() -> Result<PublicInfo> {
     let ip = ip.trim().to_string();
     ip.parse::<IpAddr>().context("unexpected answer")?;
     Ok(PublicInfo { ip, ..Default::default() })
+}
+
+/// The IPv6 address the internet sees, when this computer reaches it over IPv6.
+pub fn public_info_v6() -> Option<PublicInfo> {
+    fetch_info("https://v6.ipinfo.io/json")
+}
+
+/// The provider and the place of any public address.
+pub fn info_of(ip: &str) -> Option<PublicInfo> {
+    ip.parse::<IpAddr>().ok()?;
+    fetch_info(&format!("https://ipinfo.io/{ip}/json"))
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize)]

@@ -619,10 +619,6 @@ pub const GERMAN: &[(&str, &str)] = &[
         "Only networks this computer has joined are listed: passwords of other networks cannot be shown.",
         "Es werden nur Netzwerke aufgeführt, denen dieser Computer beigetreten ist: Passwörter anderer Netzwerke können nicht angezeigt werden.",
     ),
-    (
-        "Only the public IP lookup (ipinfo.io), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
-        "Nur die Abfrage der öffentlichen IP (ipinfo.io), der Speedtest (Cloudflare) und die Update-Prüfung (GitHub) nutzen das Internet; jede davon lässt sich vermeiden.",
-    ),
     ("Open", "Offen"),
     (
         "Open Adapters, select the adapter and click \"Change IP settings\".",
@@ -2439,6 +2435,83 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("Drag to change the height; double-click to fill the page", "Ziehen ändert die Höhe; Doppelklick füllt die Seite"),
     ("Hide or show sidebar", "Seitenleiste aus- oder einblenden"),
     ("PolyForm Noncommercial License", "PolyForm-Noncommercial-Lizenz"),
+    ("VPN · {name}", "VPN · {name}"),
+    ("All internet traffic goes through the VPN ({name}).", "Der gesamte Internetverkehr läuft über das VPN ({name})."),
+    (
+        "Only traffic for the VPN's own networks goes through {name}; the rest of the internet uses your local network.",
+        "Nur der Verkehr für die eigenen Netzwerke des VPN läuft über {name}; das übrige Internet nutzt Ihr lokales Netzwerk.",
+    ),
+    (
+        "{name} is a VPN tunnel. The VPN program manages it, so IP settings, the MAC address and Turn off are not offered here.",
+        "{name} ist ein VPN-Tunnel. Das VPN-Programm verwaltet ihn, deshalb gibt es hier keine IP-Einstellungen, MAC-Adresse und Ausschalten.",
+    ),
+    ("The VPN check could not be completed.", "Die VPN-Prüfung konnte nicht abgeschlossen werden."),
+    ("VPN is on", "VPN ist aktiv"),
+    (
+        "Looks up where your traffic, IPv6 and DNS lookups leave from. It asks ipinfo.io and your DNS servers.",
+        "Prüft, von wo Ihr Verkehr, IPv6 und die DNS-Abfragen ausgehen. Es fragt ipinfo.io und Ihre DNS-Server.",
+    ),
+    (
+        "Only for a VPN that carries all internet traffic.",
+        "Nur für ein VPN, das den gesamten Internetverkehr übernimmt.",
+    ),
+    ("Check for leaks", "Auf Lecks prüfen"),
+    ("All internet traffic goes through the VPN.", "Der gesamte Internetverkehr läuft über das VPN."),
+    (
+        "A split tunnel: only the VPN's own networks go through it. The rest of the internet uses your local network.",
+        "Ein geteilter Tunnel: Nur die eigenen Netzwerke des VPN laufen darüber. Das übrige Internet nutzt Ihr lokales Netzwerk.",
+    ),
+    ("Local network: {adapter} · {ip}", "Lokales Netzwerk: {adapter} · {ip}"),
+    (
+        "Websites see this address: {address}. This is where the VPN leaves the internet, not your local network.",
+        "Websites sehen diese Adresse: {address}. Hier verlässt das VPN das Internet, nicht Ihr lokales Netzwerk.",
+    ),
+    (
+        "Websites see your local network's address: {address}.",
+        "Websites sehen die Adresse Ihres lokalen Netzwerks: {address}.",
+    ),
+    (
+        "Turn on the public address lookup in Settings → Internet to see what websites see.",
+        "Schalten Sie in Einstellungen → Internet die Abfrage der öffentlichen Adresse ein, um zu sehen, was Websites sehen.",
+    ),
+    (
+        "No leaks found: your traffic, IPv6 and DNS lookups all leave through the VPN's network.",
+        "Keine Lecks gefunden: Ihr Verkehr, IPv6 und die DNS-Abfragen verlassen alle das Netz über das VPN.",
+    ),
+    ("Tailscale", "Tailscale"),
+    ("WireGuard", "WireGuard"),
+    ("OpenVPN", "OpenVPN"),
+    ("IPsec / PPP", "IPsec / PPP"),
+    ("VPN", "VPN"),
+    ("IPv6", "IPv6"),
+    ("Public address", "Öffentliche Adresse"),
+    ("Websites see your traffic coming from {v}.", "Websites sehen Ihren Verkehr von {v} kommen."),
+    (
+        "IPv6 does not reach the internet, so nothing goes around the VPN over IPv6.",
+        "IPv6 erreicht das Internet nicht, also geht über IPv6 nichts am VPN vorbei.",
+    ),
+    ("IPv6 leaves from the same network: {v}", "IPv6 geht vom selben Netz aus: {v}"),
+    ("IPv6 leaves from a different network: {v}", "IPv6 geht von einem anderen Netz aus: {v}"),
+    (
+        "Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6.",
+        "Ein Teil Ihres Verkehrs läuft über IPv6 am VPN vorbei. Schalten Sie IPv6 für Ihren WLAN- oder Ethernet-Adapter aus oder nutzen Sie ein VPN, das IPv6 überträgt.",
+    ),
+    ("DNS lookups", "DNS-Abfragen"),
+    ("The DNS server {v} did not answer the test.", "Der DNS-Server {v} hat den Test nicht beantwortet."),
+    (
+        "{v} is a public DNS server, reached through the VPN.",
+        "{v} ist ein öffentlicher DNS-Server, erreicht über das VPN.",
+    ),
+    ("Names are looked up through the VPN: {v}", "Namen werden über das VPN aufgelöst: {v}"),
+    ("Names are looked up outside the VPN: {v}", "Namen werden außerhalb des VPN aufgelöst: {v}"),
+    (
+        "Your DNS requests go to a server outside the VPN, so the network you are on can see which sites you visit. Use the VPN's own DNS server (Tailscale: turn on Use Tailscale DNS settings), or a public one such as 1.1.1.1 in Adapters → Change IP settings.",
+        "Ihre DNS-Anfragen gehen an einen Server außerhalb des VPN, sodass das Netz, in dem Sie sind, sehen kann, welche Seiten Sie besuchen. Nutzen Sie den DNS-Server des VPN (Tailscale: „Use Tailscale DNS settings“ einschalten) oder einen öffentlichen wie 1.1.1.1 unter Adapter → IP-Einstellungen ändern.",
+    ),
+    (
+        "Only the public IP lookup (ipinfo.io), the VPN leak check (ipinfo.io and your DNS servers), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
+        "Nur die Abfrage der öffentlichen IP (ipinfo.io), die VPN-Lecksuche (ipinfo.io und Ihre DNS-Server), der Speedtest (Cloudflare) und die Update-Prüfung (GitHub) nutzen das Internet; jede davon lässt sich vermeiden.",
+    ),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -3046,10 +3119,6 @@ pub const SPANISH: &[(&str, &str)] = &[
     (
         "Only networks this computer has joined are listed: passwords of other networks cannot be shown.",
         "Solo aparecen las redes a las que se unió este equipo: no se pueden mostrar contraseñas de otras redes.",
-    ),
-    (
-        "Only the public IP lookup (ipinfo.io), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
-        "Solo la consulta de IP pública (ipinfo.io), la prueba de velocidad (Cloudflare) y la búsqueda de actualizaciones (GitHub) usan internet; cada una puede evitarse.",
     ),
     ("Open", "Abierta"),
     (
@@ -4852,6 +4921,80 @@ pub const SPANISH: &[(&str, &str)] = &[
     ),
     ("Hide or show sidebar", "Ocultar o mostrar la barra lateral"),
     ("PolyForm Noncommercial License", "Licencia PolyForm Noncommercial"),
+    ("VPN · {name}", "VPN · {name}"),
+    ("All internet traffic goes through the VPN ({name}).", "Todo el tráfico de internet pasa por la VPN ({name})."),
+    (
+        "Only traffic for the VPN's own networks goes through {name}; the rest of the internet uses your local network.",
+        "Solo el tráfico de las redes propias de la VPN pasa por {name}; el resto de internet usa su red local.",
+    ),
+    (
+        "{name} is a VPN tunnel. The VPN program manages it, so IP settings, the MAC address and Turn off are not offered here.",
+        "{name} es un túnel VPN. Lo gestiona el programa de la VPN, por eso aquí no se ofrecen la configuración IP, la dirección MAC ni Apagar.",
+    ),
+    ("The VPN check could not be completed.", "No se pudo completar la comprobación de la VPN."),
+    ("VPN is on", "La VPN está activada"),
+    (
+        "Looks up where your traffic, IPv6 and DNS lookups leave from. It asks ipinfo.io and your DNS servers.",
+        "Averigua desde dónde salen su tráfico, IPv6 y las consultas DNS. Consulta a ipinfo.io y a sus servidores DNS.",
+    ),
+    ("Only for a VPN that carries all internet traffic.", "Solo para una VPN que lleva todo el tráfico de internet."),
+    ("Check for leaks", "Buscar fugas"),
+    ("All internet traffic goes through the VPN.", "Todo el tráfico de internet pasa por la VPN."),
+    (
+        "A split tunnel: only the VPN's own networks go through it. The rest of the internet uses your local network.",
+        "Un túnel dividido: solo las redes propias de la VPN pasan por él. El resto de internet usa su red local.",
+    ),
+    ("Local network: {adapter} · {ip}", "Red local: {adapter} · {ip}"),
+    (
+        "Websites see this address: {address}. This is where the VPN leaves the internet, not your local network.",
+        "Los sitios web ven esta dirección: {address}. Es por donde la VPN sale a internet, no su red local.",
+    ),
+    (
+        "Websites see your local network's address: {address}.",
+        "Los sitios web ven la dirección de su red local: {address}.",
+    ),
+    (
+        "Turn on the public address lookup in Settings → Internet to see what websites see.",
+        "Active la consulta de la dirección pública en Ajustes → Internet para ver lo que ven los sitios web.",
+    ),
+    (
+        "No leaks found: your traffic, IPv6 and DNS lookups all leave through the VPN's network.",
+        "No se encontraron fugas: su tráfico, IPv6 y las consultas DNS salen todos por la red de la VPN.",
+    ),
+    ("Tailscale", "Tailscale"),
+    ("WireGuard", "WireGuard"),
+    ("OpenVPN", "OpenVPN"),
+    ("IPsec / PPP", "IPsec / PPP"),
+    ("VPN", "VPN"),
+    ("IPv6", "IPv6"),
+    ("Public address", "Dirección pública"),
+    ("Websites see your traffic coming from {v}.", "Los sitios web ven su tráfico procedente de {v}."),
+    (
+        "IPv6 does not reach the internet, so nothing goes around the VPN over IPv6.",
+        "IPv6 no llega a internet, así que nada pasa por fuera de la VPN a través de IPv6.",
+    ),
+    ("IPv6 leaves from the same network: {v}", "IPv6 sale de la misma red: {v}"),
+    ("IPv6 leaves from a different network: {v}", "IPv6 sale de otra red: {v}"),
+    (
+        "Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6.",
+        "Parte de su tráfico pasa por fuera de la VPN a través de IPv6. Desactive IPv6 en su adaptador Wi-Fi o Ethernet, o use una VPN que lleve IPv6.",
+    ),
+    ("DNS lookups", "Consultas DNS"),
+    ("The DNS server {v} did not answer the test.", "El servidor DNS {v} no respondió a la prueba."),
+    (
+        "{v} is a public DNS server, reached through the VPN.",
+        "{v} es un servidor DNS público, al que se llega por la VPN.",
+    ),
+    ("Names are looked up through the VPN: {v}", "Los nombres se resuelven a través de la VPN: {v}"),
+    ("Names are looked up outside the VPN: {v}", "Los nombres se resuelven fuera de la VPN: {v}"),
+    (
+        "Your DNS requests go to a server outside the VPN, so the network you are on can see which sites you visit. Use the VPN's own DNS server (Tailscale: turn on Use Tailscale DNS settings), or a public one such as 1.1.1.1 in Adapters → Change IP settings.",
+        "Sus consultas DNS van a un servidor fuera de la VPN, así que la red en la que está puede ver qué sitios visita. Use el servidor DNS de la VPN (Tailscale: active Use Tailscale DNS settings) o uno público como 1.1.1.1 en Adaptadores → Cambiar configuración IP.",
+    ),
+    (
+        "Only the public IP lookup (ipinfo.io), the VPN leak check (ipinfo.io and your DNS servers), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
+        "Solo la consulta de IP pública (ipinfo.io), la búsqueda de fugas de la VPN (ipinfo.io y sus servidores DNS), la prueba de velocidad (Cloudflare) y la búsqueda de actualizaciones (GitHub) usan internet; cada una puede evitarse.",
+    ),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -5465,10 +5608,6 @@ pub const FRENCH: &[(&str, &str)] = &[
     (
         "Only networks this computer has joined are listed: passwords of other networks cannot be shown.",
         "Seuls les réseaux rejoints par cet ordinateur sont listés : les mots de passe d'autres réseaux ne peuvent pas être affichés.",
-    ),
-    (
-        "Only the public IP lookup (ipinfo.io), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
-        "Seuls la recherche de l'IP publique (ipinfo.io), le test de vitesse (Cloudflare) et la recherche de mises à jour (GitHub) utilisent internet ; chacun peut être évité.",
     ),
     ("Open", "Ouvert"),
     (
@@ -7289,6 +7428,80 @@ pub const FRENCH: &[(&str, &str)] = &[
     ),
     ("Hide or show sidebar", "Masquer ou afficher la barre latérale"),
     ("PolyForm Noncommercial License", "Licence PolyForm Noncommercial"),
+    ("VPN · {name}", "VPN · {name}"),
+    ("All internet traffic goes through the VPN ({name}).", "Tout le trafic internet passe par le VPN ({name})."),
+    (
+        "Only traffic for the VPN's own networks goes through {name}; the rest of the internet uses your local network.",
+        "Seul le trafic vers les réseaux propres du VPN passe par {name} ; le reste d'internet utilise votre réseau local.",
+    ),
+    (
+        "{name} is a VPN tunnel. The VPN program manages it, so IP settings, the MAC address and Turn off are not offered here.",
+        "{name} est un tunnel VPN. Le programme du VPN le gère : les paramètres IP, l'adresse MAC et Désactiver ne sont donc pas proposés ici.",
+    ),
+    ("The VPN check could not be completed.", "La vérification du VPN n'a pas pu être terminée."),
+    ("VPN is on", "Le VPN est activé"),
+    (
+        "Looks up where your traffic, IPv6 and DNS lookups leave from. It asks ipinfo.io and your DNS servers.",
+        "Cherche d'où partent votre trafic, l'IPv6 et les requêtes DNS. Il interroge ipinfo.io et vos serveurs DNS.",
+    ),
+    (
+        "Only for a VPN that carries all internet traffic.",
+        "Seulement pour un VPN qui transporte tout le trafic internet.",
+    ),
+    ("Check for leaks", "Chercher des fuites"),
+    ("All internet traffic goes through the VPN.", "Tout le trafic internet passe par le VPN."),
+    (
+        "A split tunnel: only the VPN's own networks go through it. The rest of the internet uses your local network.",
+        "Un tunnel scindé : seuls les réseaux propres du VPN y passent. Le reste d'internet utilise votre réseau local.",
+    ),
+    ("Local network: {adapter} · {ip}", "Réseau local : {adapter} · {ip}"),
+    (
+        "Websites see this address: {address}. This is where the VPN leaves the internet, not your local network.",
+        "Les sites web voient cette adresse : {address}. C'est par là que le VPN sort sur internet, pas par votre réseau local.",
+    ),
+    (
+        "Websites see your local network's address: {address}.",
+        "Les sites web voient l'adresse de votre réseau local : {address}.",
+    ),
+    (
+        "Turn on the public address lookup in Settings → Internet to see what websites see.",
+        "Activez la recherche de l'adresse publique dans Réglages → Internet pour voir ce que voient les sites web.",
+    ),
+    (
+        "No leaks found: your traffic, IPv6 and DNS lookups all leave through the VPN's network.",
+        "Aucune fuite : votre trafic, l'IPv6 et les requêtes DNS sortent tous par le réseau du VPN.",
+    ),
+    ("Tailscale", "Tailscale"),
+    ("WireGuard", "WireGuard"),
+    ("OpenVPN", "OpenVPN"),
+    ("IPsec / PPP", "IPsec / PPP"),
+    ("VPN", "VPN"),
+    ("IPv6", "IPv6"),
+    ("Public address", "Adresse publique"),
+    ("Websites see your traffic coming from {v}.", "Les sites web voient votre trafic provenir de {v}."),
+    (
+        "IPv6 does not reach the internet, so nothing goes around the VPN over IPv6.",
+        "L'IPv6 n'atteint pas internet : rien ne contourne donc le VPN par l'IPv6.",
+    ),
+    ("IPv6 leaves from the same network: {v}", "L'IPv6 sort du même réseau : {v}"),
+    ("IPv6 leaves from a different network: {v}", "L'IPv6 sort d'un autre réseau : {v}"),
+    (
+        "Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6.",
+        "Une partie de votre trafic contourne le VPN par l'IPv6. Désactivez l'IPv6 sur votre adaptateur Wi-Fi ou Ethernet, ou utilisez un VPN qui transporte l'IPv6.",
+    ),
+    ("DNS lookups", "Requêtes DNS"),
+    ("The DNS server {v} did not answer the test.", "Le serveur DNS {v} n'a pas répondu au test."),
+    ("{v} is a public DNS server, reached through the VPN.", "{v} est un serveur DNS public, joint par le VPN."),
+    ("Names are looked up through the VPN: {v}", "Les noms sont résolus par le VPN : {v}"),
+    ("Names are looked up outside the VPN: {v}", "Les noms sont résolus en dehors du VPN : {v}"),
+    (
+        "Your DNS requests go to a server outside the VPN, so the network you are on can see which sites you visit. Use the VPN's own DNS server (Tailscale: turn on Use Tailscale DNS settings), or a public one such as 1.1.1.1 in Adapters → Change IP settings.",
+        "Vos requêtes DNS vont à un serveur hors du VPN : le réseau où vous êtes peut voir quels sites vous visitez. Utilisez le serveur DNS du VPN (Tailscale : activez Use Tailscale DNS settings) ou un serveur public comme 1.1.1.1 dans Adaptateurs → Modifier les réglages IP.",
+    ),
+    (
+        "Only the public IP lookup (ipinfo.io), the VPN leak check (ipinfo.io and your DNS servers), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
+        "Seuls la recherche de l'IP publique (ipinfo.io), la recherche de fuites du VPN (ipinfo.io et vos serveurs DNS), le test de débit (Cloudflare) et la recherche de mises à jour (GitHub) utilisent internet ; chacune peut être évitée.",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -7881,10 +8094,6 @@ pub const TURKISH: &[(&str, &str)] = &[
     (
         "Only networks this computer has joined are listed: passwords of other networks cannot be shown.",
         "Yalnızca bu bilgisayarın katıldığı ağlar listelenir: Diğer ağların parolaları gösterilemez.",
-    ),
-    (
-        "Only the public IP lookup (ipinfo.io), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
-        "Yalnızca genel IP sorgusu (ipinfo.io), hız testi (Cloudflare) ve güncelleme denetimi (GitHub) internet kullanır; her biri önlenebilir.",
     ),
     ("Open", "Açık"),
     (
@@ -9678,6 +9887,74 @@ pub const TURKISH: &[(&str, &str)] = &[
     ),
     ("Hide or show sidebar", "Kenar çubuğunu gizle veya göster"),
     ("PolyForm Noncommercial License", "PolyForm Noncommercial Lisansı"),
+    ("VPN · {name}", "VPN · {name}"),
+    ("All internet traffic goes through the VPN ({name}).", "Tüm internet trafiği VPN üzerinden geçer ({name})."),
+    (
+        "Only traffic for the VPN's own networks goes through {name}; the rest of the internet uses your local network.",
+        "Yalnızca VPN'in kendi ağlarına giden trafik {name} üzerinden geçer; internetin geri kalanı yerel ağınızı kullanır.",
+    ),
+    (
+        "{name} is a VPN tunnel. The VPN program manages it, so IP settings, the MAC address and Turn off are not offered here.",
+        "{name} bir VPN tünelidir. VPN programı onu yönetir; bu yüzden IP ayarları, MAC adresi ve Kapat burada sunulmaz.",
+    ),
+    ("The VPN check could not be completed.", "VPN denetimi tamamlanamadı."),
+    ("VPN is on", "VPN açık"),
+    (
+        "Looks up where your traffic, IPv6 and DNS lookups leave from. It asks ipinfo.io and your DNS servers.",
+        "Trafiğinizin, IPv6'nın ve DNS sorgularının nereden çıktığını bulur. ipinfo.io'ya ve DNS sunucularınıza sorar.",
+    ),
+    ("Only for a VPN that carries all internet traffic.", "Yalnızca tüm internet trafiğini taşıyan bir VPN için."),
+    ("Check for leaks", "Sızıntıları denetle"),
+    ("All internet traffic goes through the VPN.", "Tüm internet trafiği VPN üzerinden geçer."),
+    (
+        "A split tunnel: only the VPN's own networks go through it. The rest of the internet uses your local network.",
+        "Bölünmüş tünel: yalnızca VPN'in kendi ağları buradan geçer. İnternetin geri kalanı yerel ağınızı kullanır.",
+    ),
+    ("Local network: {adapter} · {ip}", "Yerel ağ: {adapter} · {ip}"),
+    (
+        "Websites see this address: {address}. This is where the VPN leaves the internet, not your local network.",
+        "Web siteleri bu adresi görür: {address}. VPN internete buradan çıkar, yerel ağınızdan değil.",
+    ),
+    ("Websites see your local network's address: {address}.", "Web siteleri yerel ağınızın adresini görür: {address}."),
+    (
+        "Turn on the public address lookup in Settings → Internet to see what websites see.",
+        "Web sitelerinin ne gördüğünü görmek için Ayarlar → İnternet'te genel adres sorgusunu açın.",
+    ),
+    (
+        "No leaks found: your traffic, IPv6 and DNS lookups all leave through the VPN's network.",
+        "Sızıntı bulunamadı: trafiğiniz, IPv6 ve DNS sorgularının tümü VPN'in ağı üzerinden çıkıyor.",
+    ),
+    ("Tailscale", "Tailscale"),
+    ("WireGuard", "WireGuard"),
+    ("OpenVPN", "OpenVPN"),
+    ("IPsec / PPP", "IPsec / PPP"),
+    ("VPN", "VPN"),
+    ("IPv6", "IPv6"),
+    ("Public address", "Genel adres"),
+    ("Websites see your traffic coming from {v}.", "Web siteleri trafiğinizi {v} adresinden geliyor görür."),
+    (
+        "IPv6 does not reach the internet, so nothing goes around the VPN over IPv6.",
+        "IPv6 internete ulaşmıyor, bu yüzden IPv6 üzerinden VPN'in dışına hiçbir şey çıkmıyor.",
+    ),
+    ("IPv6 leaves from the same network: {v}", "IPv6 aynı ağdan çıkıyor: {v}"),
+    ("IPv6 leaves from a different network: {v}", "IPv6 farklı bir ağdan çıkıyor: {v}"),
+    (
+        "Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6.",
+        "Trafiğinizin bir kısmı IPv6 üzerinden VPN'i atlıyor. Wi-Fi veya Ethernet bağdaştırıcınızda IPv6'yı kapatın ya da IPv6 taşıyan bir VPN kullanın.",
+    ),
+    ("DNS lookups", "DNS sorguları"),
+    ("The DNS server {v} did not answer the test.", "{v} DNS sunucusu testi yanıtlamadı."),
+    ("{v} is a public DNS server, reached through the VPN.", "{v} genel bir DNS sunucusudur, VPN üzerinden erişilir."),
+    ("Names are looked up through the VPN: {v}", "Adlar VPN üzerinden çözümleniyor: {v}"),
+    ("Names are looked up outside the VPN: {v}", "Adlar VPN'in dışında çözümleniyor: {v}"),
+    (
+        "Your DNS requests go to a server outside the VPN, so the network you are on can see which sites you visit. Use the VPN's own DNS server (Tailscale: turn on Use Tailscale DNS settings), or a public one such as 1.1.1.1 in Adapters → Change IP settings.",
+        "DNS isteklerinizin VPN'in dışındaki bir sunucuya gidiyor; bu yüzden bulunduğunuz ağ hangi sitelere girdiğinizi görebilir. VPN'in kendi DNS sunucusunu kullanın (Tailscale: Use Tailscale DNS settings seçeneğini açın) ya da Adaptörler → IP ayarlarını değiştir bölümünden 1.1.1.1 gibi genel bir sunucu seçin.",
+    ),
+    (
+        "Only the public IP lookup (ipinfo.io), the VPN leak check (ipinfo.io and your DNS servers), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
+        "Yalnızca genel IP sorgusu (ipinfo.io), VPN sızıntı denetimi (ipinfo.io ve DNS sunucularınız), hız testi (Cloudflare) ve güncelleme denetimi (GitHub) internete bağlanır; her biri önlenebilir.",
+    ),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -10285,10 +10562,6 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     (
         "Only networks this computer has joined are listed: passwords of other networks cannot be shown.",
         "Показаны только сети, к которым подключался этот компьютер: пароли других сетей показать невозможно.",
-    ),
-    (
-        "Only the public IP lookup (ipinfo.io), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
-        "Интернет используют только определение публичного IP (ipinfo.io), тест скорости (Cloudflare) и проверка обновлений (GitHub); каждое из них можно отключить.",
     ),
     ("Open", "Открытая"),
     (
@@ -12088,6 +12361,74 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ),
     ("Hide or show sidebar", "Скрыть или показать боковую панель"),
     ("PolyForm Noncommercial License", "Лицензия PolyForm Noncommercial"),
+    ("VPN · {name}", "VPN · {name}"),
+    ("All internet traffic goes through the VPN ({name}).", "Весь интернет-трафик идёт через VPN ({name})."),
+    (
+        "Only traffic for the VPN's own networks goes through {name}; the rest of the internet uses your local network.",
+        "Через {name} идёт только трафик для собственных сетей VPN; остальной интернет использует вашу локальную сеть.",
+    ),
+    (
+        "{name} is a VPN tunnel. The VPN program manages it, so IP settings, the MAC address and Turn off are not offered here.",
+        "{name} — это VPN-туннель. Им управляет программа VPN, поэтому настройки IP, MAC-адрес и «Выключить» здесь недоступны.",
+    ),
+    ("The VPN check could not be completed.", "Не удалось завершить проверку VPN."),
+    ("VPN is on", "VPN включён"),
+    (
+        "Looks up where your traffic, IPv6 and DNS lookups leave from. It asks ipinfo.io and your DNS servers.",
+        "Выясняет, откуда выходят ваш трафик, IPv6 и DNS-запросы. Запрашивает ipinfo.io и ваши DNS-серверы.",
+    ),
+    ("Only for a VPN that carries all internet traffic.", "Только для VPN, который пропускает весь интернет-трафик."),
+    ("Check for leaks", "Проверить утечки"),
+    ("All internet traffic goes through the VPN.", "Весь интернет-трафик идёт через VPN."),
+    (
+        "A split tunnel: only the VPN's own networks go through it. The rest of the internet uses your local network.",
+        "Раздельный туннель: через него идут только собственные сети VPN. Остальной интернет использует вашу локальную сеть.",
+    ),
+    ("Local network: {adapter} · {ip}", "Локальная сеть: {adapter} · {ip}"),
+    (
+        "Websites see this address: {address}. This is where the VPN leaves the internet, not your local network.",
+        "Сайты видят этот адрес: {address}. Отсюда VPN выходит в интернет, а не из вашей локальной сети.",
+    ),
+    ("Websites see your local network's address: {address}.", "Сайты видят адрес вашей локальной сети: {address}."),
+    (
+        "Turn on the public address lookup in Settings → Internet to see what websites see.",
+        "Включите запрос публичного адреса в Настройки → Интернет, чтобы увидеть, что видят сайты.",
+    ),
+    (
+        "No leaks found: your traffic, IPv6 and DNS lookups all leave through the VPN's network.",
+        "Утечек не найдено: ваш трафик, IPv6 и DNS-запросы выходят через сеть VPN.",
+    ),
+    ("Tailscale", "Tailscale"),
+    ("WireGuard", "WireGuard"),
+    ("OpenVPN", "OpenVPN"),
+    ("IPsec / PPP", "IPsec / PPP"),
+    ("VPN", "VPN"),
+    ("IPv6", "IPv6"),
+    ("Public address", "Публичный адрес"),
+    ("Websites see your traffic coming from {v}.", "Сайты видят ваш трафик с адреса {v}."),
+    (
+        "IPv6 does not reach the internet, so nothing goes around the VPN over IPv6.",
+        "IPv6 не выходит в интернет, поэтому по IPv6 ничего не идёт в обход VPN.",
+    ),
+    ("IPv6 leaves from the same network: {v}", "IPv6 выходит из той же сети: {v}"),
+    ("IPv6 leaves from a different network: {v}", "IPv6 выходит из другой сети: {v}"),
+    (
+        "Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6.",
+        "Часть вашего трафика идёт в обход VPN по IPv6. Отключите IPv6 для адаптера Wi-Fi или Ethernet либо используйте VPN, который передаёт IPv6.",
+    ),
+    ("DNS lookups", "DNS-запросы"),
+    ("The DNS server {v} did not answer the test.", "DNS-сервер {v} не ответил на проверку."),
+    ("{v} is a public DNS server, reached through the VPN.", "{v} — публичный DNS-сервер, доступный через VPN."),
+    ("Names are looked up through the VPN: {v}", "Имена разрешаются через VPN: {v}"),
+    ("Names are looked up outside the VPN: {v}", "Имена разрешаются вне VPN: {v}"),
+    (
+        "Your DNS requests go to a server outside the VPN, so the network you are on can see which sites you visit. Use the VPN's own DNS server (Tailscale: turn on Use Tailscale DNS settings), or a public one such as 1.1.1.1 in Adapters → Change IP settings.",
+        "Ваши DNS-запросы идут на сервер вне VPN, поэтому сеть, в которой вы находитесь, видит, какие сайты вы посещаете. Используйте DNS-сервер VPN (Tailscale: включите Use Tailscale DNS settings) или публичный, например 1.1.1.1, в разделе Адаптеры → Изменить настройки IP.",
+    ),
+    (
+        "Only the public IP lookup (ipinfo.io), the VPN leak check (ipinfo.io and your DNS servers), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
+        "Интернет используют только запрос публичного IP (ipinfo.io), проверка утечек VPN (ipinfo.io и ваши DNS-серверы), тест скорости (Cloudflare) и проверка обновлений (GitHub); каждую из них можно отключить.",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -12671,10 +13012,6 @@ pub const ARABIC: &[(&str, &str)] = &[
     (
         "Only networks this computer has joined are listed: passwords of other networks cannot be shown.",
         "تظهر فقط الشبكات التي اتصل بها هذا الكمبيوتر: لا يمكن عرض كلمات مرور الشبكات الأخرى.",
-    ),
-    (
-        "Only the public IP lookup (ipinfo.io), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
-        "فقط اكتشاف IP العام (ipinfo.io) واختبار السرعة (Cloudflare) والبحث عن التحديثات (GitHub) تستخدم الإنترنت؛ ويمكن إيقاف كل منها.",
     ),
     ("Open", "مفتوحة"),
     (
@@ -14417,6 +14754,74 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Drag to change the height; double-click to fill the page", "اسحب لتغيير الارتفاع؛ انقر مرتين لملء الصفحة"),
     ("Hide or show sidebar", "إخفاء الشريط الجانبي أو إظهاره"),
     ("PolyForm Noncommercial License", "رخصة PolyForm Noncommercial"),
+    ("VPN · {name}", "VPN · {name}"),
+    ("All internet traffic goes through the VPN ({name}).", "تمر كل حركة الإنترنت عبر VPN ({name})."),
+    (
+        "Only traffic for the VPN's own networks goes through {name}; the rest of the internet uses your local network.",
+        "لا يمر عبر {name} إلا الحركة المتجهة إلى شبكات VPN نفسها؛ أما بقية الإنترنت فتستخدم شبكتك المحلية.",
+    ),
+    (
+        "{name} is a VPN tunnel. The VPN program manages it, so IP settings, the MAC address and Turn off are not offered here.",
+        "{name} نفق VPN. يديره برنامج VPN، لذلك لا تتوفر هنا إعدادات IP وعنوان MAC وخيار الإيقاف.",
+    ),
+    ("The VPN check could not be completed.", "تعذّر إكمال فحص VPN."),
+    ("VPN is on", "VPN قيد التشغيل"),
+    (
+        "Looks up where your traffic, IPv6 and DNS lookups leave from. It asks ipinfo.io and your DNS servers.",
+        "يتحقق من المكان الذي تخرج منه حركتك وIPv6 واستعلامات DNS. يسأل ipinfo.io وخوادم DNS لديك.",
+    ),
+    ("Only for a VPN that carries all internet traffic.", "فقط لشبكة VPN تحمل كل حركة الإنترنت."),
+    ("Check for leaks", "فحص التسرب"),
+    ("All internet traffic goes through the VPN.", "تمر كل حركة الإنترنت عبر VPN."),
+    (
+        "A split tunnel: only the VPN's own networks go through it. The rest of the internet uses your local network.",
+        "نفق مقسّم: لا يمر عبره إلا شبكات VPN نفسها، وبقية الإنترنت تستخدم شبكتك المحلية.",
+    ),
+    ("Local network: {adapter} · {ip}", "الشبكة المحلية: {adapter} · {ip}"),
+    (
+        "Websites see this address: {address}. This is where the VPN leaves the internet, not your local network.",
+        "تشاهد المواقع هذا العنوان: {address}. من هنا تخرج VPN إلى الإنترنت، وليس من شبكتك المحلية.",
+    ),
+    ("Websites see your local network's address: {address}.", "تشاهد المواقع عنوان شبكتك المحلية: {address}."),
+    (
+        "Turn on the public address lookup in Settings → Internet to see what websites see.",
+        "فعّل البحث عن العنوان العام في الإعدادات ← الإنترنت لترى ما تراه المواقع.",
+    ),
+    (
+        "No leaks found: your traffic, IPv6 and DNS lookups all leave through the VPN's network.",
+        "لم يُعثر على تسرب: حركتك وIPv6 واستعلامات DNS كلها تخرج عبر شبكة VPN.",
+    ),
+    ("Tailscale", "Tailscale"),
+    ("WireGuard", "WireGuard"),
+    ("OpenVPN", "OpenVPN"),
+    ("IPsec / PPP", "IPsec / PPP"),
+    ("VPN", "VPN"),
+    ("IPv6", "IPv6"),
+    ("Public address", "العنوان العام"),
+    ("Websites see your traffic coming from {v}.", "تشاهد المواقع حركتك قادمة من {v}."),
+    (
+        "IPv6 does not reach the internet, so nothing goes around the VPN over IPv6.",
+        "IPv6 لا يصل إلى الإنترنت، لذا لا يتجاوز شيء VPN عبر IPv6.",
+    ),
+    ("IPv6 leaves from the same network: {v}", "يخرج IPv6 من الشبكة نفسها: {v}"),
+    ("IPv6 leaves from a different network: {v}", "يخرج IPv6 من شبكة مختلفة: {v}"),
+    (
+        "Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6.",
+        "جزء من حركتك يتجاوز VPN عبر IPv6. أوقف IPv6 لمحوّل Wi-Fi أو Ethernet لديك، أو استخدم VPN يدعم IPv6.",
+    ),
+    ("DNS lookups", "استعلامات DNS"),
+    ("The DNS server {v} did not answer the test.", "لم يستجب خادم DNS {v} للاختبار."),
+    ("{v} is a public DNS server, reached through the VPN.", "{v} خادم DNS عام، يُتصل به عبر VPN."),
+    ("Names are looked up through the VPN: {v}", "تُحلّ الأسماء عبر VPN: {v}"),
+    ("Names are looked up outside the VPN: {v}", "تُحلّ الأسماء خارج VPN: {v}"),
+    (
+        "Your DNS requests go to a server outside the VPN, so the network you are on can see which sites you visit. Use the VPN's own DNS server (Tailscale: turn on Use Tailscale DNS settings), or a public one such as 1.1.1.1 in Adapters → Change IP settings.",
+        "طلبات DNS لديك تذهب إلى خادم خارج VPN، لذا تستطيع الشبكة التي تتصل بها رؤية المواقع التي تزورها. استخدم خادم DNS الخاص بـ VPN (في Tailscale: فعّل Use Tailscale DNS settings) أو خادمًا عامًا مثل 1.1.1.1 من المحوّلات ← تغيير إعدادات IP.",
+    ),
+    (
+        "Only the public IP lookup (ipinfo.io), the VPN leak check (ipinfo.io and your DNS servers), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
+        "لا يستخدم الإنترنت إلا البحث عن عنوان IP العام (ipinfo.io) وفحص تسرب VPN (ipinfo.io وخوادم DNS لديك) واختبار السرعة (Cloudflare) والبحث عن التحديثات (GitHub)، ويمكن تجنّب كلٍّ منها.",
+    ),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -14991,10 +15396,6 @@ pub const CHINESE: &[(&str, &str)] = &[
     (
         "Only networks this computer has joined are listed: passwords of other networks cannot be shown.",
         "只显示此电脑连接过的网络：无法显示其他网络的密码。",
-    ),
-    (
-        "Only the public IP lookup (ipinfo.io), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
-        "只有公网 IP 查询（ipinfo.io）、测速（Cloudflare）和检查更新（GitHub）会使用互联网；每一项都可以关闭。",
     ),
     ("Open", "开放"),
     (
@@ -16707,4 +17108,72 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Drag to change the height; double-click to fill the page", "拖动可调整高度；双击可占满页面"),
     ("Hide or show sidebar", "隐藏或显示侧边栏"),
     ("PolyForm Noncommercial License", "PolyForm Noncommercial 许可证"),
+    ("VPN · {name}", "VPN · {name}"),
+    ("All internet traffic goes through the VPN ({name}).", "所有互联网流量都经过 VPN（{name}）。"),
+    (
+        "Only traffic for the VPN's own networks goes through {name}; the rest of the internet uses your local network.",
+        "只有发往 VPN 自身网络的流量经过 {name}；其余互联网流量使用你的本地网络。",
+    ),
+    (
+        "{name} is a VPN tunnel. The VPN program manages it, so IP settings, the MAC address and Turn off are not offered here.",
+        "{name} 是一个 VPN 隧道，由 VPN 程序管理，因此这里不提供 IP 设置、MAC 地址和关闭。",
+    ),
+    ("The VPN check could not be completed.", "无法完成 VPN 检查。"),
+    ("VPN is on", "VPN 已开启"),
+    (
+        "Looks up where your traffic, IPv6 and DNS lookups leave from. It asks ipinfo.io and your DNS servers.",
+        "查明你的流量、IPv6 和 DNS 查询从哪里发出。它会询问 ipinfo.io 和你的 DNS 服务器。",
+    ),
+    ("Only for a VPN that carries all internet traffic.", "仅适用于承载全部互联网流量的 VPN。"),
+    ("Check for leaks", "检查泄漏"),
+    ("All internet traffic goes through the VPN.", "所有互联网流量都经过 VPN。"),
+    (
+        "A split tunnel: only the VPN's own networks go through it. The rest of the internet uses your local network.",
+        "分流隧道：只有 VPN 自身的网络走隧道，其余互联网流量使用你的本地网络。",
+    ),
+    ("Local network: {adapter} · {ip}", "本地网络：{adapter} · {ip}"),
+    (
+        "Websites see this address: {address}. This is where the VPN leaves the internet, not your local network.",
+        "网站看到的是这个地址：{address}。VPN 从这里连到互联网，而不是你的本地网络。",
+    ),
+    ("Websites see your local network's address: {address}.", "网站看到的是你本地网络的地址：{address}。"),
+    (
+        "Turn on the public address lookup in Settings → Internet to see what websites see.",
+        "在“设置 → 互联网”中开启公网地址查询，即可看到网站看到的内容。",
+    ),
+    (
+        "No leaks found: your traffic, IPv6 and DNS lookups all leave through the VPN's network.",
+        "未发现泄漏：你的流量、IPv6 和 DNS 查询都通过 VPN 的网络发出。",
+    ),
+    ("Tailscale", "Tailscale"),
+    ("WireGuard", "WireGuard"),
+    ("OpenVPN", "OpenVPN"),
+    ("IPsec / PPP", "IPsec / PPP"),
+    ("VPN", "VPN"),
+    ("IPv6", "IPv6"),
+    ("Public address", "公网地址"),
+    ("Websites see your traffic coming from {v}.", "网站看到你的流量来自 {v}。"),
+    (
+        "IPv6 does not reach the internet, so nothing goes around the VPN over IPv6.",
+        "IPv6 无法连到互联网，因此没有流量会通过 IPv6 绕过 VPN。",
+    ),
+    ("IPv6 leaves from the same network: {v}", "IPv6 从同一个网络发出：{v}"),
+    ("IPv6 leaves from a different network: {v}", "IPv6 从另一个网络发出：{v}"),
+    (
+        "Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6.",
+        "部分流量通过 IPv6 绕过了 VPN。请为你的 Wi-Fi 或以太网适配器关闭 IPv6，或使用支持 IPv6 的 VPN。",
+    ),
+    ("DNS lookups", "DNS 查询"),
+    ("The DNS server {v} did not answer the test.", "DNS 服务器 {v} 没有响应测试。"),
+    ("{v} is a public DNS server, reached through the VPN.", "{v} 是公共 DNS 服务器，通过 VPN 访问。"),
+    ("Names are looked up through the VPN: {v}", "名称通过 VPN 解析：{v}"),
+    ("Names are looked up outside the VPN: {v}", "名称在 VPN 之外解析：{v}"),
+    (
+        "Your DNS requests go to a server outside the VPN, so the network you are on can see which sites you visit. Use the VPN's own DNS server (Tailscale: turn on Use Tailscale DNS settings), or a public one such as 1.1.1.1 in Adapters → Change IP settings.",
+        "你的 DNS 请求发往 VPN 之外的服务器，因此你所在的网络能看到你访问了哪些网站。请使用 VPN 自带的 DNS 服务器（Tailscale：开启 Use Tailscale DNS settings），或在“适配器 → 更改 IP 设置”中选用 1.1.1.1 这样的公共服务器。",
+    ),
+    (
+        "Only the public IP lookup (ipinfo.io), the VPN leak check (ipinfo.io and your DNS servers), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided.",
+        "只有公网 IP 查询（ipinfo.io）、VPN 泄漏检查（ipinfo.io 和你的 DNS 服务器）、速度测试（Cloudflare）和更新检查（GitHub）会使用互联网；每一项都可以避免。",
+    ),
 ];

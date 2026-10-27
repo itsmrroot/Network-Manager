@@ -37,6 +37,7 @@ pub mod system;
 pub mod tools;
 pub mod traffic;
 pub mod usm;
+pub mod vpn;
 pub mod web;
 pub mod wifi;
 

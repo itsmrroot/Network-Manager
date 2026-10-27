@@ -50,7 +50,7 @@ pub fn page(ui: &mut Ui, p: &Palette, logo: &egui::TextureHandle, updater: &mut 
                 trl("Settings are changed with the system's own tools (netsh, networksetup, nmcli): nothing is installed in the background."),
                 trl("Wi-Fi passwords are only read when you ask, and never sent anywhere."),
                 trl("The device scan stays on your own network. Maker names come from a list built into the app."),
-                trl("Only the public IP lookup (ipinfo.io), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided."),
+                trl("Only the public IP lookup (ipinfo.io), the VPN leak check (ipinfo.io and your DNS servers), the speed test (Cloudflare) and the update check (GitHub) use the internet; each can be avoided."),
             ] {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(icon::CHECK).color(p.success));

@@ -9,7 +9,7 @@ use netmgr::adapters::{self, Adapter};
 use netmgr::internet::PublicInfo;
 use netmgr::wifi;
 
-use crate::i18n::{self, tr, trl};
+use crate::i18n::{self, tr, tr_dyn, trf, trl};
 use crate::jobs::{self, Job};
 use crate::settings::{self, Settings};
 use crate::theme::{self, Palette};
@@ -114,12 +114,29 @@ impl Shared {
     pub fn visible_adapters(&self) -> Vec<&Adapter> {
         self.adapters
             .iter()
-            .filter(|a| self.settings.show_virtual || (a.physical && a.kind != adapters::Kind::Loopback))
+            .filter(|a| {
+                self.settings.show_virtual
+                    || (a.physical && a.kind != adapters::Kind::Loopback)
+                    // A VPN that is up is shown even when virtual adapters are hidden.
+                    || netmgr::vpn::is_active_tunnel(a)
+            })
             .collect()
     }
 
+    /// The adapter of the local network. Under a VPN that carries everything
+    /// the default route is the tunnel; the settings, the scans and the
+    /// address shown mean the adapter under it.
     pub fn default_adapter(&self) -> Option<&Adapter> {
-        self.adapters.iter().find(|a| a.default)
+        let route = self.adapters.iter().find(|a| a.default);
+        match route {
+            Some(a) if netmgr::vpn::is_active_tunnel(a) => netmgr::vpn::local_adapter(&self.adapters).or(route),
+            _ => route,
+        }
+    }
+
+    /// The VPN that is up, if any.
+    pub fn vpn(&self) -> Option<netmgr::vpn::Status> {
+        netmgr::vpn::detect(&self.adapters)
     }
 
     /// A short confirmation at the bottom of the window.
@@ -621,6 +638,27 @@ impl App {
                     ui.label(
                         RichText::new(format!("{glyph}  {text}   {ip}")).color(white.gamma_multiply(0.8)).size(13.5),
                     );
+                }
+                if let Some(v) = self.shared.vpn() {
+                    ui.add_space(10.0);
+                    let name = tr_dyn(v.product.label());
+                    let text = if v.product == netmgr::vpn::Product::Other {
+                        name.clone()
+                    } else {
+                        trf("VPN · {name}", &[("name", &name)])
+                    };
+                    let hint = if v.full {
+                        trf("All internet traffic goes through the VPN ({name}).", &[("name", &name)])
+                    } else {
+                        trf(
+                            "Only traffic for the VPN's own networks goes through {name}; the rest of the internet uses your local network.",
+                            &[("name", &name)],
+                        )
+                    };
+                    let color = if v.full { p.success } else { p.warning };
+                    ui.horizontal(|ui| {
+                        theme::pill(ui, p, &format!("{}  {text}", icon::SHIELD_CHECK), color).on_hover_text(hint);
+                    });
                 }
             });
         });
@@ -1374,7 +1412,7 @@ impl App {
                 (0..60).map(|i| 4e6 + 3e6 * ((i as f64) * 0.35).sin().abs() + 1e6 * ((i * 7 % 5) as f64)).collect();
             self.shared.traffic.up = (0..60).map(|i| 0.6e6 + 0.5e6 * ((i as f64) * 0.5).cos().abs()).collect();
             for a in &mut self.shared.adapters {
-                if a.default {
+                if a.default && a.kind != adapters::Kind::Vpn {
                     a.ipv4 = vec![([192, 168, 1, 10].into(), 24)];
                     a.ipv6 = vec![("2001:db8::10".parse().unwrap_or(std::net::Ipv6Addr::LOCALHOST), 64)];
                     a.gateway = Some([192, 168, 1, 1].into());
@@ -1385,6 +1423,32 @@ impl App {
                     a.tx_bytes = Some(2_100_000_000);
                     a.speed_bps = Some(1_201_000_000);
                 }
+            }
+            // NETMGR_TOUR_VPN=full|split: a VPN tunnel is up (Tailscale's kind of address).
+            if let Ok(mode) = std::env::var("NETMGR_TOUR_VPN")
+                && !self.shared.adapters.iter().any(|a| a.device == "utun99")
+                && let Some(base) = self.shared.adapters.iter().find(|a| a.physical && a.up).cloned()
+            {
+                let full = mode == "full";
+                let mut tunnel = base.clone();
+                tunnel.id = "utun99".into();
+                tunnel.name = "utun99".into();
+                tunnel.device = "utun99".into();
+                tunnel.kind = adapters::Kind::Vpn;
+                tunnel.physical = false;
+                tunnel.ipv4 = vec![([100, 92, 141, 34].into(), 32)];
+                tunnel.ipv6 = Vec::new();
+                tunnel.gateway = None;
+                tunnel.dns = Vec::new();
+                tunnel.mac = None;
+                tunnel.default = full;
+                for a in &mut self.shared.adapters {
+                    if a.id == base.id {
+                        a.default = !full;
+                        a.ipv4 = vec![([192, 168, 178, 128].into(), 24)];
+                    }
+                }
+                self.shared.adapters.push(tunnel);
             }
         }
         let Some((page, name, wait)) = pages.get(t.step).copied() else {
@@ -1509,6 +1573,9 @@ impl App {
                     self.dock_drag_split = true;
                     self.dock_drag = Some(0);
                 }
+            }
+            if name == "01-overview" && std::env::var_os("NETMGR_TOUR_VPN").is_some() {
+                self.overview.demo_leaks();
             }
             if name == "56-update" {
                 self.updater.demo_dialog();

@@ -326,6 +326,25 @@ pub const LIBRARY: &[&str] = &[
     "Connected (web check blocked)",
     "The internet does not answer",
     "The router is reachable but the internet is not: restart the router or modem. If it stays like this, your provider may have an outage.",
+    // netmgr::vpn: the product names and the leak check
+    "Tailscale",
+    "WireGuard",
+    "OpenVPN",
+    "IPsec / PPP",
+    "VPN",
+    "Public address",
+    "Websites see your traffic coming from {v}.",
+    "IPv6",
+    "IPv6 does not reach the internet, so nothing goes around the VPN over IPv6.",
+    "IPv6 leaves from the same network: {v}",
+    "IPv6 leaves from a different network: {v}",
+    "Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6.",
+    "DNS lookups",
+    "The DNS server {v} did not answer the test.",
+    "{v} is a public DNS server, reached through the VPN.",
+    "Names are looked up through the VPN: {v}",
+    "Names are looked up outside the VPN: {v}",
+    "Your DNS requests go to a server outside the VPN, so the network you are on can see which sites you visit. Use the VPN's own DNS server (Tailscale: turn on Use Tailscale DNS settings), or a public one such as 1.1.1.1 in Adapters → Change IP settings.",
     // netmgr::usm::User::validate
     "Enter the SNMPv3 user name.",
     "Encryption needs authentication too: choose an authentication protocol.",
@@ -715,6 +734,33 @@ mod tests {
             s.match_indices('{').filter_map(|(i, _)| s[i..].find('}').map(|j| &s[i..i + j + 1])).collect();
         v.sort();
         v
+    }
+
+    #[test]
+    fn the_vpn_findings_are_in_the_library() {
+        use netmgr::internet::PublicInfo;
+        use netmgr::vpn::{DnsProbe, Leaks, findings};
+        let info = |ip: &str, org: &str| PublicInfo { ip: ip.into(), org: Some(org.into()), ..Default::default() };
+        let public = info("198.51.100.9", "AS64500 Exit");
+        let other = info("203.0.113.7", "AS8447 Other");
+        let probe = |server: &str, seen: Option<PublicInfo>| DnsProbe { server: server.parse().unwrap(), seen };
+        for ipv6 in [None, Some(public.clone()), Some(other.clone())] {
+            let leaks = Leaks {
+                public: public.clone(),
+                ipv6,
+                dns: vec![
+                    probe("10.0.0.1", None),
+                    probe("1.1.1.1", Some(other.clone())),
+                    probe("10.0.0.2", Some(public.clone())),
+                    probe("10.0.0.3", Some(other.clone())),
+                ],
+            };
+            for c in findings(&leaks) {
+                for text in [Some(c.title), Some(c.template), c.advice].into_iter().flatten() {
+                    assert!(LIBRARY.contains(&text), "not in LIBRARY: {text:?}");
+                }
+            }
+        }
     }
 
     #[test]

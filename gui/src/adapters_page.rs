@@ -249,52 +249,72 @@ impl AdaptersPage {
                 });
             });
             ui.add_space(12.0);
-            ui.horizontal_wrapped(|ui| {
-                ui.add_enabled_ui(!busy && !a.disabled, |ui| {
-                    if theme::primary_button(ui, p, &icon_label(icon::PENCIL_SIMPLE, "Change IP settings"), true)
-                        .clicked()
-                    {
-                        self.ip = Some(IpEditor::new(a));
-                    }
-                    if theme::secondary_button(ui, &icon_label(icon::FINGERPRINT, "Change MAC address")).clicked() {
-                        self.open_mac(ui.ctx(), a);
-                    }
-                    if a.up && theme::secondary_button(ui, &icon_label(icon::ARROWS_CLOCKWISE, "Renew IP")).clicked() {
-                        let a = a.clone();
-                        self.job = Some(Job::spawn(ui.ctx(), move |_, _| {
-                            config::renew(&a)?;
-                            Ok(Done::Message(trf("{name} asked the router for a new address.", &[("name", &a.name)])))
-                        }));
-                    }
-                });
-                ui.add_enabled_ui(!busy, |ui| {
-                    // Back on by other means: connected again.
-                    if a.up && a.main_ipv4().is_some_and(|(ip, _)| !ip.is_link_local()) {
-                        self.turned_off.remove(&a.id);
-                    }
-                    let off = a.disabled || self.turned_off.contains(&a.id);
-                    let (label, on) = if off { (tr("Turn on"), true) } else { (tr("Turn off"), false) };
-                    if theme::secondary_button(ui, &icon_label(icon::POWER, label)).clicked() {
-                        if on {
-                            self.turned_off.remove(&a.id);
-                        } else {
-                            self.turned_off.insert(a.id.clone());
+            // A VPN tunnel belongs to its own program: nothing here changes it.
+            if a.kind == Kind::Vpn && netmgr::vpn::is_active_tunnel(a) {
+                let name = tr_dyn(netmgr::vpn::detect(std::slice::from_ref(a)).map_or("VPN", |v| v.product.label()));
+                theme::notice(
+                    ui,
+                    p,
+                    p.accent,
+                    icon::SHIELD_CHECK,
+                    &trf(
+                        "{name} is a VPN tunnel. The VPN program manages it, so IP settings, the MAC address and Turn off are not offered here.",
+                        &[("name", &name)],
+                    ),
+                );
+            } else {
+                ui.horizontal_wrapped(|ui| {
+                    ui.add_enabled_ui(!busy && !a.disabled, |ui| {
+                        if theme::primary_button(ui, p, &icon_label(icon::PENCIL_SIMPLE, "Change IP settings"), true)
+                            .clicked()
+                        {
+                            self.ip = Some(IpEditor::new(a));
                         }
-                        let a = a.clone();
-                        self.job = Some(Job::spawn(ui.ctx(), move |_, _| {
-                            config::set_enabled(&a, on)?;
-                            Ok(Done::Message(if on {
-                                trf("{name} was turned on.", &[("name", &a.name)])
+                        if theme::secondary_button(ui, &icon_label(icon::FINGERPRINT, "Change MAC address")).clicked() {
+                            self.open_mac(ui.ctx(), a);
+                        }
+                        if a.up
+                            && theme::secondary_button(ui, &icon_label(icon::ARROWS_CLOCKWISE, "Renew IP")).clicked()
+                        {
+                            let a = a.clone();
+                            self.job = Some(Job::spawn(ui.ctx(), move |_, _| {
+                                config::renew(&a)?;
+                                Ok(Done::Message(trf(
+                                    "{name} asked the router for a new address.",
+                                    &[("name", &a.name)],
+                                )))
+                            }));
+                        }
+                    });
+                    ui.add_enabled_ui(!busy, |ui| {
+                        // Back on by other means: connected again.
+                        if a.up && a.main_ipv4().is_some_and(|(ip, _)| !ip.is_link_local()) {
+                            self.turned_off.remove(&a.id);
+                        }
+                        let off = a.disabled || self.turned_off.contains(&a.id);
+                        let (label, on) = if off { (tr("Turn on"), true) } else { (tr("Turn off"), false) };
+                        if theme::secondary_button(ui, &icon_label(icon::POWER, label)).clicked() {
+                            if on {
+                                self.turned_off.remove(&a.id);
                             } else {
-                                trf("{name} was turned off.", &[("name", &a.name)])
-                            }))
-                        }));
+                                self.turned_off.insert(a.id.clone());
+                            }
+                            let a = a.clone();
+                            self.job = Some(Job::spawn(ui.ctx(), move |_, _| {
+                                config::set_enabled(&a, on)?;
+                                Ok(Done::Message(if on {
+                                    trf("{name} was turned on.", &[("name", &a.name)])
+                                } else {
+                                    trf("{name} was turned off.", &[("name", &a.name)])
+                                }))
+                            }));
+                        }
+                    });
+                    if busy {
+                        ui.spinner();
                     }
                 });
-                if busy {
-                    ui.spinner();
-                }
-            });
+            }
             if a.default && a.up {
                 ui.add_space(6.0);
                 theme::paragraph(
