@@ -5,6 +5,27 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.19
+
+### New
+- **A VPN page** in the sidebar. It shows whether a VPN is on, whether it
+  carries all your traffic, what websites see (your address, place and
+  provider), and a **leak check** for your traffic, IPv6 and DNS lookups.
+- **Where your traffic goes, in plain words:** what goes through the VPN, what
+  is reached directly, and what "Allow local network access" means.
+- **Tailscale:** your devices, the exit node (change it with one click),
+  Allow local network access, connect and disconnect, and an SSH button for
+  each device.
+- **VPN connections of the system** (macOS, Linux, Windows): connect and
+  disconnect them.
+- **A VPN badge in the top bar**, and the VPN tunnel on the Adapters page. The
+  address shown at the top is your local network's, not the tunnel's, and
+  scans and IP settings keep working on your local network while a VPN is on.
+
+### Changed
+- Cmd+4 now opens the VPN page; Devices and the pages after it moved one
+  digit down.
+
 ## 0.9.18
 
 ### Changed
