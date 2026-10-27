@@ -5,6 +5,15 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.18
+
+### Changed
+- **New license: PolyForm Noncommercial 1.0.0.** The app stays free to download
+  and use, and its code stays public. Personal and other non-commercial use is
+  allowed; selling it or using it in a commercial product needs written
+  permission. Versions up to 0.9.17 were released under the MIT License and
+  stay under it for those who received them.
+
 ## 0.9.17
 
 ### Fixed
