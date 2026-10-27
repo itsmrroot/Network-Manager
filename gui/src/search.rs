@@ -49,6 +49,13 @@ fn entries() -> Vec<Entry> {
     let mut v = vec![
         e(icon::GAUGE, tr("Overview"), "", "home status connection ip address public", Target::Page(Page::Overview)),
         e(
+            icon::SHIELD_CHECK,
+            tr("VPN"),
+            "",
+            "vpn tailscale wireguard exit node tunnel leak dns routes",
+            Target::Page(Page::Vpn),
+        ),
+        e(
             icon::PLUGS_CONNECTED,
             tr("Adapters"),
             "",

@@ -100,10 +100,11 @@ const RELEASES: &str = "https://github.com/itsmrroot/Network-Manager-releases/re
 const ISSUES: &str = "https://github.com/itsmrroot/Network-Manager-releases/issues";
 
 /// The pages in sidebar order, with their ⌘/Ctrl digit.
-pub const PAGES: [(Page, &str); 10] = [
+pub const PAGES: [(Page, &str); 11] = [
     (Page::Overview, "Overview"),
     (Page::Adapters, "Adapters"),
     (Page::Wifi, "Wi-Fi"),
+    (Page::Vpn, "VPN"),
     (Page::Devices, "Devices"),
     (Page::SwitchPort, "Switch port"),
     (Page::Monitor, "Monitor"),
@@ -119,6 +120,7 @@ pub fn page_glyph(page: Page) -> &'static str {
         Page::Overview => icon::GAUGE,
         Page::Adapters => icon::PLUGS_CONNECTED,
         Page::Wifi => icon::WIFI_HIGH,
+        Page::Vpn => icon::SHIELD_CHECK,
         Page::Devices => icon::DEVICES,
         Page::SwitchPort => icon::TREE_STRUCTURE,
         Page::Monitor => icon::HEARTBEAT,

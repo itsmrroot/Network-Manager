@@ -26,38 +26,9 @@ pub struct Overview {
     speed_result: Option<SpeedResult>,
     fix: Option<Job<&'static str>>,
     report: Option<Job<String>>,
-    /// The VPN leak check: running, and what it found.
-    leaks: Option<Job<Vec<Check>>>,
-    leak_checks: Vec<Check>,
 }
 
 impl Overview {
-    /// Development aid: the findings of a leak check that found a DNS leak.
-    #[cfg(debug_assertions)]
-    pub fn demo_leaks(&mut self) {
-        use netmgr::internet::PublicInfo;
-        use netmgr::vpn::{DnsProbe, Leaks, findings};
-        let info = |ip: &str, city: &str, org: &str| PublicInfo {
-            ip: ip.into(),
-            city: Some(city.into()),
-            country: Some("AT".into()),
-            org: Some(org.into()),
-            ..Default::default()
-        };
-        let public = info("198.51.100.9", "Vienna", "AS64500 Home Lab ISP");
-        self.leak_checks = findings(&Leaks {
-            public: public.clone(),
-            ipv6: None,
-            dns: vec![
-                DnsProbe { server: "100.100.100.100".parse().unwrap(), seen: Some(public) },
-                DnsProbe {
-                    server: "192.168.178.1".parse().unwrap(),
-                    seen: Some(info("203.0.113.7", "Graz", "AS8447 A1 Telekom")),
-                },
-            ],
-        });
-    }
-
     pub fn start_speed(&mut self, ctx: &egui::Context) {
         if self.speed.is_some() {
             return;
@@ -170,12 +141,6 @@ impl Overview {
         }
         if let Some(Ok(_)) = jobs::finished(&mut self.diagnose) {
             self.checked = true;
-        }
-        if let Some(r) = jobs::finished(&mut self.leaks) {
-            match r {
-                Ok(checks) => self.leak_checks = checks,
-                Err(e) => sh.fail(trl("The VPN check could not be completed."), &e),
-            }
         }
         if let Some(r) = jobs::finished(&mut self.speed) {
             match r {
@@ -311,41 +276,16 @@ impl Overview {
         }));
     }
 
-    /// A VPN is up: what it is, what it carries and what websites see, with
-    /// a check that nothing leaves around it.
-    fn vpn_card(&mut self, ui: &mut Ui, p: &Palette, sh: &Shared, v: &netmgr::vpn::Status) {
+    /// A VPN is up: a line about it, and the way to the VPN page.
+    fn vpn_card(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared, v: &netmgr::vpn::Status) {
         let name = tr_dyn(v.product.label());
-        let address = match &sh.public {
-            _ if sh.public_loading => None,
-            Some(Ok(info)) => {
-                let more = [info.place(), info.provider()].into_iter().flatten().collect::<Vec<_>>().join(" · ");
-                Some(if more.is_empty() { info.ip.clone() } else { format!("{} ({more})", info.ip) })
-            }
-            _ => None,
-        };
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
                 theme::section_title(ui, p, icon::SHIELD_CHECK, tr("VPN is on"));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if self.leaks.is_some() {
-                        ui.spinner();
-                    } else {
-                        let hint = if v.full {
-                            tr("Looks up where your traffic, IPv6 and DNS lookups leave from. It asks ipinfo.io and your DNS servers.")
-                        } else {
-                            tr("Only for a VPN that carries all internet traffic.")
-                        };
-                        if ui
-                            .add_enabled(v.full, egui::Button::new(icon_label(icon::SHIELD_WARNING, "Check for leaks")))
-                            .on_hover_text(hint)
-                            .clicked()
-                        {
-                            self.leak_checks.clear();
-                            self.leaks = Some(Job::spawn(ui.ctx(), |_, _| {
-                                Ok(netmgr::vpn::findings(&netmgr::vpn::check()?))
-                            }));
-                        }
+                    if theme::secondary_button(ui, &icon_label(icon::ARROW_RIGHT, "Open VPN")).clicked() {
+                        sh.nav = Some(Nav::Page(Page::Vpn));
                     }
                 });
             });
@@ -360,52 +300,6 @@ impl Overview {
                 .color(p.weak)
                 .size(13.5),
             );
-            if let Some(local) = &v.local {
-                let lip = local.main_ipv4().map(|(ip, p)| format!("{ip}/{p}")).unwrap_or_default();
-                ui.label(
-                    RichText::new(trf("Local network: {adapter} · {ip}", &[("adapter", &local.name), ("ip", &lip)]))
-                        .color(p.weak)
-                        .size(13.5),
-                );
-            }
-            ui.label(
-                RichText::new(match (&address, v.full) {
-                    (Some(a), true) => trf(
-                        "Websites see this address: {address}. This is where the VPN leaves the internet, not your local network.",
-                        &[("address", a)],
-                    ),
-                    (Some(a), false) => {
-                        trf("Websites see your local network's address: {address}.", &[("address", a)])
-                    }
-                    (None, _) if sh.public_loading => tr("Looking up…").to_string(),
-                    (None, _) => tr(
-                        "Turn on the public address lookup in Settings → Internet to see what websites see.",
-                    )
-                    .to_string(),
-                })
-                .color(p.weak)
-                .size(13.5),
-            );
-            if !self.leak_checks.is_empty() || self.leaks.is_some() {
-                ui.add_space(8.0);
-                check_rows(ui, p, &self.leak_checks);
-                if self.leaks.is_none() {
-                    if self.leak_checks.iter().all(|c| c.ok) {
-                        theme::notice(
-                            ui,
-                            p,
-                            p.success,
-                            icon::CHECK_CIRCLE,
-                            trl(
-                                "No leaks found: your traffic, IPv6 and DNS lookups all leave through the VPN's network.",
-                            ),
-                        );
-                    }
-                    if ui.button(tr("Close")).clicked() {
-                        self.leak_checks.clear();
-                    }
-                }
-            }
         });
     }
 
@@ -532,7 +426,7 @@ impl Overview {
 
 /// The steps of a check: a tick or a cross, what it looked at and found, and
 /// what to do about a step that failed.
-fn check_rows(ui: &mut Ui, p: &Palette, checks: &[Check]) {
+pub fn check_rows(ui: &mut Ui, p: &Palette, checks: &[Check]) {
     for c in checks {
         ui.horizontal_wrapped(|ui| {
             let (g, color) = if c.ok { (icon::CHECK_CIRCLE, p.success) } else { (icon::X_CIRCLE, p.danger) };

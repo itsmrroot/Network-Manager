@@ -48,6 +48,7 @@ mod theme;
 mod tools;
 mod translations;
 mod update;
+mod vpn_page;
 mod wifi_ip;
 mod wifi_page;
 

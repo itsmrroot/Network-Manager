@@ -15,7 +15,8 @@ use crate::settings::{self, Settings};
 use crate::theme::{self, Palette};
 use crate::update::Updater;
 use crate::{
-    about, adapters_page, console, devices, help, monitor, overview, profiles, servers, switchport, tools, wifi_page,
+    about, adapters_page, console, devices, help, monitor, overview, profiles, servers, switchport, tools, vpn_page,
+    wifi_page,
 };
 use crate::{menu, search};
 
@@ -24,6 +25,7 @@ pub enum Page {
     Overview,
     Adapters,
     Wifi,
+    Vpn,
     Devices,
     SwitchPort,
     Monitor,
@@ -43,6 +45,8 @@ pub enum Nav {
     Adapter(String),
     /// A tool with an address filled in.
     Tool(tools::Tab, String),
+    /// An SSH session to this address, in the Console.
+    Ssh(String),
     /// Watch a host in the ping monitor.
     Monitor(String),
     /// A tab of a page (the page's own name for it).
@@ -190,6 +194,7 @@ pub struct App {
 
     overview: overview::Overview,
     adapters_page: adapters_page::AdaptersPage,
+    vpn_page: vpn_page::VpnPage,
     wifi_page: wifi_page::WifiPage,
     wifi_ip: crate::wifi_ip::WifiIp,
     devices: devices::Devices,
@@ -289,6 +294,7 @@ impl App {
             traffic_at: None,
             overview: Default::default(),
             adapters_page: Default::default(),
+            vpn_page: Default::default(),
             wifi_page: Default::default(),
             wifi_ip: Default::default(),
             devices: Default::default(),
@@ -711,10 +717,12 @@ impl App {
 
         let dot = |on: bool| on.then(|| "●".to_string());
         let devices_badge = dot(self.devices.scanning()).or(self.devices.count().map(|n| n.to_string()));
-        let items: [(&str, &str, Page, Option<String>); 13] = [
+        let vpn_badge = self.shared.vpn().is_some().then(|| "●".to_string());
+        let items: [(&str, &str, Page, Option<String>); 14] = [
             (icon::GAUGE, tr("Overview"), Page::Overview, None),
             (icon::PLUGS_CONNECTED, tr("Adapters"), Page::Adapters, None),
             (icon::WIFI_HIGH, tr("Wi-Fi"), Page::Wifi, None),
+            (icon::SHIELD_CHECK, tr("VPN"), Page::Vpn, vpn_badge),
             (icon::DEVICES, tr("Devices"), Page::Devices, devices_badge),
             (icon::TREE_STRUCTURE, tr("Switch port"), Page::SwitchPort, dot(self.switchport.busy())),
             (icon::HEARTBEAT, tr("Monitor"), Page::Monitor, dot(self.monitor.running())),
@@ -746,7 +754,7 @@ impl App {
                 if simple && engineer && badge.is_none() && self.page != target {
                     continue;
                 }
-                if i == 10 {
+                if i == 11 {
                     ui.add_space(4.0);
                     ui.separator();
                     ui.add_space(4.0);
@@ -789,6 +797,7 @@ impl App {
             Page::Overview => self.overview.ui(ui, p, sh),
             Page::Adapters => self.adapters_page.ui(ui, p, sh),
             Page::Wifi => self.wifi_page.ui(ui, p, sh),
+            Page::Vpn => self.vpn_page.ui(ui, p, sh),
             Page::Devices => self.devices.ui(ui, p, sh),
             Page::Profiles => self.profiles.ui(ui, p, sh),
             Page::Tools => self.tools.ui(ui, p, sh),
@@ -817,6 +826,10 @@ impl App {
                 Nav::Tool(tab, host) => {
                     self.tools.open(tab, &host);
                     self.page = Page::Tools;
+                }
+                Nav::Ssh(host) => {
+                    self.console.open_host(&host);
+                    self.page = Page::Console;
                 }
                 Nav::Monitor(host) => {
                     self.monitor.add(sh, &host);
@@ -1262,7 +1275,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 56] = [
+        let pages: [(Page, &str, u32); 57] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1317,6 +1330,7 @@ impl App {
             (Page::Console, "53-dock-menu", 40),
             (Page::Console, "54-menus-hold", 2400),
             (Page::Console, "55-popout", 700),
+            (Page::Vpn, "57-vpn", 60),
             (Page::Overview, "56-update", 40),
             (Page::Overview, "26-search", 30),
         ];
@@ -1574,8 +1588,8 @@ impl App {
                     self.dock_drag = Some(0);
                 }
             }
-            if name == "01-overview" && std::env::var_os("NETMGR_TOUR_VPN").is_some() {
-                self.overview.demo_leaks();
+            if name == "57-vpn" {
+                self.vpn_page.demo();
             }
             if name == "56-update" {
                 self.updater.demo_dialog();

@@ -138,6 +138,13 @@ impl Console {
         self.focus_host = true;
     }
 
+    /// The SSH page with this address typed in, ready for Connect.
+    pub fn open_host(&mut self, host: &str) {
+        self.new_connection();
+        self.telnet = false;
+        self.host = host.to_string();
+    }
+
     /// Opens a saved session (from the menu), by its place in the list.
     pub fn open_saved(&mut self, index: usize, sh: &mut Shared) {
         self.zoomed = false;
