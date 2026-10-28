@@ -16,6 +16,29 @@ use crate::servers::{Slots, safe_path};
 /// The longest request line or header accepted.
 const MAX_LINE: u64 = 16 * 1024;
 
+/// A writer that stops at `left` more bytes: an upload with no end must not fill the disk.
+struct Capped<W> {
+    inner: W,
+    left: u64,
+}
+
+impl<W: Write> Write for Capped<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if buf.len() as u64 > self.left {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "the file is larger than this server takes",
+            ));
+        }
+        self.left -= buf.len() as u64;
+        self.inner.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Options {
     pub root: PathBuf,
@@ -507,7 +530,8 @@ fn connection(mut s: TcpStream, from: IpAddr, opts: &Options, log: &Log, stop: &
                 if let Some(dir) = file.parent() {
                     std::fs::create_dir_all(dir)?;
                 }
-                let mut out = std::fs::File::create(&tmp)?;
+                let file_out = std::fs::File::create(&tmp)?;
+                let mut out = Capped { inner: file_out, left: crate::servers::MAX_UPLOAD };
                 let n = match length {
                     _ if chunked => read_chunked(&mut reader, &mut out)?,
                     Some(len) => std::io::copy(&mut (&mut reader).take(len), &mut out)?,
@@ -516,7 +540,7 @@ fn connection(mut s: TcpStream, from: IpAddr, opts: &Options, log: &Log, stop: &
                 if length.is_some_and(|len| n != len) {
                     return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "the upload was interrupted"));
                 }
-                out.sync_all()?;
+                out.inner.sync_all()?;
                 drop(out);
                 publish(&tmp, &file, opts.overwrite)?;
                 Ok(n)
@@ -550,6 +574,15 @@ fn connection(mut s: TcpStream, from: IpAddr, opts: &Options, log: &Log, stop: &
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_capped_writer_stops_at_its_limit() {
+        use std::io::Write;
+        let mut w = super::Capped { inner: Vec::new(), left: 5 };
+        assert!(w.write_all(b"abc").is_ok());
+        assert!(w.write_all(b"def").is_err(), "6 bytes into a limit of 5");
+        assert_eq!(w.inner, b"abc");
+    }
+
     use super::*;
     use std::sync::Mutex;
 

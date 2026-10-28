@@ -172,7 +172,7 @@ mod imp {
             // that would drop the user's own temporary rules.
             format!(
                 "{install}systemctl enable --now {svc} && \
-                 {{ ! command -v ufw >/dev/null || ufw allow 22/tcp >/dev/null; }} && \
+                 {{ ! command -v ufw >/dev/null || ufw allow 22/tcp comment 'Network Manager' >/dev/null; }} && \
                  {{ ! command -v firewall-cmd >/dev/null || ! firewall-cmd --state >/dev/null 2>&1 || \
                  {{ firewall-cmd --add-service=ssh >/dev/null && firewall-cmd --permanent --add-service=ssh >/dev/null; }}; }}"
             )
@@ -180,7 +180,7 @@ mod imp {
             // Closes the firewall again too.
             format!(
                 "systemctl disable --now {svc}.socket 2>/dev/null; systemctl disable --now {svc}; \
-                 {{ ! command -v ufw >/dev/null || ufw delete allow 22/tcp >/dev/null 2>&1; }}; \
+                 {{ ! command -v ufw >/dev/null || ! ufw show added 2>/dev/null | grep -q 'Network Manager' || ufw delete allow 22/tcp >/dev/null 2>&1; }}; \
                  {{ ! command -v firewall-cmd >/dev/null || ! firewall-cmd --state >/dev/null 2>&1 || \
                  {{ firewall-cmd --remove-service=ssh >/dev/null 2>&1; firewall-cmd --permanent --remove-service=ssh >/dev/null 2>&1; }}; }}; true"
             )

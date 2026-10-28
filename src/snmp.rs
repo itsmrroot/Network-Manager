@@ -462,9 +462,15 @@ impl Client {
     /// Sends `msg`, again after each silence, until `accept` takes an answer.
     fn exchange<T>(&self, msg: &[u8], mut accept: impl FnMut(&[u8]) -> Option<T>) -> Result<T> {
         let mut buf = vec![0u8; 65535];
+        // Packets that are not the answer must not keep this going for ever.
+        let started = std::time::Instant::now();
+        let limit = Duration::from_millis(1500) * (self.retries + 1) + Duration::from_secs(2);
         for _ in 0..=self.retries {
             self.sock.send(msg)?;
             loop {
+                if started.elapsed() > limit {
+                    break;
+                }
                 let n = match self.sock.recv(&mut buf) {
                     Ok(n) => n,
                     Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {

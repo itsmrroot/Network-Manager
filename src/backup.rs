@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use serde::Serialize;
 
@@ -47,6 +47,32 @@ fn folder_name(name: &str) -> String {
     // Never `.` or `..`, which are not folders of their own.
     let s = s.trim_start_matches('.');
     if s.is_empty() { "device".into() } else { s.to_string() }
+}
+
+/// The folder of a device in `root`. Two names that come out the same ("sw/1" and "sw_1") must
+/// not share one: each folder remembers the name it was made for, and a second name gets its
+/// own folder (a folder from before this, without the note, goes to the name that asks first).
+fn device_dir(root: &Path, name: &str, create: bool) -> PathBuf {
+    let base = folder_name(name);
+    let note = |d: &Path| d.join(".name");
+    let mut dir = root.join(&base);
+    if let Ok(owner) = std::fs::read_to_string(note(&dir)) {
+        if owner != name {
+            // FNV-1a of the real name: the same name always finds its folder again.
+            let h =
+                name.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3));
+            dir = root.join(format!("{base}-{:06x}", h & 0xff_ffff));
+        }
+    } else if create && dir.is_dir() {
+        let _ = std::fs::write(note(&dir), name);
+    }
+    if create {
+        let _ = std::fs::create_dir_all(&dir);
+        if !note(&dir).exists() {
+            let _ = std::fs::write(note(&dir), name);
+        }
+    }
+    dir
 }
 
 /// Days since 1970 to (year, month, day) — Howard Hinnant's algorithm.
@@ -295,6 +321,14 @@ const REJECTED: [&str; 14] = [
     "bad command",
 ];
 
+/// Commands whose confirm question must not be answered for the person: they erase or restart.
+fn asks_for_a_decision(line: &str) -> bool {
+    let l = line.to_lowercase();
+    ["reload", "erase", "delete", "format", "factory", "wipe", "zeroize", "reset", "reboot", "restart"]
+        .iter()
+        .any(|w| l.split(|c: char| !c.is_alphanumeric() && c != '-').any(|word| word.starts_with(w)))
+}
+
 /// The device's answer to a command, when it is a rejection.
 fn rejection(answer: &str) -> Option<String> {
     answer
@@ -322,6 +356,8 @@ struct Typist {
     out: Vec<u8>,
     password: Option<String>,
     answered: usize,
+    /// The command line that was typed last.
+    line: String,
     _master: Box<dyn portable_pty::MasterPty + Send>,
 }
 
@@ -373,6 +409,12 @@ impl Typist {
                     {
                         self.write(" ")?;
                     } else if tail.ends_with("[confirm]") || tail.ends_with("]?") {
+                        // A question about erasing or restarting the device is for a person.
+                        ensure!(
+                            !asks_for_a_decision(&self.line),
+                            "the device asks to confirm \"{}\": a command that can erase or restart it is not confirmed automatically",
+                            self.line.trim()
+                        );
                         // "Destination filename [startup-config]?": the default.
                         self.write("\r")?;
                     }
@@ -431,6 +473,7 @@ pub fn type_lines(
         out: Vec::new(),
         password: password.map(String::from),
         answered: 0,
+        line: String::new(),
         _master: pty.master,
     };
     if !t.wait_prompt(0, Duration::from_secs(45))? {
@@ -442,6 +485,7 @@ pub fn type_lines(
     let mut result = Pushed::default();
     for line in lines {
         let from = t.out.len();
+        t.line = line.clone();
         t.write(&format!("{line}\r"))?;
         result.sent += 1;
         let alive = t.wait_prompt(from, Duration::from_secs(90))?;
@@ -472,7 +516,7 @@ pub struct Version {
 
 /// The copies of `name`, newest first.
 pub fn versions(name: &str) -> Vec<Version> {
-    let dir = folder().join(folder_name(name));
+    let dir = device_dir(&folder(), name, false);
     let mut out: Vec<Version> = std::fs::read_dir(&dir)
         .into_iter()
         .flatten()
@@ -506,7 +550,7 @@ pub fn store(name: &str, text: &str, now: SystemTime) -> Result<Outcome> {
 }
 
 fn store_in(root: &Path, name: &str, text: &str, now: SystemTime) -> Result<Outcome> {
-    let dir = root.join(folder_name(name));
+    let dir = device_dir(root, name, true);
     std::fs::create_dir_all(&dir)?;
     let mut list: Vec<PathBuf> = std::fs::read_dir(&dir)?
         .flatten()
@@ -525,7 +569,16 @@ fn store_in(root: &Path, name: &str, text: &str, now: SystemTime) -> Result<Outc
             Outcome::Changed { added, removed }
         }
     };
-    crate::cmd::write_private(&dir.join(format!("{}.txt", stamp(now))), text)?;
+    // Two copies in the same second: the second gets a letter (it sorts after the first).
+    let base = stamp(now);
+    let mut file = dir.join(format!("{base}.txt"));
+    for letter in 'a'..='z' {
+        if !file.exists() {
+            break;
+        }
+        file = dir.join(format!("{base}{letter}.txt"));
+    }
+    crate::cmd::write_private(&file, text)?;
     Ok(outcome)
 }
 
@@ -609,12 +662,57 @@ mod tests {
         assert_eq!(store_in(&root, "core sw/1", v1, t(0)).unwrap(), Outcome::First);
         assert_eq!(store_in(&root, "core sw/1", v1b, t(60)).unwrap(), Outcome::Unchanged);
         assert_eq!(store_in(&root, "core sw/1", v2, t(120)).unwrap(), Outcome::Changed { added: 2, removed: 2 });
-        let files = std::fs::read_dir(root.join("core_sw_1")).unwrap().count();
+        let files = std::fs::read_dir(root.join("core_sw_1"))
+            .unwrap()
+            .flatten()
+            .filter(|e| e.path().extension().is_some_and(|x| x == "txt"))
+            .count();
         assert_eq!(files, 2);
         let d = diff(v1, v2, 1);
         assert!(d.contains(&Line::Removed(" description Uplink".into())));
         assert!(d.contains(&Line::Added(" description Uplink to core".into())));
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn names_that_look_alike_get_their_own_folders_and_copies_never_overwrite() {
+        let root = std::env::temp_dir().join(format!("netmgr-backup-names-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let t = UNIX_EPOCH + Duration::from_secs(1_760_000_000);
+        store_in(&root, "sw/1", "hostname a\n", t).unwrap();
+        store_in(&root, "sw_1", "hostname b\n", t).unwrap();
+        let (a, b) = (device_dir(&root, "sw/1", false), device_dir(&root, "sw_1", false));
+        assert_ne!(a, b, "two devices, one folder");
+        assert_eq!(std::fs::read_to_string(a.join(format!("{}.txt", stamp(t)))).unwrap(), "hostname a\n");
+        // The same name finds its folder again.
+        assert_eq!(device_dir(&root, "sw_1", false), b);
+        // Two different copies in the same second: both stay.
+        store_in(&root, "sw_1", "hostname c\n", t).unwrap();
+        let n = std::fs::read_dir(&b)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.path().extension().is_some_and(|x| x == "txt"))
+            .count();
+        assert_eq!(n, 2);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn commands_that_erase_or_restart_are_not_confirmed_for_the_person() {
+        for line in [
+            "reload",
+            "write erase",
+            "erase startup-config",
+            "delete flash:/config.text",
+            "request system reboot",
+            "factory-reset",
+            "format flash:",
+        ] {
+            assert!(asks_for_a_decision(line), "{line}");
+        }
+        for line in ["copy running-config startup-config", "write memory", "commit", "show version"] {
+            assert!(!asks_for_a_decision(line), "{line}");
+        }
     }
 
     #[test]

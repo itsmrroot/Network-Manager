@@ -63,11 +63,11 @@ pub fn load() -> Result<Vec<Profile>> {
 pub fn save(profiles: &[Profile]) -> Result<()> {
     let path = file();
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
+        crate::cmd::create_private_dir(dir)?;
     }
     // Written next to it first, so that a crash never leaves half a file.
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, serde_json::to_string_pretty(profiles)?)?;
+    crate::cmd::write_private(&tmp, serde_json::to_string_pretty(profiles)?)?;
     std::fs::rename(&tmp, &path)?;
     Ok(())
 }

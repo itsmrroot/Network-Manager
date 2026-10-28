@@ -102,9 +102,9 @@ pub fn load() -> Result<Vec<Saved>> {
 pub fn save(list: &[Saved]) -> Result<()> {
     let path = sessions_file();
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
+        crate::cmd::create_private_dir(dir)?;
     }
-    std::fs::write(path, serde_json::to_string_pretty(list)?)?;
+    crate::cmd::write_private(&path, serde_json::to_string_pretty(list)?)?;
     Ok(())
 }
 

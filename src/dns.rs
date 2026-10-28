@@ -167,8 +167,9 @@ pub fn query(server: SocketAddr, name: &str, kind: RecordType, timeout: Duration
                     reply = Some(buf[..n].to_vec());
                     break;
                 }
-                Ok(_) => continue,
-                Err(_) => break,
+                // Other packets: not the answer, and not forever.
+                Ok(_) if started.elapsed() < timeout * 2 + Duration::from_secs(1) => continue,
+                Ok(_) | Err(_) => break,
             }
         }
         if reply.is_some() {

@@ -367,7 +367,18 @@ pub fn write_private(path: &std::path::Path, data: impl AsRef<[u8]>) -> std::io:
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut o, 0o600);
     let mut f = o.open(path)?;
+    // A file made earlier, with other rights, is made private too.
+    #[cfg(unix)]
+    f.set_permissions(std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
     f.write_all(data.as_ref())
+}
+
+/// Makes a folder (and the ones above it) that only this user can enter.
+pub fn create_private_dir(path: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(path)?;
+    #[cfg(unix)]
+    std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o700))?;
+    Ok(())
 }
 
 /// Runs a PowerShell script (Windows) and returns its output.
@@ -547,6 +558,22 @@ mod tests {
         }
         let _ = std::fs::remove_dir_all(&a);
         let _ = std::fs::remove_dir_all(&b);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_private_file_that_was_open_before_becomes_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = private_dir("private-test").expect("a folder");
+        let f = dir.join("sessions.json");
+        std::fs::write(&f, "old").unwrap();
+        std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o644)).unwrap();
+        write_private(&f, "new").unwrap();
+        assert_eq!(std::fs::metadata(&f).unwrap().permissions().mode() & 0o777, 0o600);
+        let sub = dir.join("a/b");
+        create_private_dir(&sub).unwrap();
+        assert_eq!(std::fs::metadata(&sub).unwrap().permissions().mode() & 0o777, 0o700);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[cfg(unix)]

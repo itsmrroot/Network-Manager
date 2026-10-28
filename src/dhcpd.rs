@@ -106,6 +106,11 @@ impl Config {
             u32::from(self.first) > n && u32::from(self.last) < bc,
             "the pool must not include the network or broadcast address"
         );
+        ensure!(
+            self.pool_size() <= 4096,
+            "the pool has {} addresses: at most 4096 (a /20) are handed out",
+            self.pool_size()
+        );
         if let Some(r) = self.router {
             ensure!(self.net(r) == n, "the router {r} is not in this network");
         }
@@ -690,5 +695,12 @@ mod tests {
         c.reservations[0].mac = "nope".into();
         assert!(c.check().is_err());
         assert_eq!(cfg().pool_size(), 3);
+        // A /16 pool: every request would have to look through tens of thousands of addresses.
+        let mut c = cfg();
+        c.server = Ipv4Addr::new(10, 9, 0, 1);
+        c.mask = Ipv4Addr::new(255, 255, 0, 0);
+        c.first = Ipv4Addr::new(10, 9, 0, 2);
+        c.last = Ipv4Addr::new(10, 9, 200, 200);
+        assert!(c.check().unwrap_err().to_string().contains("4096"));
     }
 }

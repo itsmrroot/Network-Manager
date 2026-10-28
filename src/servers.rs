@@ -87,6 +87,10 @@ pub fn safe_path(root: &Path, requested: &str) -> Result<PathBuf> {
             Component::Normal(p) if is_device_name(&p.to_string_lossy()) => {
                 bail!("{} is not a file name", p.to_string_lossy())
             }
+            // On Windows `name:stream` is another place in the same file.
+            Component::Normal(p) if cfg!(windows) && p.to_string_lossy().contains(':') => {
+                bail!("{} is not a file name", p.to_string_lossy())
+            }
             Component::Normal(p) => out.push(p),
             Component::CurDir => {}
             _ => bail!("access outside the TFTP folder is not allowed"),
@@ -127,6 +131,9 @@ pub fn sweep_parts(root: &Path) {
 /// How long a transfer may go without progress (whatever the device asked
 /// for as its timeout).
 const NO_PROGRESS: Duration = Duration::from_secs(20);
+
+/// The largest file an upload may be (the disk is not filled by one that never ends).
+pub const MAX_UPLOAD: u64 = 4 * 1024 * 1024 * 1024;
 
 /// The most transfers the list keeps.
 pub const MAX_TRANSFERS: usize = 500;
@@ -514,6 +521,10 @@ fn transfer(
                 return fail(3, format!("{file} could not be saved: {e}"));
             }
             got += (n - 4) as u64;
+            if got > MAX_UPLOAD {
+                let _ = std::fs::remove_file(&tmp);
+                return fail(3, "the file is larger than this server takes".into());
+            }
             update(&|x| x.bytes = got);
             expect = expect.wrapping_add(1);
             retries = 0;
