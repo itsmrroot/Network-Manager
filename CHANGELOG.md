@@ -5,6 +5,31 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.20
+
+### Fixed
+- **SNMPv3:** an answer that is not signed or encrypted as the user is, is
+  refused; an unsigned trap is only taken from a user set up without a
+  signature; the trap key cache has a limit.
+- **VPN:** the device scan and the connection check use your local network
+  under a VPN; the routes card picks the route with the lowest metric and
+  follows Refresh; the leak check tests the DNS servers of every adapter and
+  no longer counts an unknown provider as safe; Tailscale, system VPN tools
+  and DNS and SNMP lookups have time limits, so they cannot hang the page.
+- **Terminals:** Undo, Redo and Select All go to the window that has the
+  keyboard; terminal windows stay where they are; a failed Reconnect keeps
+  the tab and its output; the main window can no longer stay hidden after a
+  Dock menu item; Home, End, Page Up, Page Down and Insert work in the serial
+  console.
+- **Backups:** devices with look-alike names get their own folders, and two
+  copies in the same second no longer overwrite each other. A push does not
+  confirm questions of commands that erase or restart a device.
+- **Privacy and limits:** the session, profile and backup files are readable
+  only by you (macOS, Linux); uploads to the TFTP and HTTP servers stop at
+  4 GB; the DHCP pool is at most 4096 addresses; a firewall rule for SSH is
+  only removed when this app added it.
+- Disconnect is no longer translated as "disable" in Arabic and Chinese.
+
 ## 0.9.19
 
 ### New
