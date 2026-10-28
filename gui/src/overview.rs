@@ -284,7 +284,15 @@ impl Overview {
             ui.horizontal(|ui| {
                 theme::section_title(ui, p, icon::SHIELD_CHECK, tr("VPN is on"));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if theme::secondary_button(ui, &icon_label(icon::ARROW_RIGHT, "Open VPN")).clicked() {
+                    if theme::secondary_button(
+                        ui,
+                        &icon_label(
+                            if crate::i18n::is_rtl() { icon::ARROW_LEFT } else { icon::ARROW_RIGHT },
+                            "Open VPN",
+                        ),
+                    )
+                    .clicked()
+                    {
                         sh.nav = Some(Nav::Page(Page::Vpn));
                     }
                 });
