@@ -167,7 +167,9 @@ impl Devices {
     }
 
     fn start(&mut self, ctx: &egui::Context, sh: &Shared) {
-        let opts = scan::Options { adapter: None, ports: sh.settings.scan_ports, names: sh.settings.scan_names };
+        // The adapter of the local network, by name: under a VPN the default route is the tunnel.
+        let adapter = sh.default_adapter().map(|a| a.id.clone());
+        let opts = scan::Options { adapter, ports: sh.settings.scan_ports, names: sh.settings.scan_names };
         let live = Arc::new(Mutex::new(Vec::new()));
         self.live = live.clone();
         self.job = Some(Job::spawn(ctx, move |progress, cancel| {

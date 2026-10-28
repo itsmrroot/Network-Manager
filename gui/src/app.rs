@@ -355,6 +355,9 @@ impl App {
     /// Does what the menu bar or a shortcut asked for.
     fn run(&mut self, ctx: &egui::Context, c: menu::Command) {
         use menu::Command as C;
+        // Every command takes what the wake-up found, so that it cannot wait for a later one.
+        #[cfg(target_os = "macos")]
+        let was_away = crate::dock::take_away();
         match c {
             C::Page(p) => self.page = p,
             C::Search => self.search.show(),
@@ -364,6 +367,8 @@ impl App {
             }
             C::Undo | C::Redo | C::Cut | C::Copy | C::Paste | C::SelectAll => {
                 menu::edit(ctx, c, self.console.focused_window(ctx));
+                // The main window takes its own key presses now; a window of its own, in its next frame.
+                menu::take_edits(ctx);
             }
             C::ToggleSidebar => self.shared.settings.sidebar_hidden = !self.shared.settings.sidebar_hidden,
             C::ZoomIn => self.zoom(1),
@@ -413,12 +418,14 @@ impl App {
             }
             C::OpenSession(i) => {
                 // From a menu a session opens in a window of its own; "Bring back" puts it in the app.
-                self.console.open_saved(i, &mut self.shared);
-                self.console.pop_out();
-                // The Dock menu woke the app up; if the main window was away, only the session window stays.
-                #[cfg(target_os = "macos")]
-                if crate::dock::take_away() {
-                    self.away = Some(0);
+                // A list that changed since the menu was made: nothing is opened, nothing popped out.
+                if self.console.open_saved(i, &mut self.shared) {
+                    self.console.pop_out();
+                    // The Dock menu woke the app up; if the main window was away, only the session window stays.
+                    #[cfg(target_os = "macos")]
+                    if was_away {
+                        self.away = Some(0);
+                    }
                 }
                 ctx.request_repaint();
             }

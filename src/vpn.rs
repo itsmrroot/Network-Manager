@@ -81,10 +81,20 @@ pub fn is_active_tunnel(a: &Adapter) -> bool {
 }
 
 /// The adapter of the local network (Wi-Fi, Ethernet) that has an address.
+/// The one with a router (gateway) first: of Ethernet and Wi-Fi, the one that
+/// gets the internet from the router rather than a cable to a single device.
 pub fn local_adapter(adapters: &[Adapter]) -> Option<&Adapter> {
-    adapters.iter().find(|a| {
-        a.physical && a.kind != Kind::Loopback && a.up && !a.disabled && a.main_ipv4().is_some() && !a.self_assigned()
-    })
+    adapters
+        .iter()
+        .filter(|a| {
+            a.physical
+                && a.kind != Kind::Loopback
+                && a.up
+                && !a.disabled
+                && a.main_ipv4().is_some()
+                && !a.self_assigned()
+        })
+        .min_by_key(|a| a.gateway.is_none())
 }
 
 /// The VPN that is up among `adapters` (the one with the default route if
@@ -130,13 +140,29 @@ fn is_public_resolver(ip: IpAddr) -> bool {
         || MORE.iter().any(|a| a.parse::<IpAddr>() == Ok(ip))
 }
 
+/// The DNS servers to test: those of every adapter that is up, the VPN's and
+/// the local network's, because a leak is a lookup that goes to the second.
+fn lookup_servers() -> Vec<IpAddr> {
+    let adapters = crate::adapters::list(true).unwrap_or_default();
+    let mut servers: Vec<IpAddr> =
+        adapters.iter().filter(|a| a.up && !a.disabled).flat_map(|a| a.dns.clone()).collect();
+    // Link-local IPv6 servers need a scope id that IpAddr cannot carry.
+    servers.retain(|s| !matches!(s, IpAddr::V6(v) if v.is_unicast_link_local()));
+    servers.sort_by_key(|s| s.is_ipv6());
+    servers.dedup();
+    if servers.is_empty() {
+        servers = dns::system_servers();
+    }
+    servers
+}
+
 /// Asks the traffic, IPv6 and every DNS server of this computer where they
 /// leave from. Needs the internet; it takes a few seconds.
 pub fn check() -> Result<Leaks> {
     let public = internet::public_info()?;
     let ipv6 = internet::public_info_v6();
     let mut dns_probes = Vec::new();
-    for server in dns::system_servers().into_iter().take(3) {
+    for server in lookup_servers().into_iter().take(4) {
         let seen = dns::query(SocketAddr::new(server, 53), WHO_ASKED, RecordType::Txt, Duration::from_secs(4))
             .ok()
             .and_then(|a| a.records.iter().find_map(|r| address_in(&r.data)))

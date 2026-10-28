@@ -238,8 +238,12 @@ pub fn diagnose(step: &dyn Fn(&Check)) -> Vec<Check> {
 
     // 1. An adapter that is connected.
     let adapters = adapters::list(false).unwrap_or_default();
-    let adapter: Option<Adapter> =
-        adapters.iter().find(|a| a.default).or_else(|| adapters.iter().find(|a| a.up)).cloned();
+    let adapter: Option<Adapter> = adapters
+        .iter()
+        .find(|a| a.default)
+        .or_else(|| crate::vpn::local_adapter(&adapters))
+        .or_else(|| adapters.iter().find(|a| a.up))
+        .cloned();
     let Some(a) = adapter else {
         push(check(
             "Network adapter",

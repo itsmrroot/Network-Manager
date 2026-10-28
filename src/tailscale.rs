@@ -127,7 +127,8 @@ fn device(v: &Value, users: Option<&Value>) -> Device {
 /// The answer of `tailscale status --json`.
 pub fn parse_status(json: &str) -> Result<Status> {
     let v: Value = serde_json::from_str(json).context("tailscale did not answer with JSON")?;
-    let me = v.get("Self").context("no device information in the answer")?;
+    // A tailnet that wants a login may answer without a `Self`.
+    let me = v.get("Self").unwrap_or(&Value::Null);
     let users = v.get("User");
     let mut peers: Vec<Device> = v
         .get("Peer")
@@ -151,9 +152,10 @@ pub fn parse_allow_lan(json: &str) -> Option<bool> {
     serde_json::from_str::<Value>(json).ok()?.get("ExitNodeAllowLANAccess")?.as_bool()
 }
 
+/// Runs the program; one that does not answer in time is stopped.
 fn run(args: &[&str]) -> Result<String> {
     let Some(bin) = binary() else { bail!("Tailscale is not installed") };
-    cmd::run(&bin.to_string_lossy(), args)
+    cmd::run_timeout(&bin.to_string_lossy(), args, std::time::Duration::from_secs(20))
 }
 
 /// The state of the tailnet.
@@ -165,7 +167,8 @@ pub fn status() -> Result<Status> {
 
 /// Connects to the tailnet.
 pub fn up() -> Result<()> {
-    run(&["up"]).map(drop)
+    // Without `--timeout`, a computer that needs a login waits for it forever.
+    run(&["up", "--timeout=15s"]).map(drop)
 }
 
 /// Disconnects from the tailnet.
@@ -227,6 +230,8 @@ mod tests {
             parse_status(r#"{"BackendState":"Stopped","Self":{"HostName":"mac","TailscaleIPs":[]}}"#).expect("valid");
         assert!(!s.running() && s.peers.is_empty() && s.me.ip().is_none());
         assert!(parse_status("not json").is_err());
+        // Needs a login: no `Self` at all.
+        assert_eq!(parse_status(r#"{"BackendState":"NeedsLogin"}"#).expect("valid").state, "NeedsLogin");
     }
 
     #[test]
@@ -267,7 +272,7 @@ mod tests {
                 "set --exit-node=100.69.73.40",
                 "set --exit-node=",
                 "set --exit-node-allow-lan-access=false",
-                "up",
+                "up --timeout=15s",
                 "down"
             ]
         );

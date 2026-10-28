@@ -1,6 +1,7 @@
 //! Console: a serial console for switches, routers and firewalls, and SSH
 //! and Telnet sessions (saved, in tabs) in a terminal inside the app.
 
+use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc::{Receiver, channel};
 use std::time::Duration;
@@ -38,6 +39,8 @@ struct Open {
     uid: u64,
     /// The session is in a window of its own.
     popped: bool,
+    /// It was connected once: a failed reconnect keeps what is on its screen.
+    ever: bool,
 }
 
 pub struct Console {
@@ -50,6 +53,9 @@ pub struct Console {
     zoomed: bool,
     /// The serial console is in a window of its own.
     serial_popped: bool,
+    /// Where the windows of their own were first put: moving the main window
+    /// or closing another one must not move them again.
+    window_pos: HashMap<u64, egui::Pos2>,
     /// The address field takes the keyboard on its next frame.
     focus_host: bool,
     /// The command for all the open sessions, and whether its button was clicked once.
@@ -99,6 +105,7 @@ impl Default for Console {
             push: Default::default(),
             adb: Default::default(),
             zoomed: false,
+            window_pos: HashMap::new(),
             drag_session: None,
             drag_tab: None,
             serial_popped: false,
@@ -146,12 +153,13 @@ impl Console {
     }
 
     /// Opens a saved session (from the menu), by its place in the list.
-    pub fn open_saved(&mut self, index: usize, sh: &mut Shared) {
+    /// False when there is no such session.
+    pub fn open_saved(&mut self, index: usize, sh: &mut Shared) -> bool {
         self.zoomed = false;
         self.view = View::Remote;
-        if let Some(saved) = sh.settings.sessions.get(index).cloned() {
-            self.connect(saved, sh);
-        }
+        let Some(saved) = sh.settings.sessions.get(index).cloned() else { return false };
+        self.connect(saved, sh);
+        true
     }
 
     /// Whether a terminal is in a window of its own.
@@ -238,9 +246,10 @@ impl Console {
                 .with_title(format!("{name} — Network Manager"))
                 .with_inner_size([900.0, 620.0])
                 .with_min_inner_size([420.0, 260.0])
-                .with_position(cascade(ctx, before));
+                .with_position(*self.window_pos.entry(uid).or_insert_with(|| cascade(ctx, before)));
             let mut closed = false;
             ctx.show_viewport_immediate(Self::session_window_id(uid), builder, |ui, _| {
+                crate::menu::take_edits(ui.ctx());
                 if ui.ctx().input(|i| i.viewport().close_requested()) {
                     closed = true;
                 }
@@ -251,14 +260,16 @@ impl Console {
                 o.popped = false;
             }
         }
+        let popped = self.open.iter().filter(|o| o.popped).count();
         if self.serial_popped {
             let builder = egui::ViewportBuilder::default()
                 .with_title(format!("{} — Network Manager", tr("Serial console")))
                 .with_inner_size([900.0, 620.0])
                 .with_min_inner_size([420.0, 260.0])
-                .with_position(cascade(ctx, self.open.iter().filter(|o| o.popped).count()));
+                .with_position(*self.window_pos.entry(u64::MAX).or_insert_with(|| cascade(ctx, popped)));
             let mut closed = false;
             ctx.show_viewport_immediate(egui::ViewportId::from_hash_of("serial-window"), builder, |ui, _| {
+                crate::menu::take_edits(ui.ctx());
                 if ui.ctx().input(|i| i.viewport().close_requested()) {
                     closed = true;
                 }
@@ -272,6 +283,10 @@ impl Console {
                 self.serial_popped = false;
             }
         }
+        // A window that is back on its page opens at the next slot again.
+        let (open, serial) = (&self.open, self.serial_popped);
+        self.window_pos
+            .retain(|uid, _| if *uid == u64::MAX { serial } else { open.iter().any(|o| o.uid == *uid && o.popped) });
     }
 
     pub fn connected(&self) -> bool {
@@ -289,7 +304,10 @@ impl Console {
             {
                 o.pending = None;
                 match result {
-                    Ok(r) => o.remote = Some(r),
+                    Ok(r) => {
+                        o.remote = Some(r);
+                        o.ever = true;
+                    }
                     Err(e) => failed.push((o.uid, e)),
                 }
             }
@@ -298,10 +316,16 @@ impl Console {
             ctx.request_repaint_after(Duration::from_millis(100));
         }
         for (uid, e) in failed {
-            // No session of it is left to show: the error says why.
             if let Some(at) = self.open.iter().position(|o| o.uid == uid) {
-                self.open.remove(at);
-                self.active = self.active.min(self.open.len().saturating_sub(1));
+                if self.open[at].ever {
+                    // A reconnect that failed: the tab keeps its output, and can try again.
+                    let line = format!("\r\n\x1b[2m[{}]\x1b[0m\r\n", trl("The reconnection failed"));
+                    self.open[at].term.feed(line.as_bytes());
+                } else {
+                    // No session of it is left to show: the error says why.
+                    self.open.remove(at);
+                    self.active = self.active.min(self.open.len().saturating_sub(1));
+                }
             }
             sh.fail(trl("The session could not be opened."), &e);
         }
@@ -547,7 +571,16 @@ impl Console {
         term.feed(format!("\x1b[2m{} {} …\x1b[0m\r\n", saved.protocol.label(), saved.target()).as_bytes());
         sh.settings.remember_host(&saved.host);
         let pending = Some(open_away(&saved, rows, cols));
-        self.open.push(Open { saved, remote: None, pending, term, log: None, uid: self.next_id, popped: false });
+        self.open.push(Open {
+            saved,
+            remote: None,
+            pending,
+            term,
+            log: None,
+            uid: self.next_id,
+            popped: false,
+            ever: false,
+        });
         self.active = self.open.len() - 1;
         self.next_id += 1;
     }
@@ -1579,6 +1612,11 @@ impl Console {
                         Key::ArrowRight => out.extend_from_slice(b"\x1b[C"),
                         Key::ArrowLeft => out.extend_from_slice(b"\x1b[D"),
                         Key::Delete => out.push(0x7f),
+                        Key::Home => out.extend_from_slice(b"\x1b[H"),
+                        Key::End => out.extend_from_slice(b"\x1b[F"),
+                        Key::PageUp => out.extend_from_slice(b"\x1b[5~"),
+                        Key::PageDown => out.extend_from_slice(b"\x1b[6~"),
+                        Key::Insert => out.extend_from_slice(b"\x1b[2~"),
                         _ => {}
                     }
                 }

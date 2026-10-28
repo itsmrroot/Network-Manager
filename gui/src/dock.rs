@@ -203,6 +203,7 @@ pub fn wake() {
         // A menu item (or Cmd+V) chosen in the app itself needs no waking: it would
         // bring the main window up over the terminal that was being used.
         if active.as_bool() && !hidden.as_bool() {
+            AWAY.store(false, Ordering::SeqCst);
             return;
         }
         let mut away = hidden.as_bool();
@@ -218,9 +219,8 @@ pub fn wake() {
                 let _: () = msg_send![window, deminiaturize: std::ptr::null::<AnyObject>()];
             }
         }
-        if away {
-            AWAY.store(true, Ordering::SeqCst);
-        }
+        // Always stored: an answer from an earlier menu item must not stay.
+        AWAY.store(away, Ordering::SeqCst);
     }
 }
 

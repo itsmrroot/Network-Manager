@@ -18,6 +18,9 @@ pub struct Route {
     pub gateway: Option<IpAddr>,
     /// The device (`en0`, `utun8`), or on Windows the address of the adapter.
     pub device: String,
+    /// Lower wins when several routes cover the same addresses (0 when the
+    /// system does not say, as on macOS).
+    pub metric: u32,
 }
 
 impl Route {
@@ -112,7 +115,7 @@ pub fn parse_netstat(text: &str) -> Vec<Route> {
             continue;
         }
         let gateway = f[1].parse::<IpAddr>().ok();
-        out.push(Route { dest, prefix, gateway, device: f[3].to_string() });
+        out.push(Route { dest, prefix, gateway, device: f[3].to_string(), metric: 0 });
     }
     out
 }
@@ -138,6 +141,7 @@ pub fn parse_ip_route(text: &str) -> Vec<Route> {
             prefix,
             gateway: after("via").and_then(|g| g.parse().ok()),
             device: device.to_string(),
+            metric: after("metric").and_then(|m| m.parse().ok()).unwrap_or(0),
         });
     }
     out
@@ -163,7 +167,7 @@ pub fn parse_route_print(text: &str, adapters: &[Adapter]) -> Vec<Route> {
             .iter()
             .find(|a| a.ipv4.iter().any(|(ip, _)| *ip == iface))
             .map_or_else(|| iface.to_string(), |a| a.device.clone());
-        out.push(Route { dest, prefix, gateway, device });
+        out.push(Route { dest, prefix, gateway, device, metric: f[4].parse().unwrap_or(0) });
     }
     out
 }
@@ -196,7 +200,7 @@ pub fn summarize(routes: &[Route], adapters: &[Adapter]) -> Summary {
         routes.iter().filter(|r| r.prefix == 1 && (r.dest.octets()[0] == 0 || r.dest.octets()[0] == 128)).collect();
     if halves.len() == 2 && halves[0].device == halves[1].device {
         s.internet = Some(via(halves[0], "0.0.0.0/0".into()));
-    } else if let Some(r) = routes.iter().filter(|r| r.is_default()).min_by_key(|r| r.gateway.is_none()) {
+    } else if let Some(r) = routes.iter().filter(|r| r.is_default()).min_by_key(|r| r.metric) {
         s.internet = Some(via(r, "0.0.0.0/0".into()));
     }
     for r in routes {
@@ -316,5 +320,16 @@ Network Destination        Netmask          Gateway       Interface  Metric
         let s = summarize(&routes, &[wifi, tun]);
         assert_eq!(s.internet.map(|v| v.device), Some("wlan".to_string()));
         assert_eq!(s.tunnel.len(), 1);
+    }
+
+    #[test]
+    fn the_default_route_with_the_lowest_metric_wins() {
+        let table = "default via 10.0.0.1 dev eth0 metric 100
+default via 192.168.1.1 dev wlan0 metric 600
+default dev wg0 scope link metric 50
+";
+        let adapters = [adapter("eth0", "Ethernet", Kind::Ethernet), adapter("wg0", "wg0", Kind::Vpn)];
+        let s = summarize(&parse_ip_route(table), &adapters);
+        assert_eq!(s.internet.map(|v| v.device), Some("wg0".to_string()));
     }
 }

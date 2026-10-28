@@ -2566,6 +2566,7 @@ pub const GERMAN: &[(&str, &str)] = &[
     ),
     ("{name} is connecting…", "{name} verbindet sich…"),
     ("{name} was disconnected.", "{name} wurde getrennt."),
+    ("The reconnection failed", "Die erneute Verbindung ist fehlgeschlagen"),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -5097,6 +5098,7 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("Your traffic goes straight out through your local network.", "Su tráfico sale directamente por su red local."),
     ("{name} is connecting…", "{name} se está conectando…"),
     ("{name} was disconnected.", "{name} se desconectó."),
+    ("The reconnection failed", "La reconexión falló"),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7655,6 +7657,7 @@ pub const FRENCH: &[(&str, &str)] = &[
     ),
     ("{name} is connecting…", "{name} se connecte…"),
     ("{name} was disconnected.", "{name} a été déconnecté."),
+    ("The reconnection failed", "La reconnexion a échoué"),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -10156,6 +10159,7 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("Your traffic goes straight out through your local network.", "Trafiğiniz doğrudan yerel ağınız üzerinden çıkar."),
     ("{name} is connecting…", "{name} bağlanıyor…"),
     ("{name} was disconnected.", "{name} bağlantısı kesildi."),
+    ("The reconnection failed", "Yeniden bağlanma başarısız oldu"),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -12678,6 +12682,7 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ),
     ("{name} is connecting…", "{name}: подключение…"),
     ("{name} was disconnected.", "{name} отключён."),
+    ("The reconnection failed", "Не удалось подключиться заново"),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -15116,6 +15121,7 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Your traffic goes straight out through your local network.", "تخرج حركتك مباشرة عبر شبكتك المحلية."),
     ("{name} is connecting…", "جارٍ الاتصال بـ {name}…"),
     ("{name} was disconnected.", "تم قطع اتصال {name}."),
+    ("The reconnection failed", "فشلت إعادة الاتصال"),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -17512,4 +17518,5 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Your traffic goes straight out through your local network.", "你的流量直接通过本地网络发出。"),
     ("{name} is connecting…", "{name} 正在连接…"),
     ("{name} was disconnected.", "{name} 已断开。"),
+    ("The reconnection failed", "重新连接失败"),
 ];

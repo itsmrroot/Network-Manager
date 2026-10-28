@@ -7,6 +7,10 @@ use anyhow::Result;
 
 use crate::cmd;
 
+/// How long a system tool may take.
+#[cfg(any(target_os = "macos", target_os = "linux", windows))]
+const LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Connection {
     /// The name it has in the system ("Work VPN").
@@ -29,7 +33,13 @@ pub fn parse_scutil(text: &str) -> Vec<Connection> {
         let Some(q1) = line.find('"') else { continue };
         let Some(q2) = line.rfind('"').filter(|q| *q > q1) else { continue };
         let name = line[q1 + 1..q2].to_string();
-        let tag = line[q2..].split("[VPN:").nth(1).map(|t| t.trim_end_matches(']').to_lowercase()).unwrap_or_default();
+        // `[VPN:com.apple.neplugin.IKEv2]` for the VPN services, `[PPP:L2TP]` for
+        // the older PPP ones (PPPoE is a DSL login, not a VPN).
+        let tag =
+            line[q2..].split('[').nth(1).map(|t| t.trim_end().trim_end_matches(']').to_lowercase()).unwrap_or_default();
+        if tag.starts_with("ppp:pppoe") || tag.starts_with("ppp:") && !tag.contains("l2tp") && !tag.contains("pptp") {
+            continue;
+        }
         // Tailscale has its own panel.
         if tag.contains("tailscale") {
             continue;
@@ -40,6 +50,8 @@ pub fn parse_scutil(text: &str) -> Vec<Connection> {
             "IKEv2"
         } else if tag.contains("l2tp") {
             "L2TP"
+        } else if tag.contains("pptp") {
+            "PPTP"
         } else if tag.contains("openvpn") {
             "OpenVPN"
         } else if tag.contains("cisco") || tag.contains("anyconnect") {
@@ -128,14 +140,14 @@ pub fn parse_windows(json: &str) -> Vec<Connection> {
 pub fn list() -> Result<Vec<Connection>> {
     #[cfg(target_os = "macos")]
     {
-        Ok(parse_scutil(&cmd::run("scutil", &["--nc", "list"])?))
+        Ok(parse_scutil(&cmd::run_timeout("scutil", &["--nc", "list"], LIMIT)?))
     }
     #[cfg(target_os = "linux")]
     {
         if !cmd::exists("nmcli") {
             return Ok(Vec::new());
         }
-        Ok(parse_nmcli(&cmd::run("nmcli", &["-t", "-f", "NAME,TYPE,ACTIVE", "connection", "show"])?))
+        Ok(parse_nmcli(&cmd::run_timeout("nmcli", &["-t", "-f", "NAME,TYPE,ACTIVE", "connection", "show"], LIMIT)?))
     }
     #[cfg(windows)]
     {
@@ -154,18 +166,18 @@ pub fn list() -> Result<Vec<Connection>> {
 pub fn set(c: &Connection, on: bool) -> Result<()> {
     #[cfg(target_os = "macos")]
     {
-        cmd::run("scutil", &["--nc", if on { "start" } else { "stop" }, &c.name]).map(drop)
+        cmd::run_timeout("scutil", &["--nc", if on { "start" } else { "stop" }, &c.name], LIMIT).map(drop)
     }
     #[cfg(target_os = "linux")]
     {
-        cmd::run("nmcli", &["connection", if on { "up" } else { "down" }, "id", &c.name]).map(drop)
+        cmd::run_timeout("nmcli", &["connection", if on { "up" } else { "down" }, "id", &c.name], LIMIT).map(drop)
     }
     #[cfg(windows)]
     {
         if on {
-            cmd::run("rasdial", &[&c.name]).map(drop)
+            cmd::run_timeout("rasdial", &[&c.name], LIMIT).map(drop)
         } else {
-            cmd::run("rasdial", &[&c.name, "/disconnect"]).map(drop)
+            cmd::run_timeout("rasdial", &[&c.name, "/disconnect"], LIMIT).map(drop)
         }
     }
     #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
@@ -186,6 +198,8 @@ mod tests {
 * (Connected)      1B2C-0002 VPN (com.wireguard.macos) \"Home (WireGuard)\"   [VPN:com.wireguard.macos.network-extension]
 * (Disconnected)   1B2C-0003 VPN (io.tailscale.ipn.macos) \"Tailscale\"   [VPN:io.tailscale.ipn.macos.network-extension]
 * (Connecting)     1B2C-0004 VPN (com.apple.neplugin) \"Office\"   [VPN:com.apple.neplugin.L2TP]
+* (Disconnected)   1B2C-0005 PPP --> en0 \"DSL\"   [PPP:PPPoE]
+* (Connected)      1B2C-0006 PPP --> en0 \"Old VPN\"   [PPP:L2TP]
 ";
         let list = parse_scutil(text);
         assert_eq!(
@@ -194,6 +208,7 @@ mod tests {
                 ("Work VPN", "IKEv2", false, false),
                 ("Home (WireGuard)", "WireGuard", true, false),
                 ("Office", "L2TP", false, true),
+                ("Old VPN", "L2TP", true, false),
             ]
         );
     }

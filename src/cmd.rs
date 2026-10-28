@@ -74,6 +74,57 @@ pub fn output(program: &str, args: &[&str]) -> Result<Output> {
     Ok(Output { success: out.status.success(), stdout: text(&out.stdout), stderr: text(&out.stderr) })
 }
 
+/// Like [`output`], but a program that has not finished after `limit` is
+/// stopped: a hung helper must not hang the app.
+pub fn output_timeout(program: &str, args: &[&str], limit: std::time::Duration) -> Result<Output> {
+    use std::io::Read;
+    use std::time::Instant;
+    let mut child = command(program)
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .with_context(|| format!("could not run {program}"))?;
+    let read = |pipe: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            if let Some(mut p) = pipe {
+                let _ = p.read_to_end(&mut bytes);
+            }
+            bytes
+        })
+    };
+    let out = read(child.stdout.take().map(|p| Box::new(p) as Box<dyn Read + Send>));
+    let err = read(child.stderr.take().map(|p| Box::new(p) as Box<dyn Read + Send>));
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+        if started.elapsed() > limit {
+            let _ = child.kill();
+            let _ = child.wait();
+            bail!("{program} did not answer within {} seconds", limit.as_secs());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    };
+    Ok(Output {
+        success: status.success(),
+        stdout: text(&out.join().unwrap_or_default()),
+        stderr: text(&err.join().unwrap_or_default()),
+    })
+}
+
+/// [`run`] with a deadline.
+pub fn run_timeout(program: &str, args: &[&str], limit: std::time::Duration) -> Result<String> {
+    let out = output_timeout(program, args, limit)?;
+    if !out.success {
+        bail!("{}", nonempty(out.message(), program));
+    }
+    Ok(out.stdout)
+}
+
 /// What a program printed, as text. Windows' own tools (netsh, ping,
 /// ipconfig) print in the console's code page (850, 866, 936…), not UTF-8;
 /// PowerShell is told to print UTF-8.
@@ -496,5 +547,19 @@ mod tests {
         }
         let _ = std::fs::remove_dir_all(&a);
         let _ = std::fs::remove_dir_all(&b);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_program_that_hangs_is_stopped() {
+        use std::time::{Duration, Instant};
+        let started = Instant::now();
+        let e = output_timeout("sleep", &["30"], Duration::from_millis(300)).expect_err("it must not finish");
+        assert!(e.to_string().contains("did not answer"), "{e}");
+        assert!(started.elapsed() < Duration::from_secs(10));
+        // One that answers is read in full, with its failure.
+        let ok =
+            output_timeout("sh", &["-c", "echo out; echo err >&2; exit 3"], Duration::from_secs(10)).expect("runs");
+        assert!(!ok.success && ok.stdout.trim() == "out" && ok.stderr.trim() == "err");
     }
 }

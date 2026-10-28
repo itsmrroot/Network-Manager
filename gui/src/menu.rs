@@ -153,10 +153,39 @@ pub fn edit(ctx: &egui::Context, c: Command, window: egui::ViewportId) {
         Command::Cut => ctx.send_viewport_cmd_to(window, egui::ViewportCommand::RequestCut),
         Command::Copy => ctx.send_viewport_cmd_to(window, egui::ViewportCommand::RequestCopy),
         Command::Paste => ctx.send_viewport_cmd_to(window, egui::ViewportCommand::RequestPaste),
-        Command::Undo => ctx.input_mut(|i| i.events.push(key(egui::Key::Z, false))),
-        Command::Redo => ctx.input_mut(|i| i.events.push(key(egui::Key::Z, true))),
-        Command::SelectAll => ctx.input_mut(|i| i.events.push(key(egui::Key::A, false))),
+        // Key presses, for the field that has the keyboard: written into the input of the
+        // window they are for (the window draws them next frame, see `take_edits`).
+        Command::Undo => queue_edit(ctx, window, key(egui::Key::Z, false)),
+        Command::Redo => queue_edit(ctx, window, key(egui::Key::Z, true)),
+        Command::SelectAll => queue_edit(ctx, window, key(egui::Key::A, false)),
         _ => {}
+    }
+}
+
+/// Edit key presses that wait for their window to draw.
+static EDITS: std::sync::Mutex<Vec<(egui::ViewportId, egui::Event)>> = std::sync::Mutex::new(Vec::new());
+
+fn queue_edit(ctx: &egui::Context, window: egui::ViewportId, event: egui::Event) {
+    if let Ok(mut v) = EDITS.lock() {
+        v.push((window, event));
+    }
+    ctx.request_repaint_of(window);
+}
+
+/// Called at the start of a window's frame: the edit key presses meant for it
+/// become its input. (The main window does it too.)
+pub fn take_edits(ctx: &egui::Context) {
+    let me = ctx.viewport_id();
+    let mine: Vec<egui::Event> = match EDITS.lock() {
+        Ok(mut v) => {
+            let (mine, rest): (Vec<_>, Vec<_>) = v.drain(..).partition(|(w, _)| *w == me);
+            *v = rest;
+            mine.into_iter().map(|(_, e)| e).collect()
+        }
+        Err(_) => return,
+    };
+    if !mine.is_empty() {
+        ctx.input_mut(|i| i.events.extend(mine));
     }
 }
 

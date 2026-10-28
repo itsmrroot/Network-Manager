@@ -315,7 +315,8 @@ impl AdaptersPage {
                     }
                 });
             }
-            if a.default && a.up {
+            // Also the adapter under a VPN: the tunnel runs over it.
+            if (a.default || sh.default_adapter().is_some_and(|d| d.id == a.id)) && a.up {
                 ui.add_space(6.0);
                 theme::paragraph(
                     ui,

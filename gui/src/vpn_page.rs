@@ -4,7 +4,7 @@
 use eframe::egui::{self, Align, Layout, RichText, Ui};
 use egui_phosphor::regular as icon;
 use netmgr::internet::Check;
-use netmgr::routes::{self, Summary};
+use netmgr::routes::{self, Route, Summary};
 use netmgr::tailscale;
 use netmgr::vpns::{self, Connection};
 
@@ -18,8 +18,13 @@ pub struct VpnPage {
     loaded: bool,
     leaks: Option<Job<Vec<Check>>>,
     leak_checks: Vec<Check>,
-    routes: Option<Job<Summary>>,
-    summary: Option<Result<Summary, String>>,
+    routes: Option<Job<Vec<Route>>>,
+    /// The routing table as read; told in plain words with the adapters of
+    /// the moment, on every frame.
+    table: Option<Result<Vec<Route>, String>>,
+    /// Development aid: a summary to show instead of the table's.
+    #[cfg(debug_assertions)]
+    demo_summary: Option<Summary>,
     ts: Option<Job<tailscale::Status>>,
     ts_status: Option<Result<tailscale::Status, String>>,
     conns: Option<Job<Vec<Connection>>>,
@@ -32,19 +37,12 @@ impl VpnPage {
     /// Reads the routing table, Tailscale and the system's VPNs again.
     pub fn refresh(&mut self, ctx: &egui::Context, sh: &Shared) {
         self.loaded = true;
+        // A job that is still running is replaced: its answer would be older
+        // than what was just switched.
         let adapters = sh.adapters.clone();
-        if self.routes.is_none() {
-            self.routes = Some(Job::spawn(ctx, move |_, _| {
-                let table = routes::table(&adapters)?;
-                Ok(routes::summarize(&table, &adapters))
-            }));
-        }
-        if self.ts.is_none() && tailscale::binary().is_some() {
-            self.ts = Some(Job::spawn(ctx, |_, _| tailscale::status()));
-        }
-        if self.conns.is_none() {
-            self.conns = Some(Job::spawn(ctx, |_, _| vpns::list()));
-        }
+        self.routes = Some(Job::spawn(ctx, move |_, _| routes::table(&adapters)));
+        self.ts = tailscale::binary().is_some().then(|| Job::spawn(ctx, |_, _| tailscale::status()));
+        self.conns = Some(Job::spawn(ctx, |_, _| vpns::list()));
     }
 
     fn poll(&mut self, ctx: &egui::Context, sh: &mut Shared) {
@@ -55,7 +53,7 @@ impl VpnPage {
             }
         }
         if let Some(r) = jobs::finished(&mut self.routes) {
-            self.summary = Some(r.map_err(|e| jobs::describe(&e)));
+            self.table = Some(r.map_err(|e| jobs::describe(&e)));
         }
         if let Some(r) = jobs::finished(&mut self.ts) {
             self.ts_status = Some(r.map_err(|e| jobs::describe(&e)));
@@ -105,11 +103,11 @@ impl VpnPage {
             name: name.into(),
             kind,
         };
-        self.summary = Some(Ok(Summary {
+        self.demo_summary = Some(Summary {
             internet: Some(via("0.0.0.0/0", "utun99", "utun99", netmgr::adapters::Kind::Vpn)),
             local: vec![via("192.168.178.0/24", "en0", "Wi-Fi", netmgr::adapters::Kind::WiFi)],
             tunnel: vec![via("100.64.0.0/10", "utun99", "utun99", netmgr::adapters::Kind::Vpn)],
-        }));
+        });
         let device = |name: &str, ip: &str, os: &str, online: bool, exit: bool, owner: &str| tailscale::Device {
             name: name.into(),
             dns: format!("{name}.tail1234.ts.net"),
@@ -290,13 +288,22 @@ impl VpnPage {
                     ui.spinner();
                 }
             });
-            let s = match &self.summary {
-                Some(Ok(s)) => s,
-                Some(Err(_)) => {
+            #[cfg(debug_assertions)]
+            let demo = self.demo_summary.clone();
+            #[cfg(not(debug_assertions))]
+            let demo: Option<Summary> = None;
+            let told;
+            let s = match (&demo, &self.table) {
+                (Some(s), _) => s,
+                (None, Some(Ok(table))) => {
+                    told = routes::summarize(table, &sh.adapters);
+                    &told
+                }
+                (None, Some(Err(_))) => {
                     ui.label(RichText::new(tr("The routing table could not be read.")).color(p.weak).size(13.5));
                     return;
                 }
-                None => return,
+                (None, None) => return,
             };
             if let Some(v) = &s.internet {
                 let through_vpn = v.kind == netmgr::adapters::Kind::Vpn;
@@ -443,7 +450,7 @@ impl VpnPage {
                         if ui.selectable_label(current.is_none(), tr("None")).clicked() {
                             choice = Some(None);
                         }
-                        for d in &options {
+                        for d in options.iter().filter(|d| d.ip().is_some()) {
                             let label =
                                 if d.online { d.name.clone() } else { format!("{} ({})", d.name, tr("Offline")) };
                             if ui.selectable_label(current.is_some_and(|c| c.name == d.name), label).clicked() {
