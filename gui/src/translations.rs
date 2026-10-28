@@ -2567,6 +2567,14 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("{name} is connecting…", "{name} verbindet sich…"),
     ("{name} was disconnected.", "{name} wurde getrennt."),
     ("The reconnection failed", "Die erneute Verbindung ist fehlgeschlagen"),
+    (
+        "IPv6 leaves from {v}; its provider is not known, so it cannot be compared with the rest.",
+        "IPv6 geht von {v} aus; der Anbieter ist nicht bekannt, deshalb lässt es sich nicht mit dem übrigen vergleichen.",
+    ),
+    (
+        "It cannot be told whether names are looked up through the VPN: {v}",
+        "Es lässt sich nicht feststellen, ob Namen über das VPN aufgelöst werden: {v}",
+    ),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -5099,6 +5107,14 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("{name} is connecting…", "{name} se está conectando…"),
     ("{name} was disconnected.", "{name} se desconectó."),
     ("The reconnection failed", "La reconexión falló"),
+    (
+        "IPv6 leaves from {v}; its provider is not known, so it cannot be compared with the rest.",
+        "IPv6 sale de {v}; no se conoce su proveedor, así que no se puede comparar con el resto.",
+    ),
+    (
+        "It cannot be told whether names are looked up through the VPN: {v}",
+        "No se puede saber si los nombres se resuelven a través de la VPN: {v}",
+    ),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7658,6 +7674,14 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("{name} is connecting…", "{name} se connecte…"),
     ("{name} was disconnected.", "{name} a été déconnecté."),
     ("The reconnection failed", "La reconnexion a échoué"),
+    (
+        "IPv6 leaves from {v}; its provider is not known, so it cannot be compared with the rest.",
+        "L'IPv6 sort de {v} ; son fournisseur est inconnu, il ne peut donc pas être comparé au reste.",
+    ),
+    (
+        "It cannot be told whether names are looked up through the VPN: {v}",
+        "Impossible de savoir si les noms sont résolus par le VPN : {v}",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -10160,6 +10184,14 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("{name} is connecting…", "{name} bağlanıyor…"),
     ("{name} was disconnected.", "{name} bağlantısı kesildi."),
     ("The reconnection failed", "Yeniden bağlanma başarısız oldu"),
+    (
+        "IPv6 leaves from {v}; its provider is not known, so it cannot be compared with the rest.",
+        "IPv6 {v} adresinden çıkıyor; sağlayıcısı bilinmiyor, bu yüzden diğerleriyle karşılaştırılamıyor.",
+    ),
+    (
+        "It cannot be told whether names are looked up through the VPN: {v}",
+        "Adların VPN üzerinden çözümlenip çözümlenmediği anlaşılamıyor: {v}",
+    ),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -12683,6 +12715,14 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("{name} is connecting…", "{name}: подключение…"),
     ("{name} was disconnected.", "{name} отключён."),
     ("The reconnection failed", "Не удалось подключиться заново"),
+    (
+        "IPv6 leaves from {v}; its provider is not known, so it cannot be compared with the rest.",
+        "IPv6 выходит с {v}; провайдер неизвестен, поэтому его нельзя сравнить с остальным.",
+    ),
+    (
+        "It cannot be told whether names are looked up through the VPN: {v}",
+        "Невозможно определить, разрешаются ли имена через VPN: {v}",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -15122,6 +15162,14 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("{name} is connecting…", "جارٍ الاتصال بـ {name}…"),
     ("{name} was disconnected.", "تم قطع اتصال {name}."),
     ("The reconnection failed", "فشلت إعادة الاتصال"),
+    (
+        "IPv6 leaves from {v}; its provider is not known, so it cannot be compared with the rest.",
+        "يخرج IPv6 من {v}؛ مزوّده غير معروف، لذا لا يمكن مقارنته ببقية الحركة.",
+    ),
+    (
+        "It cannot be told whether names are looked up through the VPN: {v}",
+        "لا يمكن معرفة ما إذا كانت الأسماء تُحلّ عبر VPN: {v}",
+    ),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -17519,4 +17567,9 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("{name} is connecting…", "{name} 正在连接…"),
     ("{name} was disconnected.", "{name} 已断开。"),
     ("The reconnection failed", "重新连接失败"),
+    (
+        "IPv6 leaves from {v}; its provider is not known, so it cannot be compared with the rest.",
+        "IPv6 从 {v} 发出；其服务商未知，因此无法与其余流量比较。",
+    ),
+    ("It cannot be told whether names are looked up through the VPN: {v}", "无法判断名称是否通过 VPN 解析：{v}"),
 ];

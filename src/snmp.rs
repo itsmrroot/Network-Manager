@@ -613,9 +613,16 @@ impl Client {
 
 /// Checks and opens a v3 answer.
 fn open_v3(inc: &crate::usm::Incoming, keys: &crate::usm::Keys) -> Result<Reply> {
+    use crate::usm::{AUTH, Auth, PRIV, Privacy};
     inc.verify(keys)?;
     let (_, _, tag, body) = crate::usm::scoped_pdu(&inc.scoped(keys)?)?;
     let r = pdu_body(&body)?;
+    // Only an engine's report may come without the protection the user has (that is how its
+    // ID is learned). An answer that is not signed or not encrypted, for a user who is, could
+    // be from anyone: the message number is all it would need.
+    let weak =
+        (keys.auth != Auth::None && inc.flags & AUTH == 0) || (keys.privacy != Privacy::None && inc.flags & PRIV == 0);
+    ensure!(!(weak && tag == RESPONSE), "an answer that is not protected as the user is was refused");
     match tag {
         RESPONSE => Ok(Reply::Response(r)),
         REPORT => {
@@ -1237,6 +1244,10 @@ impl TrapV3 {
             .find(|m| m.user.name == user)
             .with_context(|| format!("a v3 trap from the user \"{user}\", which is not in the list"))?;
         let k = m.localize(engine);
+        // A sender can make up engine IDs: the cache is kept small.
+        if self.keys.len() >= 256 {
+            self.keys.clear();
+        }
         self.keys.insert(key, k.clone());
         Ok(k)
     }
@@ -1288,6 +1299,13 @@ impl TrapV3 {
             return Ok((None, Some(usm::encode(&h, &Default::default(), &scoped)?)));
         }
         let keys = if inc.flags & (usm::AUTH | usm::PRIV) == 0 {
+            // Not signed: only from a user who is set up without a signature.
+            let known = self.users.iter().find(|m| m.user.name == inc.user);
+            ensure!(
+                known.is_some_and(|m| m.user.auth == usm::Auth::None),
+                "an unsigned v3 message from the user \"{}\", who is not set up as noAuthNoPriv",
+                inc.user
+            );
             Default::default()
         } else {
             self.keys(&inc.user, &inc.engine)?
@@ -1442,5 +1460,35 @@ mod trap_tests {
         let (t, _) = decode_trap(&msg, "192.0.2.1".parse().unwrap()).unwrap();
         assert_eq!(t.oid.to_string(), "1.3.6.1.4.1.9.0.17");
         assert_eq!(t.from.to_string(), "192.0.2.1");
+    }
+
+    /// An SNMPv3 trap with no signature and no encryption, from `user`.
+    fn unsigned_v3_trap(user: &str) -> Vec<u8> {
+        let list = [vb(SNMP_TRAP_OID, oid(&Oid::parse("1.3.6.1.6.3.1.1.5.3").unwrap()))].concat();
+        let pdu = [int(9), int(0), int(0), tlv(0x30, &list)].concat();
+        let engine = b"\x80\x00\x00\x01\x05device";
+        let scoped = tlv(0x30, &[tlv(0x04, engine), tlv(0x04, &[]), tlv(0xa7, &pdu)].concat());
+        let h = crate::usm::Header { msg_id: 7, reportable: false, engine, boots: 1, time: 1, user, salt: 0 };
+        crate::usm::encode(&h, &Default::default(), &scoped).unwrap()
+    }
+
+    #[test]
+    fn an_unsigned_v3_trap_is_taken_only_from_a_user_without_a_signature() {
+        use crate::usm::{Auth, Privacy, User};
+        let user = |name: &str, auth| User {
+            name: name.into(),
+            auth,
+            auth_password: "password123".into(),
+            privacy: Privacy::None,
+            privacy_password: String::new(),
+        };
+        let mut rx =
+            TrapV3::new(&[user("signed", Auth::Sha1), user("open", Auth::None)], b"\x80\x00\x00\x02me".to_vec());
+        let from: IpAddr = "10.0.0.2".parse().unwrap();
+        // Not in the list, or in the list with a signature: refused.
+        assert!(rx.receive(&unsigned_v3_trap("attacker"), from).is_err());
+        assert!(rx.receive(&unsigned_v3_trap("signed"), from).is_err());
+        // Set up without one: taken.
+        assert!(rx.receive(&unsigned_v3_trap("open"), from).expect("accepted").0.is_some());
     }
 }

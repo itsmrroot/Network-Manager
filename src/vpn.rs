@@ -215,16 +215,24 @@ pub fn findings(l: &Leaks) -> Vec<Check> {
         vec![check_of("Public address", true, "Websites see your traffic coming from {v}.", describe(&l.public), None)];
     out.push(match &l.ipv6 {
         None => check_of("IPv6", true, "IPv6 does not reach the internet, so nothing goes around the VPN over IPv6.", String::new(), None),
-        Some(v6) if same_network(v6, &l.public) != Some(false) => {
-            check_of("IPv6", true, "IPv6 leaves from the same network: {v}", describe(v6), None)
-        }
-        Some(v6) => check_of(
-            "IPv6",
-            false,
-            "IPv6 leaves from a different network: {v}",
-            describe(v6),
-            Some("Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6."),
-        ),
+        Some(v6) => match same_network(v6, &l.public) {
+            Some(true) => check_of("IPv6", true, "IPv6 leaves from the same network: {v}", describe(v6), None),
+            Some(false) => check_of(
+                "IPv6",
+                false,
+                "IPv6 leaves from a different network: {v}",
+                describe(v6),
+                Some("Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6."),
+            ),
+            // No provider for one of the two: it cannot be told, and that is not a pass.
+            None => check_of(
+                "IPv6",
+                false,
+                "IPv6 leaves from {v}; its provider is not known, so it cannot be compared with the rest.",
+                describe(v6),
+                None,
+            ),
+        },
     });
     for probe in &l.dns {
         let name = probe.server.to_string();
@@ -237,20 +245,26 @@ pub fn findings(l: &Leaks) -> Vec<Check> {
                 name,
                 None,
             ),
-            Some(seen) if same_network(seen, &l.public) != Some(false) => check_of(
-                "DNS lookups",
-                true,
-                "Names are looked up through the VPN: {v}",
-                format!("{name} → {}", describe(seen)),
-                None,
-            ),
-            Some(seen) => check_of(
-                "DNS lookups",
-                false,
-                "Names are looked up outside the VPN: {v}",
-                format!("{name} → {}", describe(seen)),
-                Some("Your DNS requests go to a server outside the VPN, so the network you are on can see which sites you visit. Use the VPN's own DNS server (Tailscale: turn on Use Tailscale DNS settings), or a public one such as 1.1.1.1 in Adapters → Change IP settings."),
-            ),
+            Some(seen) => {
+                let value = format!("{name} → {}", describe(seen));
+                match same_network(seen, &l.public) {
+                    Some(true) => check_of("DNS lookups", true, "Names are looked up through the VPN: {v}", value, None),
+                    Some(false) => check_of(
+                        "DNS lookups",
+                        false,
+                        "Names are looked up outside the VPN: {v}",
+                        value,
+                        Some("Your DNS requests go to a server outside the VPN, so the network you are on can see which sites you visit. Use the VPN's own DNS server (Tailscale: turn on Use Tailscale DNS settings), or a public one such as 1.1.1.1 in Adapters → Change IP settings."),
+                    ),
+                    None => check_of(
+                        "DNS lookups",
+                        false,
+                        "It cannot be told whether names are looked up through the VPN: {v}",
+                        value,
+                        None,
+                    ),
+                }
+            }
         });
     }
     out
@@ -367,5 +381,18 @@ mod tests {
         assert!(!findings(&l).iter().find(|c| c.title == "IPv6").expect("an IPv6 finding").ok);
         l.ipv6 = Some(info("2001:db8::5", "AS64500 Exit Node ISP"));
         assert!(findings(&l).iter().find(|c| c.title == "IPv6").expect("an IPv6 finding").ok);
+    }
+
+    #[test]
+    fn an_unknown_provider_is_not_a_pass() {
+        let known = info("198.51.100.9", "AS64500 Exit Node ISP");
+        let unknown = PublicInfo { ip: "203.0.113.7".into(), ..Default::default() };
+        let l = Leaks {
+            public: known,
+            ipv6: Some(unknown.clone()),
+            dns: vec![DnsProbe { server: "10.0.0.2".parse().unwrap(), seen: Some(unknown) }],
+        };
+        let f = findings(&l);
+        assert!(f.iter().filter(|c| c.title != "Public address").all(|c| !c.ok), "{f:?}");
     }
 }

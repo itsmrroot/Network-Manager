@@ -340,6 +340,8 @@ pub const LIBRARY: &[&str] = &[
     "IPv6 leaves from a different network: {v}",
     "Part of your traffic goes around the VPN over IPv6. Turn IPv6 off for your Wi-Fi or Ethernet adapter, or use a VPN that carries IPv6.",
     "DNS lookups",
+    "IPv6 leaves from {v}; its provider is not known, so it cannot be compared with the rest.",
+    "It cannot be told whether names are looked up through the VPN: {v}",
     "The DNS server {v} did not answer the test.",
     "{v} is a public DNS server, reached through the VPN.",
     "Names are looked up through the VPN: {v}",
@@ -745,7 +747,8 @@ mod tests {
         let public = info("198.51.100.9", "AS64500 Exit");
         let other = info("203.0.113.7", "AS8447 Other");
         let probe = |server: &str, seen: Option<PublicInfo>| DnsProbe { server: server.parse().unwrap(), seen };
-        for ipv6 in [None, Some(public.clone()), Some(other.clone())] {
+        let unknown = PublicInfo { ip: "203.0.113.99".into(), ..Default::default() };
+        for ipv6 in [None, Some(public.clone()), Some(other.clone()), Some(unknown.clone())] {
             let leaks = Leaks {
                 public: public.clone(),
                 ipv6,
@@ -754,6 +757,7 @@ mod tests {
                     probe("1.1.1.1", Some(other.clone())),
                     probe("10.0.0.2", Some(public.clone())),
                     probe("10.0.0.3", Some(other.clone())),
+                    probe("10.0.0.4", Some(unknown.clone())),
                 ],
             };
             for c in findings(&leaks) {

@@ -304,7 +304,8 @@ pub fn http(url: &str) -> Result<Vec<HttpHop>> {
 
 /// A redirect target, made absolute.
 pub fn join_url(base: &str, location: &str) -> String {
-    if location.contains("://") {
+    let lower = location.to_ascii_lowercase();
+    if lower.starts_with("http://") || lower.starts_with("https://") {
         return location.to_string();
     }
     let (scheme, rest) = base.split_once("://").unwrap_or(("https", base));

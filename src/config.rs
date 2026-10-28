@@ -628,8 +628,9 @@ mod imp {
             Ipv6Mode::Unchanged => {}
             Ipv6Mode::Automatic => {
                 script += &format!(
-                    " && ip -6 addr flush dev {dev} scope global permanent; sysctl -qw net.ipv6.conf.{}.accept_ra=1",
-                    a.device
+                    " && ip -6 addr flush dev {dev} scope global permanent; sysctl -qw {}",
+                    // A device name can hold characters the shell knows.
+                    cmd::sh_quote(&format!("net.ipv6.conf.{}.accept_ra=1", a.device))
                 )
             }
             Ipv6Mode::Static { address, prefix, gateway } => {
