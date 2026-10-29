@@ -5,6 +5,27 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.21
+
+### Fixed
+- **Terminals:** the app no longer closes when a screen reader (Narrator,
+  NVDA) is running while an SSH or Telnet session is open; the last lines and
+  the prompt are no longer lost when the terminal gets shorter (a second
+  session opens, a window is brought back), so typing no longer writes over
+  earlier output.
+- **VPN:** "Where your traffic goes" lists your local network again on
+  Windows in German and other languages that write the gateway in two words.
+- **Sidebar:** all pages fit on a 768-pixel screen, so Help and About no
+  longer hide below the list; screen readers say the name of every page.
+- **Settings:** on a narrow window the buttons no longer cover their
+  descriptions; in Arabic the rows read from right to left.
+- **Windows:** the Start menu and desktop shortcuts keep the chosen icon for
+  every user of the computer; the installer an update downloaded is removed
+  afterwards.
+- **Small things:** Enter starts the MTU measurement, Esc closes the session
+  window, the network report writes the Wi-Fi channel as "44 (5 GHz)", and
+  the HTTP server log counts the size of folder listings.
+
 ## 0.9.20
 
 ### Fixed
