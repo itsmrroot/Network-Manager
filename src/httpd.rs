@@ -436,7 +436,7 @@ fn connection(mut s: TcpStream, from: IpAddr, opts: &Options, log: &Log, stop: &
                     &[("Content-Type", "text/html; charset=utf-8".into()), ("Content-Length", page.len().to_string())],
                     if method == "HEAD" { b"" } else { page.as_bytes() },
                 )?;
-                done(200, 0);
+                done(200, if method == "HEAD" { 0 } else { page.len() as u64 });
                 return Ok(());
             }
             // Only plain files: opening a pipe would wait forever.

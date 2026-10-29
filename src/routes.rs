@@ -148,7 +148,9 @@ pub fn parse_ip_route(text: &str) -> Vec<Route> {
 }
 
 /// `route print -4` (Windows): the interface is an address; it is turned into
-/// the adapter that has it.
+/// the adapter that has it. The gateway of a directly reached network is a
+/// translated word that can be two ("On-link", German "Auf Verbindung"), so
+/// the interface and metric are read from the end of the line.
 pub fn parse_route_print(text: &str, adapters: &[Adapter]) -> Vec<Route> {
     let mut out = Vec::new();
     for line in text.lines() {
@@ -156,18 +158,22 @@ pub fn parse_route_print(text: &str, adapters: &[Adapter]) -> Vec<Route> {
         if f.len() < 5 {
             continue;
         }
+        let n = f.len();
         let (Ok(dest), Ok(mask), Ok(iface)) =
-            (f[0].parse::<Ipv4Addr>(), f[1].parse::<Ipv4Addr>(), f[3].parse::<Ipv4Addr>())
+            (f[0].parse::<Ipv4Addr>(), f[1].parse::<Ipv4Addr>(), f[n - 2].parse::<Ipv4Addr>())
         else {
             continue;
         };
+        let Ok(metric) = f[n - 1].parse() else {
+            continue;
+        };
         let prefix = u32::from(mask).leading_ones() as u8;
-        let gateway = f[2].parse::<IpAddr>().ok();
+        let gateway = if n == 5 { f[2].parse::<IpAddr>().ok() } else { None };
         let device = adapters
             .iter()
             .find(|a| a.ipv4.iter().any(|(ip, _)| *ip == iface))
             .map_or_else(|| iface.to_string(), |a| a.device.clone());
-        out.push(Route { dest, prefix, gateway, device, metric: f[4].parse().unwrap_or(0) });
+        out.push(Route { dest, prefix, gateway, device, metric });
     }
     out
 }
@@ -320,6 +326,32 @@ Network Destination        Netmask          Gateway       Interface  Metric
         let s = summarize(&routes, &[wifi, tun]);
         assert_eq!(s.internet.map(|v| v.device), Some("wlan".to_string()));
         assert_eq!(s.tunnel.len(), 1);
+    }
+
+    #[test]
+    fn a_german_windows_lists_the_local_network() {
+        let text = "Aktive Routen:
+     Netzwerkziel    Netzwerkmaske          Gateway    Schnittstelle Metrik
+          0.0.0.0          0.0.0.0     192.168.31.1   192.168.31.111     36
+        127.0.0.0        255.0.0.0   Auf Verbindung         127.0.0.1    331
+     192.168.31.0    255.255.255.0   Auf Verbindung    192.168.31.111    291
+   192.168.31.111  255.255.255.255   Auf Verbindung    192.168.31.111    291
+         10.8.0.0    255.255.255.0   Auf Verbindung          10.8.0.2    281
+Ständige Routen:
+  Netzwerkadresse          Netzmaske  Gatewayadresse  Metrik
+          0.0.0.0          0.0.0.0     192.168.31.1  Standard
+";
+        let mut wifi = adapter("wlan", "Wi-Fi", Kind::WiFi);
+        wifi.ipv4 = vec![("192.168.31.111".parse().unwrap(), 24)];
+        let mut tun = adapter("wintun", "WireGuard", Kind::Vpn);
+        tun.ipv4 = vec![("10.8.0.2".parse().unwrap(), 24)];
+        let routes = parse_route_print(text, &[wifi.clone(), tun.clone()]);
+        assert_eq!(routes.len(), 5);
+        assert!(routes[2].gateway.is_none());
+        let s = summarize(&routes, &[wifi, tun]);
+        assert_eq!(s.internet.map(|v| v.device), Some("wlan".to_string()));
+        assert_eq!(s.local.iter().map(|v| v.net.as_str()).collect::<Vec<_>>(), ["192.168.31.0/24"]);
+        assert_eq!(s.tunnel.iter().map(|v| v.net.as_str()).collect::<Vec<_>>(), ["10.8.0.0/24"]);
     }
 
     #[test]

@@ -223,16 +223,41 @@ impl Settings {
 
 /// A setting: title and help on the left, the control on the right.
 pub fn row(ui: &mut Ui, p: &Palette, title: &str, help: &str, control: impl FnOnce(&mut Ui)) {
-    ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            ui.set_width((ui.available_width() - 300.0).max(260.0));
+    // Right to left (Arabic): the text on the right, the control on the left.
+    let rtl = crate::i18n::is_rtl();
+    let (text_align, control_layout) = if rtl {
+        (egui::Align::Max, egui::Layout::left_to_right(egui::Align::Center))
+    } else {
+        (egui::Align::Min, egui::Layout::right_to_left(egui::Align::Center))
+    };
+    let text = |ui: &mut Ui, width: f32| {
+        ui.with_layout(egui::Layout::top_down(text_align), |ui| {
+            ui.set_width(width);
             ui.label(RichText::new(title).color(p.text).size(14.5));
             if !help.is_empty() {
                 theme::paragraph(ui, help, 12.5, p.weak);
             }
         });
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), control);
-    });
+    };
+    // A narrow window: the control goes under the text, so that wide ones
+    // (the theme buttons, the app icons) do not cover it.
+    if ui.available_width() < 660.0 {
+        text(ui, ui.available_width());
+        ui.add_space(4.0);
+        ui.allocate_ui_with_layout(egui::vec2(ui.available_width(), 0.0), control_layout, control);
+    } else {
+        // As ui.horizontal, but mirrored for right to left.
+        let outer = if rtl {
+            egui::Layout::right_to_left(egui::Align::Center)
+        } else {
+            egui::Layout::left_to_right(egui::Align::Center)
+        };
+        let size = egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
+        ui.allocate_ui_with_layout(size, outer, |ui| {
+            text(ui, ui.available_width() - 340.0);
+            ui.with_layout(control_layout, control);
+        });
+    }
     ui.add_space(6.0);
     ui.separator();
     ui.add_space(6.0);

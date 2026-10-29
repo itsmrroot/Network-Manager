@@ -140,6 +140,7 @@ fn main() -> eframe::Result {
         note_problem(&format!("crash: {info}"));
         default_hook(info);
     }));
+    std::thread::spawn(update::clean_old_downloads);
     // Changed only by the development tour.
     #[allow(unused_mut)]
     let mut viewport = egui::ViewportBuilder::default()

@@ -45,11 +45,6 @@ fn windows(icon: AppIcon) {
     let location = if icon == AppIcon::Blue {
         format!("{},0", exe.display())
     } else {
-        let Some(dir) = std::env::var_os("LOCALAPPDATA").map(|d| std::path::PathBuf::from(d).join("Network Manager"))
-        else {
-            return;
-        };
-        let file = dir.join(format!("icon-{}.ico", icon as u8));
         let Some(png) = icon.image(256).and_then(|i| {
             let mut out = std::io::Cursor::new(Vec::new());
             image::DynamicImage::ImageRgba8(i).write_to(&mut out, image::ImageFormat::Png).ok()?;
@@ -57,9 +52,15 @@ fn windows(icon: AppIcon) {
         }) else {
             return;
         };
-        if std::fs::create_dir_all(&dir).is_err() || std::fs::write(&file, ico(&png)).is_err() {
-            return;
-        }
+        // The shortcuts in the Start menu and on the desktop are shared by
+        // every user, so the icon goes where every user can read it
+        // (ProgramData); the user's own folder only when that fails.
+        let written = ["ProgramData", "LOCALAPPDATA"].into_iter().find_map(|var| {
+            let dir = std::path::PathBuf::from(std::env::var_os(var)?).join("Network Manager");
+            let file = dir.join(format!("icon-{}.ico", icon as u8));
+            (std::fs::create_dir_all(&dir).is_ok() && std::fs::write(&file, ico(&png)).is_ok()).then_some(file)
+        });
+        let Some(file) = written else { return };
         format!("{},0", file.display())
     };
     let script = format!(
