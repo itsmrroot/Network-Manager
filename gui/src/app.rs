@@ -627,7 +627,9 @@ impl App {
                 if !cfg!(target_os = "macos") {
                     let gear = egui::Button::new(RichText::new(icon::GEAR_SIX).size(18.0).color(white)).frame(false);
                     let shortcut = format!("{} (Ctrl+,)", tr("Settings"));
-                    if ui.add(gear).on_hover_text(shortcut).clicked() {
+                    let resp = ui.add(gear).on_hover_text(shortcut);
+                    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tr("Settings")));
+                    if resp.clicked() {
                         self.page = Page::Settings;
                     }
                     ui.add_space(6.0);
@@ -683,7 +685,11 @@ impl App {
         let button = egui::Button::new(RichText::new(icon::SIDEBAR_SIMPLE).size(19.0).color(color)).frame(false);
         let key = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
         let hint = format!("{} ({key}+\\)", tr("Hide or show sidebar"));
-        if ui.add(button.selected(hidden)).on_hover_text(hint).clicked() {
+        let resp = ui.add(button.selected(hidden)).on_hover_text(hint);
+        resp.widget_info(|| {
+            egui::WidgetInfo::selected(egui::WidgetType::Button, true, hidden, tr("Hide or show sidebar"))
+        });
+        if resp.clicked() {
             self.shared.settings.sidebar_hidden = !hidden;
         }
     }
@@ -754,7 +760,9 @@ impl App {
         // Per row: its height, 2 points of space and egui's own spacing;
         // plus the separator before Settings.
         let gap = 2.0 + ui.spacing().item_spacing.y;
-        let row_h = ((height - 16.0 - 2.0 * gap) / items.len() as f32 - gap).clamp(28.0, 36.0);
+        // 20 points still fit the 15-point labels, and let all 14 rows fit on
+        // a 768-pixel screen (Help and About were hidden below the fold).
+        let row_h = ((height - 16.0 - 2.0 * gap) / items.len() as f32 - gap).clamp(20.0, 36.0);
         egui::ScrollArea::vertical().id_salt("nav").max_height(height).show(ui, |ui| {
             for (i, (glyph, label, target, badge)) in items.into_iter().enumerate() {
                 let engineer = matches!(target, Page::SwitchPort | Page::Monitor | Page::Servers | Page::Console);
@@ -1084,6 +1092,8 @@ fn nav_item(
 ) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), height), Sense::click());
     let resp = resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+    // Painted by hand: screen readers get the page's name this way.
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::SelectableLabel, true, active, label));
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         if active {
