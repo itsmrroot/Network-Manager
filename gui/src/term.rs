@@ -113,6 +113,23 @@ impl Term {
         self.parser.process(bytes);
     }
 
+    /// A new size for the screen. vt100 cuts rows off the bottom when the
+    /// screen gets shorter, which takes the prompt with it and leaves the
+    /// cursor on an older line. So the lines above the cursor are first
+    /// scrolled up into the history, as much as the screen loses.
+    fn set_size(&mut self, rows: u16, cols: u16) {
+        let (old_rows, _) = self.parser.screen().size();
+        let (row, col) = self.parser.screen().cursor_position();
+        let lost = (row + 1).saturating_sub(rows);
+        if rows < old_rows && lost > 0 && !self.parser.screen().alternate_screen() {
+            let mut seq = format!("\x1b[{old_rows};1H");
+            seq.push_str(&"\n".repeat(lost as usize));
+            seq.push_str(&format!("\x1b[{};{}H", row - lost + 1, col + 1));
+            self.parser.process(seq.as_bytes());
+        }
+        self.parser.screen_mut().set_size(rows, cols);
+    }
+
     /// Development aid: the find bar open, with this text found.
     #[cfg(debug_assertions)]
     pub fn debug_find(&mut self, text: &str) {
@@ -382,13 +399,18 @@ impl Term {
         let cols = ((avail.x - 20.0) / cw).floor().clamp(20.0, 400.0) as u16;
         let rows = ((avail.y - 20.0) / rh).floor().clamp(5.0, 200.0) as u16;
         if self.parser.screen().size() != (rows, cols) {
-            self.parser.screen_mut().set_size(rows, cols);
+            self.set_size(rows, cols);
             out.resized = Some((rows, cols));
             if let Some(f) = &mut self.find {
                 f.dirty = true;
             }
         }
-        let (rect, resp) = ui.allocate_exact_size(avail, Sense::click_and_drag());
+        // The area has the terminal's own id: the keyboard focus is put on
+        // that id (capture_keys), and the accessibility tree must have a node
+        // for it, or AccessKit panics when a screen reader is running.
+        let (rect, _) = ui.allocate_exact_size(avail, Sense::hover());
+        let resp = ui.interact(rect, self.id, Sense::click_and_drag());
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, tr("Terminal")));
         let painter = ui.painter_at(rect);
         painter.rect(
             rect,
@@ -1067,6 +1089,56 @@ mod tests {
         let (_, copied) = frame_of(&ctx, &mut term, vec![press(at(1.0, 2.0), true), press(at(1.0, 2.0), false)], 7.1);
         assert!(copied.is_empty());
         assert!(term.selection.is_none());
+    }
+
+    /// A shorter screen (a bar appears above the terminal) keeps the prompt
+    /// and the cursor on it; the lines above go into the history.
+    #[test]
+    fn a_shorter_screen_keeps_the_prompt() {
+        let mut term = Term::new(10);
+        term.set_size(10, 40);
+        for i in 0..8 {
+            term.feed(format!("line {i}\r\n").as_bytes());
+        }
+        term.feed(b"Switch#");
+        assert_eq!(term.parser.screen().cursor_position(), (8, 7));
+        term.set_size(6, 40);
+        let screen = term.parser.screen();
+        assert_eq!(screen.cursor_position(), (5, 7));
+        assert_eq!(screen.contents_between(5, 0, 5, 40), "Switch#");
+        assert_eq!(screen.contents_between(4, 0, 4, 40), "line 7");
+        term.feed(b"x");
+        assert_eq!(term.parser.screen().contents_between(5, 0, 5, 40), "Switch#x");
+        let (history, lines, _) = term.all_lines();
+        assert_eq!(history, 3);
+        let first: String = lines[0].0.iter().collect();
+        assert_eq!(first.trim_end(), "line 0");
+    }
+
+    /// The terminal has the keyboard focus, and the accessibility tree has a
+    /// node for it (AccessKit panicked on a focused id that is not in the tree).
+    #[test]
+    fn the_focused_terminal_is_in_the_accessibility_tree() {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let mut term = Term::new(11);
+        term.feed(b"Switch#");
+        for t in 0..3 {
+            let input = egui::RawInput {
+                time: Some(t as f64),
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 400.0))),
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                term.ui(ui, Color32::GRAY, Color32::GREEN);
+            });
+            output.textures_delta.clear();
+            let update = output.platform_output.accesskit_update.expect("an accessibility tree");
+            if t > 0 {
+                assert_eq!(update.focus, term.id.accesskit_id());
+                assert!(update.nodes.iter().any(|(id, _)| *id == update.focus));
+            }
+        }
     }
 
     /// Where cell (row, col) is on a lone terminal in the test page.
