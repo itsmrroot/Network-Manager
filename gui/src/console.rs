@@ -1315,6 +1315,10 @@ impl Console {
                     }
                 });
             });
+        // Esc cancels, as in the other dialogs.
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            keep = false;
+        }
         if save {
             s.host = s.host.trim().to_string();
             if s.name.trim().is_empty() {

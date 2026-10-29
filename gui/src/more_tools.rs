@@ -188,15 +188,11 @@ impl MtuTool {
                 if self.host.is_empty() {
                     self.host = "1.1.1.1".into();
                 }
-                crate::tools::host_picker(ui, sh, &mut self.host, "mtu-host");
+                let enter = crate::tools::host_picker(ui, sh, &mut self.host, "mtu-host");
                 let busy = self.job.is_some();
-                if theme::primary_button(
-                    ui,
-                    p,
-                    &icon_label(icon::RULER, "Measure"),
-                    !busy && !self.host.trim().is_empty(),
-                )
-                .clicked()
+                let ready = !busy && !self.host.trim().is_empty();
+                if theme::primary_button(ui, p, &icon_label(icon::RULER, "Measure"), ready).clicked()
+                    || (enter && ready)
                 {
                     let host = self.host.trim().to_string();
                     sh.settings.remember_host(&host);

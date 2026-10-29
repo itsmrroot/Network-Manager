@@ -131,7 +131,10 @@ pub fn build(include_public_ip: bool, step: &dyn Fn(&str)) -> String {
                 let _ = writeln!(r, "- Signal: {q} % ({}{dbm}{noise})", wifi::quality_label(q));
             }
             if let Some(ch) = c.channel {
-                let _ = writeln!(r, "- Channel: {ch} {} {}", c.band.unwrap_or_default(), c.width.unwrap_or_default());
+                // "44 (5 GHz, 80 MHz)", as on the Overview; nothing in brackets when unknown.
+                let extra: Vec<String> = [c.band, c.width].into_iter().flatten().filter(|s| !s.is_empty()).collect();
+                let extra = if extra.is_empty() { String::new() } else { format!(" ({})", extra.join(", ")) };
+                let _ = writeln!(r, "- Channel: {ch}{extra}");
             }
             for (k, v) in [("Security", c.security), ("Standard", c.standard), ("Access point", c.bssid)] {
                 if let Some(v) = v {
