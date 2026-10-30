@@ -5,6 +5,15 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.23
+
+### New
+- **Updates ask before they restart the app:** when an update is downloaded,
+  you choose "Restart now" or "Update later". Nothing is installed, and the app
+  does not close, until you restart. After "Update later" the button at the top
+  reads "Restart to update", so you can finish whenever it suits you. This
+  works the same on Windows, macOS and Linux.
+
 ## 0.9.22
 
 ### New
