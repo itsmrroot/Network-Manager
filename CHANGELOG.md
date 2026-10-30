@@ -5,6 +5,13 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.24
+
+### Fixed
+- **Installer:** the licence page of the Windows setup shows the licence as
+  plain text. It used to show the Markdown marks (`#`, `<…>`, `[…](#…)` and
+  `***`) between the words.
+
 ## 0.9.23
 
 ### New
