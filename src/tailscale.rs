@@ -103,9 +103,12 @@ fn device(v: &Value, users: Option<&Value>) -> Device {
         .map(|a| a.iter().filter_map(|i| i.as_str()?.parse().ok()).collect())
         .unwrap_or_default();
     let dns = string(v, "DNSName").trim_end_matches('.').to_string();
-    let name = match string(v, "HostName") {
-        h if h.is_empty() => dns.split('.').next().unwrap_or_default().to_string(),
-        h => h,
+    // The name of the node, as `tailscale status` and the Tailscale apps show it (and as
+    // MagicDNS and SSH use it): the first part of its DNS name. The host name is what the
+    // computer calls itself ("localhost" on an iPhone), and can be quite another.
+    let name = match dns.split('.').next().unwrap_or_default() {
+        "" => string(v, "HostName"),
+        node => node.to_string(),
     };
     let owner = v
         .get("UserID")
@@ -222,6 +225,23 @@ mod tests {
         assert_eq!(s.exit_node().map(|d| d.name.as_str()), Some("proxmox-server-homelab"));
         assert_eq!(s.exit_options().len(), 1);
         assert_eq!(s.peers[1].os, "iOS");
+    }
+
+    #[test]
+    fn a_device_has_the_name_of_its_node_not_its_host_name() {
+        // As on a Windows PC with a Debian machine named "docker1" and an iPhone ("localhost").
+        let s = parse_status(
+            r#"{"BackendState":"Running","Self":{"HostName":"SYRIANO","DNSName":"syriano.tail1.ts.net.","TailscaleIPs":["100.66.225.98"]},
+                "Peer":{"k1":{"HostName":"debian","DNSName":"docker1.tail1.ts.net.","Online":true},
+                        "k2":{"HostName":"localhost","DNSName":"iphone-16-pro.tail1.ts.net.","Online":true},
+                        "k3":{"HostName":"only-a-host-name","Online":true}}}"#,
+        )
+        .expect("valid");
+        assert_eq!(s.me.name, "syriano");
+        assert_eq!(
+            s.peers.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+            ["docker1", "iphone-16-pro", "only-a-host-name"]
+        );
     }
 
     #[test]
