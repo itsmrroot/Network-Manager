@@ -5,6 +5,14 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.25
+
+### Fixed
+- **Update check:** when GitHub allows no more checks from your network for the
+  hour, "Check for updates" says so and tells you when to try again (for
+  example "Try again after 13:17"). It used to say "could not reach GitHub:
+  http status: 403", which sounded like a broken connection.
+
 ## 0.9.24
 
 ### Fixed
