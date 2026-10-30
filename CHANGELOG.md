@@ -5,6 +5,27 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.22
+
+### New
+- **Menu bar (Windows and Linux):** File, Edit, View, Go, Network, Console and
+  Help at the top, as in VS Code, with the keyboard shortcuts beside the
+  entries (Ctrl+1 to 9 for the pages, Ctrl+K, F1, F11 for full screen). When
+  the window is narrow, the last menus move under "···". The settings icon at
+  the top is gone: Settings is in the File menu, under Ctrl+, and in the
+  sidebar.
+
+### Fixed
+- **Opening the window:** it no longer shows up at the wrong size and then
+  jumps. It opens in the place and state you left it in, maximized too (a
+  maximized window used to come back smaller and partly off the screen), and is
+  only centred the first time.
+- **VPN on Windows:** Tailscale, WireGuard, OpenVPN and other VPN programs are
+  recognised, so the VPN page, the top bar, the Overview and the Adapters page
+  know a VPN is on. The route card shows where traffic really goes when a VPN
+  also offers your own network, and names the adapter right after the start.
+- **Tailscale:** devices have the names `tailscale status` shows.
+
 ## 0.9.21
 
 ### Fixed
