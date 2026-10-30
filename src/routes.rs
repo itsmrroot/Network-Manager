@@ -189,7 +189,13 @@ fn is_special(r: &Route) -> bool {
 
 /// Tells the table in plain words, using the adapters to name the devices.
 pub fn summarize(routes: &[Route], adapters: &[Adapter]) -> Summary {
-    let adapter = |device: &str| adapters.iter().find(|a| a.device == device || a.id == device);
+    // A route of Windows names its adapter by an address (see `parse_route_print`), which is
+    // all there is when the adapters were not known yet as the table was read.
+    let adapter = |device: &str| {
+        adapters
+            .iter()
+            .find(|a| a.device == device || a.id == device || a.ipv4.iter().any(|(ip, _)| ip.to_string() == device))
+    };
     let via = |r: &Route, net: String| {
         let a = adapter(&r.device);
         Via {
@@ -209,10 +215,20 @@ pub fn summarize(routes: &[Route], adapters: &[Adapter]) -> Summary {
     } else if let Some(r) = routes.iter().filter(|r| r.is_default()).min_by_key(|r| r.metric) {
         s.internet = Some(via(r, "0.0.0.0/0".into()));
     }
+    // More than one route can lead to a network (a VPN that offers the network this
+    // computer is on, say): the one with the lowest metric is the one that is used.
+    let mut best: Vec<&Route> = Vec::new();
     for r in routes {
         if r.is_default() || is_special(r) || r.prefix == 32 || (r.prefix == 1 && halves.len() == 2) {
             continue;
         }
+        match best.iter_mut().find(|b| b.dest == r.dest && b.prefix == r.prefix) {
+            Some(b) if r.metric < b.metric => *b = r,
+            Some(_) => {}
+            None => best.push(r),
+        }
+    }
+    for r in best {
         let v = via(r, r.net());
         if v.kind == Kind::Vpn {
             if !s.tunnel.contains(&v) {
@@ -352,6 +368,45 @@ Ständige Routen:
         assert_eq!(s.internet.map(|v| v.device), Some("wlan".to_string()));
         assert_eq!(s.local.iter().map(|v| v.net.as_str()).collect::<Vec<_>>(), ["192.168.31.0/24"]);
         assert_eq!(s.tunnel.iter().map(|v| v.net.as_str()).collect::<Vec<_>>(), ["10.8.0.0/24"]);
+    }
+
+    #[test]
+    fn a_network_that_a_vpn_offers_too_goes_through_the_vpn() {
+        // Tailscale offers 192.168.31.0/24, the network this computer is on, with a lower metric.
+        let text = "Aktive Routen:
+     Netzwerkziel    Netzwerkmaske          Gateway    Schnittstelle Metrik
+          0.0.0.0          0.0.0.0     192.168.31.1   192.168.31.111     36
+     192.168.31.0    255.255.255.0   Auf Verbindung   192.168.31.111    291
+     192.168.31.0    255.255.255.0  100.100.100.100     100.66.225.98      5
+       10.10.10.0    255.255.255.0  100.100.100.100     100.66.225.98      5
+";
+        let mut wifi = adapter("Qualcomm", "WLAN", Kind::WiFi);
+        wifi.ipv4 = vec![("192.168.31.111".parse().unwrap(), 24)];
+        let mut ts = adapter("Tailscale Tunnel", "Tailscale", Kind::Vpn);
+        ts.ipv4 = vec![("100.66.225.98".parse().unwrap(), 32)];
+        let adapters = [wifi, ts];
+        let s = summarize(&parse_route_print(text, &adapters), &adapters);
+        assert_eq!(s.internet.map(|v| v.name), Some("WLAN".to_string()));
+        assert_eq!(
+            s.tunnel.iter().map(|v| (v.net.as_str(), v.name.as_str())).collect::<Vec<_>>(),
+            [("192.168.31.0/24", "Tailscale"), ("10.10.10.0/24", "Tailscale")]
+        );
+        assert!(s.local.is_empty(), "{:?}", s.local);
+    }
+
+    #[test]
+    fn adapters_that_were_not_known_when_the_table_was_read_are_named_later() {
+        let text = "Aktive Routen:
+     Netzwerkziel    Netzwerkmaske          Gateway    Schnittstelle Metrik
+          0.0.0.0          0.0.0.0     192.168.31.1   192.168.31.111     36
+     192.168.31.0    255.255.255.0   Auf Verbindung   192.168.31.111    291
+";
+        let routes = parse_route_print(text, &[]);
+        let mut wifi = adapter("Qualcomm", "WLAN", Kind::WiFi);
+        wifi.ipv4 = vec![("192.168.31.111".parse().unwrap(), 24)];
+        let s = summarize(&routes, &[wifi]);
+        assert_eq!(s.internet.map(|v| v.name), Some("WLAN".to_string()));
+        assert_eq!(s.local.iter().map(|v| v.name.as_str()).collect::<Vec<_>>(), ["WLAN"]);
     }
 
     #[test]

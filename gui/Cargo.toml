@@ -42,6 +42,10 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["N
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSApplication", "NSImage", "NSResponder", "NSWorkspace"] }
 winit = { version = "0.30", default-features = false }
 
+# The size of the screen, to open the window at its final size.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_HiDpi", "Win32_UI_WindowsAndMessaging"] }
+
 # Installers, built by `cargo packager --release -p netmgr-gui` (see
 # .github/workflows/release.yml): Windows setup (NSIS), macOS .app/.dmg,
 # Linux .deb and AppImage. The binaries must be built first.

@@ -220,6 +220,17 @@ const SETTINGS_KEY: &str = "settings";
 pub const DEFAULT_SIZE: [f32; 2] = [1240.0, 800.0];
 /// The smallest window in which every page still works.
 pub const MIN_SIZE: [f32; 2] = [860.0, 560.0];
+/// The height of the menu bar that the themes without a header have (Windows, Linux).
+const MENU_STRIP: f32 = 30.0;
+
+/// The size a window of `size` gets on a screen of `monitor` points: with room
+/// around it (it opens as a window, not over the whole screen), and not under
+/// the smallest size.
+pub fn fitted_size(size: egui::Vec2, monitor: egui::Vec2) -> egui::Vec2 {
+    let max = egui::vec2(monitor.x * 0.86, monitor.y * 0.84);
+    let min = egui::vec2(MIN_SIZE[0], MIN_SIZE[1]).min(max);
+    size.min(max).max(min)
+}
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
@@ -443,6 +454,25 @@ impl App {
                     self.console.pop_out();
                 }
             }
+            C::FullScreen => {
+                let full = ctx.input(|i| i.viewport().fullscreen).unwrap_or(false);
+                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!full));
+            }
+            // Through the same way as the close button, which asks about unsaved logs.
+            C::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+        }
+    }
+
+    /// The menu bar of Windows and Linux (File, Edit, View, …): what is chosen is done at once.
+    /// `room` is how much width the menus may take.
+    #[cfg(not(target_os = "macos"))]
+    fn menu_bar(&mut self, ui: &mut Ui, text: Color32, room: f32) {
+        let sessions: Vec<menu::SessionEntry> =
+            self.shared.settings.sessions.iter().map(|s| (s.name.clone(), s.icon.clone())).collect();
+        let state = menu::BarState { sessions: &sessions, theme: self.shared.settings.theme, text, room };
+        let ctx = ui.ctx().clone();
+        for c in menu::bar(ui, &state) {
+            self.run(&ctx, c);
         }
     }
 
@@ -548,24 +578,27 @@ impl App {
         ctx.request_repaint_after(Duration::from_millis(if busy || self.page == Page::Overview { 500 } else { 2000 }));
     }
 
-    /// Shrinks and centres the window when it does not fit the screen.
+    /// A safety net: shrinks and centres the window when it is bigger than the
+    /// screen (a window that was left on a bigger one). The right size is
+    /// worked out before the window exists (see [`fitted_size`]), so that it
+    /// opens in its place and does not jump; and a window that was left
+    /// maximized or over the whole screen stays so.
     fn fit_to_screen(&mut self, ctx: &egui::Context) {
         if self.fitted {
             return;
         }
-        let (monitor, inner) = ctx.input(|i| (i.viewport().monitor_size, i.viewport().inner_rect));
+        let (monitor, inner, maximized, full) = ctx.input(|i| {
+            let v = i.viewport();
+            (v.monitor_size, v.inner_rect, v.maximized.unwrap_or(false), v.fullscreen.unwrap_or(false))
+        });
         let (Some(monitor), Some(inner)) = (monitor, inner) else { return };
         self.fitted = true;
-        // Room around it: the window opens as a window, not over the whole
-        // screen. (eframe itself brings a window back from a missing screen.)
-        let max = egui::vec2(monitor.x * 0.86, monitor.y * 0.84);
         let size = inner.size();
-        if size.x <= max.x && size.y <= max.y {
+        if maximized || full || (size.x <= monitor.x && size.y <= monitor.y) {
             return;
         }
-        let min = egui::vec2(MIN_SIZE[0], MIN_SIZE[1]).min(max);
-        let fitted = size.min(max).max(min);
-        ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(min));
+        let fitted = fitted_size(size, monitor);
+        ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(egui::vec2(MIN_SIZE[0], MIN_SIZE[1]).min(fitted)));
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(fitted));
         let corner = ((monitor - fitted) / 2.0).max(egui::Vec2::ZERO);
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(corner.to_pos2()));
@@ -611,29 +644,31 @@ impl App {
             ui.add_space(6.0);
             ui.add(egui::Image::new(&self.logo).fit_to_exact_size(Vec2::splat(30.0)));
             ui.add_space(4.0);
+            // Windows and Linux: the menus (File, Edit, …) as VS Code has them,
+            // in place of the name, which the title of the window says already.
+            // The status on the right keeps its room (more with a VPN or servers).
+            #[cfg(not(target_os = "macos"))]
+            {
+                let extra = if self.shared.vpn().is_some() { 170.0 } else { 0.0 }
+                    + if self.servers.running_count() > 0 { 190.0 } else { 0.0 };
+                let room = (ui.available_width() - 400.0 - extra).max(0.0);
+                self.menu_bar(ui, white, room);
+            }
             // The name reads "Network Manager" either way (this row runs from
             // the right for Arabic, so "Manager" comes first there).
-            let network = theme::semibold("Network", 17.0).color(white);
-            let manager = RichText::new("Manager").color(white.gamma_multiply(0.75)).size(17.0);
-            if i18n::is_rtl() {
-                ui.label(manager);
-                ui.label(network);
-            } else {
-                ui.label(network);
-                ui.label(manager);
+            #[cfg(target_os = "macos")]
+            {
+                let network = theme::semibold("Network", 17.0).color(white);
+                let manager = RichText::new("Manager").color(white.gamma_multiply(0.75)).size(17.0);
+                if i18n::is_rtl() {
+                    ui.label(manager);
+                    ui.label(network);
+                } else {
+                    ui.label(network);
+                    ui.label(manager);
+                }
             }
             ui.with_layout(inner, |ui| {
-                // macOS has Settings in its menu bar; elsewhere it sits here.
-                if !cfg!(target_os = "macos") {
-                    let gear = egui::Button::new(RichText::new(icon::GEAR_SIX).size(18.0).color(white)).frame(false);
-                    let shortcut = format!("{} (Ctrl+,)", tr("Settings"));
-                    let resp = ui.add(gear).on_hover_text(shortcut);
-                    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tr("Settings")));
-                    if resp.clicked() {
-                        self.page = Page::Settings;
-                    }
-                    ui.add_space(6.0);
-                }
                 if self.updater.available().is_some() {
                     self.updater.button(ui, p);
                 } else {
@@ -998,6 +1033,26 @@ impl eframe::App for App {
                 .frame(Frame::new().fill(fill).inner_margin(Margin::symmetric(18, 0)))
                 .show(ui, |ui| self.header(ui, &p));
         }
+        // The other themes have no header: the menus get a slim bar of their own.
+        #[cfg(not(target_os = "macos"))]
+        if p.header.is_none() {
+            let layout = if i18n::is_rtl() {
+                Layout::right_to_left(Align::Center)
+            } else {
+                Layout::left_to_right(Align::Center)
+            };
+            egui::Panel::top("menubar")
+                .exact_size(MENU_STRIP)
+                .resizable(false)
+                .show_separator_line(true)
+                .frame(Frame::new().fill(p.sidebar).inner_margin(Margin::symmetric(8, 0)))
+                .show(ui, |ui| {
+                    ui.with_layout(layout, |ui| {
+                        let room = ui.available_width();
+                        self.menu_bar(ui, p.text, room);
+                    })
+                });
+        }
         // Arabic reads from the right: the sidebar is there too.
         let sidebar = if i18n::is_rtl() { egui::Panel::right("sidebar") } else { egui::Panel::left("sidebar") };
         if !self.shared.settings.sidebar_hidden {
@@ -1053,8 +1108,10 @@ impl eframe::App for App {
         // Without the header there is no button for the sidebar once it is hidden.
         if self.shared.settings.sidebar_hidden && p.header.is_none() {
             let at = if i18n::is_rtl() { egui::Align2::RIGHT_TOP } else { egui::Align2::LEFT_TOP };
+            // Below the menu strip, where there is one.
+            let strip = if cfg!(target_os = "macos") { 0.0 } else { MENU_STRIP };
             egui::Area::new(egui::Id::new("sidebar-button"))
-                .anchor(at, egui::vec2(if i18n::is_rtl() { -10.0 } else { 10.0 }, 8.0))
+                .anchor(at, egui::vec2(if i18n::is_rtl() { -10.0 } else { 10.0 }, 8.0 + strip))
                 .order(egui::Order::Foreground)
                 .show(&ctx, |ui| self.sidebar_button(ui, p.weak));
         }

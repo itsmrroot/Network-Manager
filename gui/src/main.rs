@@ -141,12 +141,17 @@ fn main() -> eframe::Result {
         default_hook(info);
     }));
     std::thread::spawn(update::clean_old_downloads);
+    // The window is made with its final size, and in the place and state it
+    // was left in (maximized too): shown once, ready, as VS Code opens. The
+    // first time it has the size that fits this screen, in the middle of it.
+    let first_run = !window_was_saved();
+    let size = primary_screen().map_or(app::DEFAULT_SIZE.into(), |s| app::fitted_size(app::DEFAULT_SIZE.into(), s));
     // Changed only by the development tour.
     #[allow(unused_mut)]
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("Network Manager")
         .with_app_id("netmgr")
-        .with_inner_size(app::DEFAULT_SIZE)
+        .with_inner_size(size)
         .with_min_inner_size(app::MIN_SIZE)
         .with_icon(icon());
     // Development aid: the screenshot tour can use a given window size ("1240x800").
@@ -166,7 +171,8 @@ fn main() -> eframe::Result {
         persist_window,
         renderer: if glow { eframe::Renderer::Glow } else { eframe::Renderer::Wgpu },
         wgpu_options: wgpu_options(),
-        centered: true,
+        // Only the first time: after that the window comes back where it was left.
+        centered: first_run,
         // The app's own menu bar (menu.rs) replaces winit's default one,
         // which would otherwise be put back after launch.
         #[cfg(target_os = "macos")]
@@ -191,6 +197,31 @@ fn main() -> eframe::Result {
         }
     }
     result
+}
+
+/// The size of the main screen in points (a Windows screen has pixels, which
+/// the display scale turns into points). `None` where the system is asked by
+/// the window library only.
+#[cfg(windows)]
+fn primary_screen() -> Option<egui::Vec2> {
+    use windows_sys::Win32::UI::HiDpi::GetDpiForSystem;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+    // SAFETY: both calls only read system values.
+    let (w, h, dpi) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN), GetDpiForSystem()) };
+    let scale = dpi as f32 / 96.0;
+    (w > 0 && h > 0 && scale > 0.0).then(|| egui::vec2(w as f32 / scale, h as f32 / scale))
+}
+
+#[cfg(not(windows))]
+fn primary_screen() -> Option<egui::Vec2> {
+    None
+}
+
+/// Did an earlier run leave its window's place and size?
+fn window_was_saved() -> bool {
+    eframe::storage_dir("netmgr")
+        .and_then(|dir| std::fs::read_to_string(dir.join("app.ron")).ok())
+        .is_some_and(|text| text.contains("inner_size_points:Some("))
 }
 
 /// Where the app notes that this computer needs OpenGL.

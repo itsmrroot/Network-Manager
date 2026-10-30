@@ -276,6 +276,37 @@ pub fn split_terse(line: &str) -> Vec<String> {
     fields
 }
 
+/// Does the description of an adapter name a VPN program? (Windows: the
+/// adapter of Tailscale is "Tailscale Tunnel", of WireGuard "WireGuard Tunnel",
+/// of OpenVPN "TAP-Windows Adapter V9" or "Wintun Userspace Tunnel".)
+fn is_vpn_adapter_name(text: &str) -> bool {
+    const VPNS: [&str; 21] = [
+        "tailscale",
+        "wireguard",
+        "wintun",
+        "nordlynx",
+        "openvpn",
+        "tap-windows",
+        "tap-nordvpn",
+        "mullvad",
+        "protonvpn",
+        "proton vpn",
+        "anyconnect",
+        "forticlient",
+        "fortinet",
+        "globalprotect",
+        "pangp",
+        "pulse secure",
+        "netextender",
+        "softether",
+        "zerotier",
+        "windscribe",
+        "cloudflare warp",
+    ];
+    let text = text.to_lowercase();
+    VPNS.iter().any(|v| text.contains(v))
+}
+
 fn from_netdev(i: netdev::Interface, extra: &Extra) -> Adapter {
     let mut kind = match i.if_type {
         InterfaceType::Wireless80211 => Kind::WiFi,
@@ -295,6 +326,12 @@ fn from_netdev(i: netdev::Interface, extra: &Extra) -> Adapter {
         kind = Kind::Loopback;
     }
     if i.is_tun() || ["utun", "tun", "tap", "wg", "ipsec", "ppp", "gif", "stf"].iter().any(|p| i.name.starts_with(p)) {
+        kind = Kind::Vpn;
+    }
+    // Windows names an adapter by a GUID and gives the tunnels of Tailscale, WireGuard
+    // and most VPN programs the type "virtual" (or "Ethernet", for a TAP): their
+    // description says what they are.
+    if [i.description.as_deref(), i.friendly_name.as_deref()].into_iter().flatten().any(is_vpn_adapter_name) {
         kind = Kind::Vpn;
     }
     let mut name = i.friendly_name.clone().unwrap_or_else(|| i.name.clone());
@@ -513,6 +550,32 @@ pub fn format_speed(bps: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn windows_vpn_adapters_are_known_by_their_description() {
+        for vpn in [
+            "Tailscale Tunnel",
+            "WireGuard Tunnel",
+            "Wintun Userspace Tunnel",
+            "TAP-Windows Adapter V9",
+            "OpenVPN Data Channel Offload",
+            "NordLynx Tunnel",
+            "ProtonVPN TUN",
+            "Cisco AnyConnect Secure Mobility Client Virtual Miniport Adapter for Windows x64",
+            "Cloudflare WARP Interface Tunnel",
+        ] {
+            assert!(is_vpn_adapter_name(vpn), "{vpn}");
+        }
+        for other in [
+            "Qualcomm QCA61x4A 802.11ac Wireless Adapter",
+            "Intel(R) Ethernet Connection (6) I219-LM",
+            "Hyper-V Virtual Ethernet Adapter",
+            "Bluetooth Device (Personal Area Network)",
+            "Microsoft Wi-Fi Direct Virtual Adapter",
+        ] {
+            assert!(!is_vpn_adapter_name(other), "{other}");
+        }
+    }
 
     #[test]
     fn masks() {
