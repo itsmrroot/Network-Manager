@@ -917,8 +917,13 @@ impl App {
                 theme::paragraph(ui, hint, 14.5, p.weak);
             }
             ui.add_space(12.0);
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| theme::primary_button(ui, p, &format!("  {}  ", tr("OK")), true).clicked())
-                .inner
+            let clicked = ui
+                .with_layout(Layout::right_to_left(Align::Center), |ui| theme::primary_button(ui, p, &format!("  {}  ", tr("OK")), true).clicked())
+                .inner;
+            // egui's Modal closes on Escape and a backdrop click on its own, but not
+            // on Enter: without this the OK button looks like a default action but
+            // only the mouse can press it.
+            clicked || ui.input(|i| i.key_pressed(egui::Key::Enter))
         });
         if modal.inner || modal.should_close() {
             self.shared.error = None;
