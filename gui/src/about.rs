@@ -64,3 +64,58 @@ pub fn page(ui: &mut Ui, p: &Palette, logo: &egui::TextureHandle, updater: &mut 
         });
     });
 }
+
+#[cfg(test)]
+mod tests {
+    /// `LICENSE` (Markdown, as GitHub shows it) as plain text, for the licence page of the
+    /// installers, which show the file as it is: no `#`, `<…>`, `[…](#…)` or `**`.
+    fn plain_license(markdown: &str) -> String {
+        let mut out = String::new();
+        for line in markdown.lines() {
+            let mut line = line.trim_end().to_string();
+            if let Some(heading) = line.strip_prefix("## ") {
+                line = heading.to_uppercase();
+            } else if let Some(title) = line.strip_prefix("# ") {
+                line = title.to_string();
+            } else if let Some(quote) = line.strip_prefix("> ") {
+                line = format!("    {quote}");
+            } else if line.starts_with("<http") && line.ends_with('>') {
+                line = line[1..line.len() - 1].to_string();
+            }
+            // [text](#anchor) is just text.
+            while let Some(at) = line.find("](#") {
+                let (Some(open), Some(close)) = (line[..at].rfind('['), line[at..].find(')')) else { break };
+                let text = line[open + 1..at].to_string();
+                line.replace_range(open..at + close + 1, &text);
+            }
+            let line = line.replace("***", "").replace("**", "").replace('`', "");
+            out.push_str(&line);
+            out.push('\n');
+        }
+        out
+    }
+
+    /// The licence the installers show is made from `LICENSE`, so that the two cannot drift
+    /// apart. After changing `LICENSE`: `NETMGR_WRITE_LICENSE=1 cargo test -p netmgr-gui licence`.
+    #[test]
+    fn the_installers_show_the_licence_as_plain_text() {
+        let plain = plain_license(&include_str!("../../LICENSE").replace("\r\n", "\n"));
+        if std::env::var_os("NETMGR_WRITE_LICENSE").is_some() {
+            std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/license.txt"), &plain).expect("writable");
+        }
+        let shown = include_str!("../assets/license.txt").replace("\r\n", "\n");
+        assert_eq!(shown, plain, "assets/license.txt is out of date");
+        for markup in ["# ", "](#", "**", "`", "<http"] {
+            assert!(!shown.contains(markup), "Markdown left in the licence: {markup:?}");
+        }
+        // Nothing of the terms is lost.
+        for words in [
+            "Required Notice: Copyright (c) 2026 Bashar Salmo",
+            "PolyForm Noncommercial License 1.0.0",
+            "No Liability",
+            "Use means anything you do",
+        ] {
+            assert!(shown.to_lowercase().contains(&words.to_lowercase()), "{words}");
+        }
+    }
+}

@@ -58,7 +58,9 @@ authors = ["Bashar Salmo"]
 publisher = "Bashar Salmo"
 copyright = "© 2026 Bashar Salmo. Powered by Bashar Salmo."
 category = "Utility"
-license-file = "../LICENSE"
+# The licence page of the installers shows the file as it is, so it is the plain-text
+# copy of ../LICENSE (made by a test from it), not the Markdown.
+license-file = "assets/license.txt"
 # One per system: macOS uses the .icns, Windows the .ico, Linux the PNG.
 icons = ["assets/netmgr.icns", "assets/netmgr.ico", "assets/icon.png"]
 # The command line comes along for scripting and keyboard use.
