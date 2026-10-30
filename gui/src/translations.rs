@@ -242,6 +242,14 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("Copy", "Kopieren"),
     ("Copy the password", "Passwort kopieren"),
     ("Could not check for updates: {error}", "Updates konnten nicht geprüft werden: {error}"),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again after {time}.",
+        "GitHub erlaubt nur eine begrenzte Zahl von Update-Prüfungen pro Stunde aus einem Netzwerk. Bitte nach {time} erneut versuchen.",
+    ),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again in a while.",
+        "GitHub erlaubt nur eine begrenzte Zahl von Update-Prüfungen pro Stunde aus einem Netzwerk. Bitte später erneut versuchen.",
+    ),
     ("Count: ", "Anzahl: "),
     ("Country", "Land"),
     ("Critical", "Kritisch"),
@@ -2823,6 +2831,14 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("Copy", "Copiar"),
     ("Copy the password", "Copiar la contraseña"),
     ("Could not check for updates: {error}", "No se pudo buscar actualizaciones: {error}"),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again after {time}.",
+        "GitHub permite solo un número limitado de comprobaciones de actualizaciones por hora desde una misma red. Inténtalo de nuevo después de las {time}.",
+    ),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again in a while.",
+        "GitHub permite solo un número limitado de comprobaciones de actualizaciones por hora desde una misma red. Inténtalo de nuevo en un rato.",
+    ),
     ("Count: ", "Cantidad: "),
     ("Country", "País"),
     ("Critical", "Crítico"),
@@ -5377,6 +5393,14 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("Copy", "Copier"),
     ("Copy the password", "Copier le mot de passe"),
     ("Could not check for updates: {error}", "Impossible de rechercher des mises à jour : {error}"),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again after {time}.",
+        "GitHub n’autorise qu’un nombre limité de recherches de mises à jour par heure depuis un même réseau. Réessayez après {time}.",
+    ),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again in a while.",
+        "GitHub n’autorise qu’un nombre limité de recherches de mises à jour par heure depuis un même réseau. Réessayez dans un moment.",
+    ),
     ("Count: ", "Nombre : "),
     ("Country", "Pays"),
     ("Critical", "Critique"),
@@ -7949,6 +7973,14 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("Copy", "Kopyala"),
     ("Copy the password", "Parolayı kopyala"),
     ("Could not check for updates: {error}", "Güncellemeler denetlenemedi: {error}"),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again after {time}.",
+        "GitHub, aynı ağdan saatte yalnızca sınırlı sayıda güncelleme denetimine izin verir. {time} sonrasında yeniden deneyin.",
+    ),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again in a while.",
+        "GitHub, aynı ağdan saatte yalnızca sınırlı sayıda güncelleme denetimine izin verir. Biraz sonra yeniden deneyin.",
+    ),
     ("Count: ", "Sayı: "),
     ("Country", "Ülke"),
     ("Critical", "Kritik"),
@@ -10473,6 +10505,14 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("Copy", "Копировать"),
     ("Copy the password", "Скопировать пароль"),
     ("Could not check for updates: {error}", "Не удалось проверить обновления: {error}"),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again after {time}.",
+        "GitHub разрешает лишь ограниченное число проверок обновлений в час с одной сети. Повторите попытку после {time}.",
+    ),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again in a while.",
+        "GitHub разрешает лишь ограниченное число проверок обновлений в час с одной сети. Повторите попытку чуть позже.",
+    ),
     ("Count: ", "Количество: "),
     ("Country", "Страна"),
     ("Critical", "Критично"),
@@ -13012,6 +13052,14 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Copy", "نسخ"),
     ("Copy the password", "نسخ كلمة المرور"),
     ("Could not check for updates: {error}", "تعذّر البحث عن تحديثات: {error}"),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again after {time}.",
+        "يسمح GitHub بعدد محدود فقط من عمليات التحقق من التحديثات في الساعة من شبكة واحدة. حاول مرة أخرى بعد {time}.",
+    ),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again in a while.",
+        "يسمح GitHub بعدد محدود فقط من عمليات التحقق من التحديثات في الساعة من شبكة واحدة. حاول مرة أخرى بعد قليل.",
+    ),
     ("Count: ", "العدد: "),
     ("Country", "الدولة"),
     ("Critical", "حرج"),
@@ -15461,6 +15509,14 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Copy", "复制"),
     ("Copy the password", "复制密码"),
     ("Could not check for updates: {error}", "无法检查更新：{error}"),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again after {time}.",
+        "GitHub 限制同一网络每小时的更新检查次数。请在 {time} 之后重试。",
+    ),
+    (
+        "GitHub allows only a limited number of update checks per hour from one network. Try again in a while.",
+        "GitHub 限制同一网络每小时的更新检查次数。请稍后重试。",
+    ),
     ("Count: ", "数量："),
     ("Country", "国家/地区"),
     ("Critical", "严重"),

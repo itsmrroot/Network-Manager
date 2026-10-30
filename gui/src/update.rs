@@ -182,15 +182,86 @@ fn agent() -> ureq::Agent {
         .into()
 }
 
+/// GitHub refused because this network asked too often (without signing in, it
+/// answers 60 requests an hour per address). `until` is when it answers again, as a Unix time.
+#[derive(Debug)]
+struct RateLimited {
+    until: Option<i64>,
+}
+
+impl std::fmt::Display for RateLimited {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("GitHub allows only a limited number of requests per hour from one network")
+    }
+}
+
+impl std::error::Error for RateLimited {}
+
+/// Is an answer "too many requests", and until when? `Some(None)`: yes, but GitHub did not say
+/// until when. The header values are as GitHub sends them.
+fn rate_limited(
+    status: u16,
+    remaining: Option<&str>,
+    retry_after: Option<&str>,
+    reset: Option<&str>,
+    now: i64,
+) -> Option<Option<i64>> {
+    if !matches!(status, 403 | 429) || (remaining != Some("0") && retry_after.is_none() && status != 429) {
+        return None;
+    }
+    let seconds = retry_after.and_then(|s| s.trim().parse::<i64>().ok());
+    Some(reset.and_then(|s| s.trim().parse::<i64>().ok()).or(seconds.map(|s| now + s)))
+}
+
+/// The sentence for a refused check, with the time of day (local) when GitHub answers again.
+fn rate_limit_text(until: Option<i64>) -> String {
+    let at = until
+        .and_then(|t| chrono::DateTime::from_timestamp(t, 0))
+        .map(|t| t.with_timezone(&chrono::Local).format("%H:%M").to_string());
+    match at {
+        Some(time) => trf(
+            "GitHub allows only a limited number of update checks per hour from one network. Try again after {time}.",
+            &[("time", &time)],
+        ),
+        None => {
+            tr("GitHub allows only a limited number of update checks per hour from one network. Try again in a while.")
+                .to_string()
+        }
+    }
+}
+
 /// Asks GitHub for the latest release. `None` means this is the newest.
 pub fn check() -> Result<Option<Release>> {
-    let text = agent()
-        .get(LATEST)
+    // Development aid: NETMGR_UPDATE_URL asks another address (a stand-in for GitHub's answers).
+    #[cfg(debug_assertions)]
+    let url = std::env::var("NETMGR_UPDATE_URL").unwrap_or_else(|_| LATEST.to_string());
+    #[cfg(not(debug_assertions))]
+    let url = LATEST;
+    // The status is read here, not turned into an error, to tell "too many requests" from the rest.
+    let mut response = agent()
+        .get(url)
         .header("Accept", "application/vnd.github+json")
+        .config()
+        .http_status_as_error(false)
+        .build()
         .call()
-        .context("could not reach GitHub")?
-        .body_mut()
-        .read_to_string()?;
+        .context("could not reach GitHub")?;
+    let status = response.status().as_u16();
+    if !(200..300).contains(&status) {
+        let header = |name: &str| response.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_string);
+        let now = chrono::Utc::now().timestamp();
+        if let Some(until) = rate_limited(
+            status,
+            header("x-ratelimit-remaining").as_deref(),
+            header("retry-after").as_deref(),
+            header("x-ratelimit-reset").as_deref(),
+            now,
+        ) {
+            return Err(RateLimited { until }.into());
+        }
+        bail!("GitHub answered with status {status}");
+    }
+    let text = response.body_mut().read_to_string()?;
     let gh: GhRelease = serde_json::from_str(&text).context("unexpected answer from GitHub")?;
     let version = gh.tag_name.trim_start_matches('v').to_string();
     if gh.draft || gh.prerelease || !is_newer(&version, current()) {
@@ -467,6 +538,11 @@ impl Updater {
                     self.dialog |= manual;
                 }
                 Ok(None) => self.latest = true,
+                // Too many checks from this network: said as it is, not as "could not reach".
+                Err(e) if manual && e.downcast_ref::<RateLimited>().is_some() => {
+                    let until = e.downcast_ref::<RateLimited>().and_then(|r| r.until);
+                    self.error = Some(rate_limit_text(until))
+                }
                 Err(e) if manual => {
                     self.error = Some(trf("Could not check for updates: {error}", &[("error", &format!("{e:#}"))]))
                 }
@@ -779,6 +855,22 @@ fn notes_ui(ui: &mut Ui, p: &Palette, text: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn too_many_requests_are_told_from_other_refusals() {
+        // GitHub's answer with no requests left: 403 and the time the count starts again.
+        assert_eq!(rate_limited(403, Some("0"), None, Some("1793360218"), 1000), Some(Some(1793360218)));
+        // 429, or a Retry-After: wait that many seconds from now.
+        assert_eq!(rate_limited(429, None, Some("90"), None, 1000), Some(Some(1090)));
+        assert_eq!(rate_limited(403, Some("12"), Some("60"), None, 1000), Some(Some(1060)));
+        // Too many, but no time said.
+        assert_eq!(rate_limited(429, None, None, None, 1000), Some(None));
+        // Another 403 (blocked, no right to it) or other errors are not about the count.
+        assert_eq!(rate_limited(403, Some("12"), None, Some("1793360218"), 1000), None);
+        assert_eq!(rate_limited(403, None, None, None, 1000), None);
+        assert_eq!(rate_limited(404, Some("0"), None, None, 1000), None);
+        assert_eq!(rate_limited(500, None, Some("5"), None, 1000), None);
+    }
 
     #[test]
     fn versions_compare_by_number() {
