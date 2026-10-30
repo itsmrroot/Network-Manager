@@ -1,7 +1,8 @@
 //! The menu bar on macOS (App, Edit, View, Go, Network, Window, Help, as
-//! Apple's guidelines ask), and the same page shortcuts with Ctrl on Windows
-//! and Linux, which have no menu bar.
-// Windows and Linux use only the page shortcuts.
+//! Apple's guidelines ask). On Windows and Linux the app draws its own menu
+//! bar (File, Edit, View, Go, Network, Console, Help, as VS Code has it) with
+//! the same commands, and the shortcuts with Ctrl.
+// Windows and Linux do not use the macOS-only parts (icons, Dock).
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
 use eframe::egui;
@@ -45,6 +46,10 @@ pub enum Command {
     ConsoleTab(&'static str),
     /// The terminal that is shown, in a window of its own.
     PopOut,
+    /// The window over the whole screen, or back.
+    FullScreen,
+    /// Closes the window (and with it the app).
+    Quit,
 }
 
 /// The icons the menus use (to check that the font has all of them).
@@ -528,11 +533,186 @@ mod imp {
 #[cfg(not(target_os = "macos"))]
 mod imp {
     use super::*;
-    use crate::i18n::Lang;
+    use crate::i18n::{Lang, tr};
 
-    /// No menu bar: the same shortcuts with Ctrl.
+    /// The shortcuts with Ctrl (the menus themselves are drawn by [`bar`]).
     #[derive(Default)]
     pub struct MenuBar;
+
+    /// What the menu bar needs to know to draw itself.
+    pub struct BarState<'a> {
+        pub sessions: &'a [SessionEntry],
+        pub theme: ThemeChoice,
+        /// The colour of the names on the bar (the header of the Midnight theme is dark).
+        pub text: egui::Color32,
+        /// Room for the bar, in points: the menus that do not fit go under "···".
+        pub room: f32,
+    }
+
+    /// A menu entry: its text, the shortcut written at its right (if it has one),
+    /// and what it does.
+    fn item(ui: &mut egui::Ui, out: &mut Vec<Command>, text: &str, shortcut: &str, c: Command) {
+        let mut button = egui::Button::new(text);
+        if !shortcut.is_empty() {
+            button = button.shortcut_text(shortcut);
+        }
+        if ui.add(button).clicked() {
+            out.push(c);
+        }
+    }
+
+    fn file(ui: &mut egui::Ui, out: &mut Vec<Command>, st: &BarState) {
+        item(ui, out, &format!("{}…", tr("New connection")), "", Command::NewConnection);
+        ui.menu_button(tr("Saved sessions"), |ui| {
+            if st.sessions.is_empty() {
+                ui.add_enabled(false, egui::Button::new(tr("No saved sessions yet")));
+            }
+            for (i, (name, key)) in st.sessions.iter().enumerate() {
+                item(ui, out, &format!("{}  {name}", crate::console::session_glyph(key)), "", Command::OpenSession(i));
+            }
+        });
+        ui.separator();
+        item(ui, out, &format!("{}…", tr("Network report")), "", Command::Report);
+        ui.separator();
+        item(ui, out, tr("Settings"), "Ctrl+,", Command::Page(Page::Settings));
+        ui.separator();
+        item(ui, out, tr("Exit"), "Alt+F4", Command::Quit);
+    }
+
+    fn edit(ui: &mut egui::Ui, out: &mut Vec<Command>, _st: &BarState) {
+        item(ui, out, tr("Undo"), "Ctrl+Z", Command::Undo);
+        item(ui, out, tr("Redo"), "Ctrl+Shift+Z", Command::Redo);
+        ui.separator();
+        item(ui, out, tr("Cut"), "Ctrl+X", Command::Cut);
+        item(ui, out, tr("Copy"), "Ctrl+C", Command::Copy);
+        item(ui, out, tr("Paste"), "Ctrl+V", Command::Paste);
+        item(ui, out, tr("Select All"), "Ctrl+A", Command::SelectAll);
+    }
+
+    fn view(ui: &mut egui::Ui, out: &mut Vec<Command>, st: &BarState) {
+        item(ui, out, &format!("{}…", tr("Search")), "Ctrl+K", Command::Search);
+        ui.separator();
+        item(ui, out, tr("Hide or show sidebar"), "Ctrl+\\", Command::ToggleSidebar);
+        ui.menu_button(tr("Theme"), |ui| {
+            for (t, label) in [
+                (ThemeChoice::System, tr("System")),
+                (ThemeChoice::Light, tr("Light")),
+                (ThemeChoice::Dark, tr("Dark")),
+                (ThemeChoice::Midnight, tr("Midnight")),
+            ] {
+                if ui.add(egui::Button::selectable(st.theme == t, label)).clicked() {
+                    out.push(Command::Theme(t));
+                }
+            }
+        });
+        ui.separator();
+        item(ui, out, tr("Zoom In"), "Ctrl++", Command::ZoomIn);
+        item(ui, out, tr("Zoom Out"), "Ctrl+-", Command::ZoomOut);
+        item(ui, out, tr("Actual Size"), "Ctrl+0", Command::ZoomReset);
+        ui.separator();
+        item(ui, out, tr("Enter Full Screen"), "F11", Command::FullScreen);
+    }
+
+    fn go(ui: &mut egui::Ui, out: &mut Vec<Command>, _st: &BarState) {
+        for (n, (page, label)) in PAGES.iter().enumerate() {
+            let key = if n < 9 { format!("Ctrl+{}", n + 1) } else { String::new() };
+            item(ui, out, tr(label), &key, Command::Page(*page));
+        }
+        ui.separator();
+        item(ui, out, tr("Settings"), "Ctrl+,", Command::Page(Page::Settings));
+        item(ui, out, tr("Help"), "F1", Command::Page(Page::Help));
+        item(ui, out, tr("About Network Manager"), "", Command::Page(Page::About));
+    }
+
+    fn network(ui: &mut egui::Ui, out: &mut Vec<Command>, _st: &BarState) {
+        item(ui, out, tr("Check connection"), "", Command::CheckConnection);
+        item(ui, out, tr("Renew IP"), "", Command::RenewIp);
+        item(ui, out, &format!("{}…", tr("Change IP settings")), "", Command::IpSettings);
+        item(ui, out, tr("Flush DNS"), "", Command::FlushDns);
+        item(ui, out, tr("Speed test"), "", Command::SpeedTest);
+        ui.separator();
+        item(ui, out, tr("Scan for devices"), "", Command::Scan);
+        ui.separator();
+        item(ui, out, &format!("{}…", tr("Network report")), "", Command::Report);
+    }
+
+    fn console(ui: &mut egui::Ui, out: &mut Vec<Command>, st: &BarState) {
+        item(ui, out, &format!("{}…", tr("New connection")), "", Command::NewConnection);
+        ui.menu_button(tr("Saved sessions"), |ui| {
+            if st.sessions.is_empty() {
+                ui.add_enabled(false, egui::Button::new(tr("No saved sessions yet")));
+            }
+            for (i, (name, key)) in st.sessions.iter().enumerate() {
+                item(ui, out, &format!("{}  {name}", crate::console::session_glyph(key)), "", Command::OpenSession(i));
+            }
+        });
+        ui.separator();
+        item(ui, out, tr("Serial console"), "", Command::ConsoleTab("serial"));
+        item(ui, out, tr("SSH and Telnet"), "", Command::ConsoleTab("remote"));
+        item(ui, out, tr("Backups"), "", Command::ConsoleTab("backups"));
+        item(ui, out, tr("Push configuration"), "", Command::ConsoleTab("push"));
+        item(ui, out, tr("CLI guide"), "", Command::ConsoleTab("guide"));
+        item(ui, out, tr("Android (ADB)"), "", Command::ConsoleTab("adb"));
+        ui.separator();
+        item(ui, out, tr("Open terminal in window"), "", Command::PopOut);
+    }
+
+    fn help(ui: &mut egui::Ui, out: &mut Vec<Command>, _st: &BarState) {
+        item(ui, out, tr("Network Manager Help"), "F1", Command::Page(Page::Help));
+        ui.separator();
+        item(ui, out, tr("What's new"), "", Command::Open(RELEASES));
+        item(ui, out, tr("Project page"), "", Command::Open(PROJECT));
+        item(ui, out, tr("Report a problem"), "", Command::Open(ISSUES));
+        ui.separator();
+        item(ui, out, tr("Check for Updates…"), "", Command::CheckUpdates);
+        item(ui, out, tr("About Network Manager"), "", Command::Page(Page::About));
+    }
+
+    type Content = fn(&mut egui::Ui, &mut Vec<Command>, &BarState);
+
+    /// The menu bar, as VS Code has it: File, Edit, View, Go, Network, Console and
+    /// Help in a row; the ones that do not fit are under "···". Returns what was chosen.
+    pub fn bar(ui: &mut egui::Ui, st: &BarState) -> Vec<Command> {
+        let menus: [(&str, Content); 7] = [
+            (tr("File"), file),
+            (tr("Edit"), edit),
+            (tr("View"), view),
+            (tr("Go"), go),
+            (tr("Network"), network),
+            (tr("Console"), console),
+            (tr("Help"), help),
+        ];
+        // How many names fit: each takes its text, its button padding and the space between.
+        let font = egui::TextStyle::Button.resolve(ui.style());
+        let pad = 2.0 * ui.spacing().button_padding.x + ui.spacing().item_spacing.x;
+        let widths: Vec<f32> = menus
+            .iter()
+            .map(|(name, _)| {
+                ui.fonts_mut(|f| f.layout_no_wrap((*name).to_owned(), font.clone(), st.text).size().x) + pad
+            })
+            .collect();
+        let more = 30.0;
+        let mut shown = menus.len();
+        while shown > 0 && widths[..shown].iter().sum::<f32>() + if shown < menus.len() { more } else { 0.0 } > st.room
+        {
+            shown -= 1;
+        }
+        let mut out = Vec::new();
+        egui::MenuBar::new().ui(ui, |ui| {
+            for (name, content) in &menus[..shown] {
+                ui.menu_button(egui::RichText::new(*name).color(st.text), |ui| content(ui, &mut out, st));
+            }
+            if shown < menus.len() {
+                let r = ui.menu_button(egui::RichText::new("···").color(st.text), |ui| {
+                    for (name, content) in &menus[shown..] {
+                        ui.menu_button(*name, |ui| content(ui, &mut out, st));
+                    }
+                });
+                r.response.on_hover_text(tr("More"));
+            }
+        });
+        out
+    }
 
     impl MenuBar {
         pub fn commands(&mut self, ctx: &egui::Context, _lang: Lang, _sessions: &[SessionEntry]) -> Vec<Command> {
@@ -558,6 +738,9 @@ mod imp {
                 if i.consume_key(Modifiers::NONE, Key::F1) {
                     out.push(Command::Page(Page::Help));
                 }
+                if i.consume_key(Modifiers::NONE, Key::F11) {
+                    out.push(Command::FullScreen);
+                }
             });
             out
         }
@@ -565,3 +748,5 @@ mod imp {
 }
 
 pub use imp::MenuBar;
+#[cfg(not(target_os = "macos"))]
+pub use imp::{BarState, bar};

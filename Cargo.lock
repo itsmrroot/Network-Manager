@@ -2545,6 +2545,7 @@ dependencies = [
  "unicode-bidi",
  "ureq",
  "vt100",
+ "windows-sys 0.61.2",
  "winit",
  "winresource",
 ]
