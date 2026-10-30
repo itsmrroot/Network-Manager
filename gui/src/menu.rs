@@ -157,16 +157,26 @@ pub fn edit(ctx: &egui::Context, c: Command, window: egui::ViewportId) {
     };
     match c {
         // To the window that has the keyboard: a terminal in a window of its own
-        // is not the main window.
-        Command::Cut => ctx.send_viewport_cmd_to(window, egui::ViewportCommand::RequestCut),
-        Command::Copy => ctx.send_viewport_cmd_to(window, egui::ViewportCommand::RequestCopy),
-        Command::Paste => ctx.send_viewport_cmd_to(window, egui::ViewportCommand::RequestPaste),
+        // is not the main window. (The viewport commands RequestCut/Copy/Paste are
+        // only carried out for the main window, so these are events as well.)
+        Command::Cut => queue_edit(ctx, window, egui::Event::Cut),
+        Command::Copy => queue_edit(ctx, window, egui::Event::Copy),
+        Command::Paste => request_paste(ctx, window),
         // Key presses, for the field that has the keyboard: written into the input of the
         // window they are for (the window draws them next frame, see `take_edits`).
         Command::Undo => queue_edit(ctx, window, key(egui::Key::Z, false)),
         Command::Redo => queue_edit(ctx, window, key(egui::Key::Z, true)),
         Command::SelectAll => queue_edit(ctx, window, key(egui::Key::A, false)),
         _ => {}
+    }
+}
+
+/// Sends the clipboard text to the window `window` as a paste, as if its own
+/// shortcut had been pressed: the Paste buttons and the Edit menu use it.
+pub fn request_paste(ctx: &egui::Context, window: egui::ViewportId) {
+    let text = arboard::Clipboard::new().and_then(|mut c| c.get_text()).unwrap_or_default().replace("\r\n", "\n");
+    if !text.is_empty() {
+        queue_edit(ctx, window, egui::Event::Paste(text));
     }
 }
 

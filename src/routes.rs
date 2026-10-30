@@ -222,8 +222,14 @@ pub fn summarize(routes: &[Route], adapters: &[Adapter]) -> Summary {
         if r.is_default() || is_special(r) || r.prefix == 32 || (r.prefix == 1 && halves.len() == 2) {
             continue;
         }
-        match best.iter_mut().find(|b| b.dest == r.dest && b.prefix == r.prefix) {
-            Some(b) if r.metric < b.metric => *b = r,
+        // Equal metrics (macOS and BSD give none) cannot tell which is used: keep both.
+        let lowest = best.iter().filter(|b| b.dest == r.dest && b.prefix == r.prefix).map(|b| b.metric).min();
+        match lowest {
+            Some(m) if r.metric < m => {
+                best.retain(|b| !(b.dest == r.dest && b.prefix == r.prefix));
+                best.push(r);
+            }
+            Some(m) if r.metric == m => best.push(r),
             Some(_) => {}
             None => best.push(r),
         }
@@ -407,6 +413,20 @@ Ständige Routen:
         let s = summarize(&routes, &[wifi]);
         assert_eq!(s.internet.map(|v| v.name), Some("WLAN".to_string()));
         assert_eq!(s.local.iter().map(|v| v.name.as_str()).collect::<Vec<_>>(), ["WLAN"]);
+    }
+
+    #[test]
+    fn routes_without_metrics_to_one_network_are_all_listed() {
+        let mut wifi = adapter("en0", "Wi-Fi", Kind::WiFi);
+        wifi.ipv4 = vec![("192.168.1.5".parse().unwrap(), 24)];
+        let mut eth = adapter("en5", "Ethernet", Kind::Ethernet);
+        eth.ipv4 = vec![("192.168.1.6".parse().unwrap(), 24)];
+        let table = "192.168.1/24       link#6             UCS           en0      !
+192.168.1/24       link#9             UCS           en5      !
+";
+        let routes = parse_netstat(table);
+        let s = summarize(&routes, &[wifi, eth]);
+        assert_eq!(s.local.len(), 2, "{:?}", s.local);
     }
 
     #[test]

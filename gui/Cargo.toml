@@ -10,6 +10,7 @@ build = "build.rs"
 
 [dependencies]
 anyhow = "1.0.104"
+arboard = { version = "3.6", default-features = false }
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 eframe = { version = "0.36.2", default-features = false, features = ["default_fonts", "wgpu", "glow", "persistence", "accesskit", "wayland", "x11", "links"] }
 egui-phosphor = "0.14.0"

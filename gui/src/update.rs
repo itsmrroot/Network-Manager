@@ -282,12 +282,13 @@ pub fn check() -> Result<Option<Release>> {
 
 /// Removes the folders that earlier updates downloaded their installer into
 /// (the installer replaces the app while it runs, so it cannot remove its
-/// own folder). Only folders older than an hour: an update may be running.
+/// own folder). Only folders older than three days: an update may be running,
+/// or downloaded and waiting for "Restart now" in another window of the app.
 pub fn clean_old_downloads() {
     let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else { return };
-    let hour = std::time::Duration::from_secs(3600);
+    let old_enough = std::time::Duration::from_secs(3 * 24 * 3600);
     for e in entries.flatten() {
-        let old = e.metadata().and_then(|m| m.modified()).is_ok_and(|t| t.elapsed().is_ok_and(|age| age > hour));
+        let old = e.metadata().and_then(|m| m.modified()).is_ok_and(|t| t.elapsed().is_ok_and(|age| age > old_enough));
         let ours = e.file_name().to_string_lossy().starts_with("netmgr-update-");
         if ours && old && e.file_type().is_ok_and(|t| t.is_dir()) {
             let _ = std::fs::remove_dir_all(e.path());

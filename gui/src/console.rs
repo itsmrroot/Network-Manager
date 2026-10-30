@@ -1052,7 +1052,7 @@ impl Console {
                 .on_hover_text(tr("Send the clipboard (for example a configuration)"))
                 .clicked()
             {
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+                crate::menu::request_paste(ui.ctx(), ui.ctx().viewport_id());
                 o.term.expect_paste();
             }
             if ui
@@ -1447,7 +1447,7 @@ impl Console {
                         .on_hover_text(tr("Send the clipboard (for example a configuration)"))
                         .clicked()
                     {
-                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+                        crate::menu::request_paste(ui.ctx(), ui.ctx().viewport_id());
                         self.focused = true;
                         self.paste_wait = 90;
                     }

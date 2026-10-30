@@ -594,7 +594,10 @@ impl App {
         let (Some(monitor), Some(inner)) = (monitor, inner) else { return };
         self.fitted = true;
         let size = inner.size();
-        if maximized || full || (size.x <= monitor.x && size.y <= monitor.y) {
+        // macOS reports the whole screen, with the menu bar and the Dock: a window that is
+        // as high as the screen would have its bottom edge under the Dock.
+        let room = if cfg!(target_os = "macos") { 100.0 } else { 0.0 };
+        if maximized || full || (size.x <= monitor.x && size.y <= monitor.y - room) {
             return;
         }
         let fitted = fitted_size(size, monitor);
