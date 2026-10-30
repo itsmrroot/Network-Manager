@@ -423,6 +423,11 @@ pub struct Updater {
     /// Checked: this is the newest version.
     latest: bool,
     download: Option<Job<(PathBuf, String)>>,
+    /// The update is downloaded and checked: the file and its SHA-256. It is
+    /// installed when the user chooses to restart; until then it just waits.
+    ready: Option<(PathBuf, String)>,
+    /// The installation has started: the app must close now.
+    restart: bool,
     error: Option<String>,
     dialog: bool,
 }
@@ -431,7 +436,16 @@ impl Updater {
     /// Asks GitHub in the background. A `manual` check shows its result; a
     /// check at start only shows the update button if there is one.
     pub fn check(&mut self, ctx: &egui::Context, manual: bool) {
-        if self.checking.is_some() || self.download.is_some() {
+        // Development aid: NETMGR_DEMO_UPDATE=ready shows an update that is downloaded and waiting
+        // (nothing is installed: the file is none, so "Restart now" only shows its error).
+        #[cfg(debug_assertions)]
+        if std::env::var("NETMGR_DEMO_UPDATE").is_ok_and(|v| v == "ready") && self.release.is_none() {
+            self.demo_dialog();
+            self.ready = Some((PathBuf::new(), String::new()));
+            return;
+        }
+        // Not while an update is downloaded and waiting: it is for this release.
+        if self.checking.is_some() || self.download.is_some() || self.ready.is_some() {
             return;
         }
         self.error = None;
@@ -465,8 +479,13 @@ impl Updater {
                 Some(result) => {
                     let cancelled = job.stopping();
                     self.download = None;
-                    match result.and_then(|(file, sha256)| install(&file, &sha256)) {
-                        Ok(()) => return true,
+                    match result {
+                        // Downloaded: nothing is installed yet. The user is asked first, since
+                        // installing closes the app (and a running scan or server with it).
+                        Ok(file) => {
+                            self.ready = Some(file);
+                            self.dialog = true;
+                        }
                         Err(_) if cancelled => {}
                         Err(e) => {
                             self.error =
@@ -476,7 +495,7 @@ impl Updater {
                 }
             }
         }
-        false
+        std::mem::take(&mut self.restart)
     }
 
     /// The version a newer release has, once one was found.
@@ -487,7 +506,12 @@ impl Updater {
     /// The button that announces an update, for the top bar or the sidebar.
     pub fn button(&mut self, ui: &mut Ui, p: &Palette) {
         let Some(version) = self.available() else { return };
-        let label = with_icon(icon::ARROW_CIRCLE_UP, &trf("Update to {version}", &[("version", &version)]));
+        // Downloaded and waiting for the restart ("Update later" was chosen).
+        let label = if self.ready.is_some() {
+            with_icon(icon::ARROW_CIRCLE_UP, tr("Restart to update"))
+        } else {
+            with_icon(icon::ARROW_CIRCLE_UP, &trf("Update to {version}", &[("version", &version)]))
+        };
         if theme::primary_button(ui, p, &label, true).clicked() {
             self.dialog = true;
         }
@@ -552,7 +576,8 @@ impl Updater {
             ui.set_width(460.0);
             ui.horizontal(|ui| {
                 ui.label(RichText::new(icon::ARROW_CIRCLE_UP).size(26.0).color(p.accent));
-                ui.label(theme::semibold(tr("Update available"), 18.0).color(p.text));
+                let title = if self.ready.is_some() { tr("Update ready") } else { tr("Update available") };
+                ui.label(theme::semibold(title, 18.0).color(p.text));
             });
             ui.add_space(8.0);
             theme::paragraph(
@@ -571,6 +596,44 @@ impl Updater {
             }
             ui.hyperlink_to(icon_label(icon::LIST_BULLETS, "Open the release page"), &release.page);
             ui.add_space(8.0);
+
+            // Downloaded and checked: nothing happens until the user says so. Installing
+            // closes the app, which ends a scan or a server that is running.
+            if let Some((file, sha256)) = self.ready.clone() {
+                theme::paragraph(
+                    ui,
+                    trl("The update is downloaded. Restart now to install it, or choose Update later and restart when it suits you."),
+                    14.5,
+                    p.text,
+                );
+                if busy {
+                    ui.add_space(4.0);
+                    theme::paragraph(ui, trl("Finish the current task first."), 14.5, p.warning);
+                }
+                if let Some(e) = &self.error {
+                    ui.add_space(4.0);
+                    theme::paragraph(ui, e, 14.5, p.danger);
+                }
+                ui.add_space(12.0);
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if theme::primary_button(ui, p, &format!("  {}  ", tr("Restart now")), !busy).clicked() {
+                        self.error = None;
+                        match install(&file, &sha256) {
+                            Ok(()) => self.restart = true,
+                            Err(e) => {
+                                self.error = Some(trf(
+                                    "The update could not be installed: {error}",
+                                    &[("error", &format!("{e:#}"))],
+                                ))
+                            }
+                        }
+                    }
+                    if theme::secondary_button(ui, tr("Update later")).clicked() {
+                        self.dialog = false;
+                    }
+                });
+                return;
+            }
 
             if let Some(job) = &self.download {
                 let state = job.progress.snapshot();
