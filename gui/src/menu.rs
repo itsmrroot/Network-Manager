@@ -46,9 +46,12 @@ pub enum Command {
     ConsoleTab(&'static str),
     /// The terminal that is shown, in a window of its own.
     PopOut,
-    /// The window over the whole screen, or back.
+    /// The window over the whole screen, or back. Windows and Linux: their menu bar and F11.
+    /// (macOS has them in its own menus, which the system handles.)
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     FullScreen,
-    /// Closes the window (and with it the app).
+    /// Closes the window (and with it the app). Windows and Linux: the File menu.
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
     Quit,
 }
 
