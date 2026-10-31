@@ -124,10 +124,21 @@ impl Overview {
             match r {
                 Ok(text) => {
                     let name = format!("network-report-{}.md", chrono::Local::now().format("%Y-%m-%d-%H%M"));
-                    if let Some(path) =
-                        rfd::FileDialog::new().add_filter("Markdown", &["md"]).set_file_name(name).save_file()
+                    if let Some(path) = rfd::FileDialog::new()
+                        .add_filter("Markdown", &["md"])
+                        .add_filter("HTML", &["html"])
+                        .add_filter("PDF", &["pdf"])
+                        .set_file_name(name)
+                        .save_file()
                     {
-                        match std::fs::write(&path, text) {
+                        // The kind of file follows the name the user gave it.
+                        let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+                        let bytes = match ext.as_str() {
+                            "html" | "htm" => netmgr::report_export::to_html(&text).into_bytes(),
+                            "pdf" => netmgr::report_export::to_pdf(&text),
+                            _ => text.into_bytes(),
+                        };
+                        match std::fs::write(&path, bytes) {
                             Ok(()) => {
                                 sh.toast(trf("Report saved to {file}.", &[("file", &path.display())]));
                                 crate::app::open_path(&path.display().to_string());

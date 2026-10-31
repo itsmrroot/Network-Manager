@@ -18,6 +18,7 @@ mod dock;
 mod guide;
 mod guide_art;
 mod guide_view;
+mod health_tab;
 mod heatmap;
 mod help;
 mod i18n;

@@ -73,6 +73,28 @@ impl Stats {
         (self.jitter_n > 0).then(|| self.jitter_sum / self.jitter_n as f64)
     }
 
+    /// A sudden slowdown: the last three replies each took at least 150 ms and more
+    /// than three times the usual (the middle value of the replies before them).
+    /// A host that was never fast is not "slow" now.
+    pub fn is_slow(&self) -> bool {
+        let n = self.history.len();
+        if n < 13 {
+            return false;
+        }
+        let recent: Vec<f64> = self.history.iter().skip(n - 3).flatten().copied().collect();
+        if recent.len() < 3 {
+            return false;
+        }
+        let mut before: Vec<f64> = self.history.iter().rev().skip(3).take(60).flatten().copied().collect();
+        if before.len() < 10 {
+            return false;
+        }
+        before.sort_by(|a, b| a.total_cmp(b));
+        let usual = before[before.len() / 2];
+        let limit = (3.0 * usual).max(150.0);
+        recent.iter().all(|ms| *ms >= limit)
+    }
+
     /// Up, down (3 losses in a row) or not known yet.
     pub fn state(&self) -> State {
         if self.sent == 0 {
@@ -168,5 +190,37 @@ mod tests {
             s.add(None);
         }
         assert_eq!(s.state(), State::Down);
+    }
+
+    #[test]
+    fn a_sudden_slowdown_is_found_but_a_slow_host_is_not() {
+        let mut fast = Stats::default();
+        for _ in 0..30 {
+            fast.add(Some(Duration::from_millis(20)));
+        }
+        assert!(!fast.is_slow());
+        fast.add(Some(Duration::from_millis(400)));
+        fast.add(Some(Duration::from_millis(420)));
+        assert!(!fast.is_slow(), "two are not enough");
+        fast.add(Some(Duration::from_millis(500)));
+        assert!(fast.is_slow());
+        // Back to normal.
+        fast.add(Some(Duration::from_millis(25)));
+        assert!(!fast.is_slow());
+        // A satellite link that always takes 600 ms is not "slow" now.
+        let mut sat = Stats::default();
+        for _ in 0..40 {
+            sat.add(Some(Duration::from_millis(600)));
+        }
+        assert!(!sat.is_slow());
+        // Losses are the down check's business.
+        let mut lossy = Stats::default();
+        for _ in 0..30 {
+            lossy.add(Some(Duration::from_millis(20)));
+        }
+        lossy.add(None);
+        lossy.add(None);
+        lossy.add(None);
+        assert!(!lossy.is_slow());
     }
 }

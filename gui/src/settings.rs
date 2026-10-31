@@ -86,6 +86,12 @@ pub struct Settings {
     pub notify_files: bool,
     #[serde(default = "yes")]
     pub notify_services: bool,
+    /// A notification when a watched host suddenly answers much slower than usual.
+    #[serde(default = "yes")]
+    pub notify_slow: bool,
+    /// Minutes between the snapshots of the connection history; 0: none are taken.
+    #[serde(default)]
+    pub health_minutes: u32,
     /// Notifications play the system's sound.
     #[serde(default = "yes")]
     pub notify_sound: bool,
@@ -172,6 +178,8 @@ impl Default for Settings {
             notify_ssh: true,
             notify_files: true,
             notify_services: true,
+            notify_slow: true,
+            health_minutes: 0,
             notify_sound: true,
             keep_logs: true,
             logs_dir: String::new(),
@@ -514,6 +522,13 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
                 tr("Other services"),
                 trl("A notification the first time a device uses syslog, SNMP traps, the time server, DHCP or the throughput test."),
                 |ui| toggle(ui, &mut s.notify_services),
+            );
+            row(
+                ui,
+                p,
+                tr("Slow connections"),
+                trl("A notification when a watched host, or the connection history, suddenly answers much slower than usual."),
+                |ui| toggle(ui, &mut s.notify_slow),
             );
             row(ui, p, tr("Notification sound"), trl("Notifications play the system's sound."), |ui| {
                 toggle(ui, &mut s.notify_sound)

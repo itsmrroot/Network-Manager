@@ -134,6 +134,13 @@ fn entries() -> Vec<Entry> {
             Target::Tab(Page::Monitor, "programs"),
         ),
         e(
+            icon::CHART_LINE,
+            tr("Connection history"),
+            tr("Monitor"),
+            "history snapshots outage uptime latency graph slow internet down log",
+            Target::Tab(Page::Monitor, "history"),
+        ),
+        e(
             icon::FILE_MAGNIFYING_GLASS,
             tr("Packet capture"),
             tr("Monitor"),
@@ -210,7 +217,20 @@ fn entries() -> Vec<Entry> {
         ),
         e(icon::GEAR_SIX, tr("Settings"), "", "settings preferences language theme", Target::Page(Page::Settings)),
         e(icon::QUESTION, tr("Help"), "", "help guide how", Target::Page(Page::Help)),
-        e(icon::INFO, tr("About"), "", "about version update", Target::Page(Page::About)),
+        e(
+            icon::INFO,
+            tr("About"),
+            "",
+            "about version update licence license open source third party legal diagnostic information privacy",
+            Target::Page(Page::About),
+        ),
+        e(
+            icon::EXPORT,
+            tr("Export settings…"),
+            tr("Settings"),
+            "export import backup settings copy configuration json",
+            Target::Page(Page::Settings),
+        ),
         e(
             icon::STETHOSCOPE,
             tr("Check connection"),
@@ -244,7 +264,7 @@ fn entries() -> Vec<Entry> {
             icon::FILE_TEXT,
             tr("Network report"),
             tr("Network"),
-            "report support ticket",
+            "report support ticket export html pdf markdown",
             Target::Command(Command::Report),
         ),
     ];

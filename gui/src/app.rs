@@ -1374,7 +1374,7 @@ impl App {
         t.frames += 1;
         // Pages that wait for nothing ask for no repaint: keep the tour going.
         ctx.request_repaint();
-        let pages: [(Page, &str, u32); 57] = [
+        let pages: [(Page, &str, u32); 58] = [
             (Page::Overview, "01-overview", 140),
             (Page::Adapters, "02-adapters", 30),
             (Page::Wifi, "03-wifi", 120),
@@ -1430,6 +1430,7 @@ impl App {
             (Page::Console, "54-menus-hold", 2400),
             (Page::Console, "55-popout", 700),
             (Page::Vpn, "57-vpn", 60),
+            (Page::Monitor, "58-history", 60),
             (Page::Overview, "56-update", 40),
             (Page::Overview, "26-search", 30),
         ];
@@ -1689,6 +1690,9 @@ impl App {
             }
             if name == "57-vpn" {
                 self.vpn_page.demo();
+            }
+            if name == "58-history" {
+                self.monitor.open_tab("history");
             }
             if name == "56-update" {
                 self.updater.demo_dialog();

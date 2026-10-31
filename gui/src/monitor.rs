@@ -22,6 +22,7 @@ enum Tab {
     Path,
     Programs,
     Capture,
+    History,
 }
 
 /// A watched host.
@@ -64,6 +65,10 @@ pub struct Monitor {
     /// State changes: time, host, now up.
     events: Arc<Mutex<Vec<(String, String, bool)>>>,
     seen_events: usize,
+    /// Hosts that suddenly answered much slower: the name and the delay in milliseconds.
+    slow: Arc<Mutex<Vec<(String, u32)>>>,
+    seen_slow: usize,
+    health: crate::health_tab::HealthTab,
     path_input: String,
     path: Arc<Mutex<PathState>>,
     path_stop: Option<Arc<AtomicBool>>,
@@ -82,6 +87,9 @@ impl Default for Monitor {
             interval: Arc::new(AtomicU64::new(1)),
             events: Default::default(),
             seen_events: 0,
+            slow: Default::default(),
+            seen_slow: 0,
+            health: Default::default(),
             path_input: String::new(),
             path: Default::default(),
             path_stop: None,
@@ -228,6 +236,7 @@ impl Monitor {
             "path" => Tab::Path,
             "programs" => Tab::Programs,
             "capture" => Tab::Capture,
+            "history" => Tab::History,
             _ => Tab::Hosts,
         };
     }
@@ -260,7 +269,10 @@ impl Monitor {
         let stop = Arc::new(AtomicBool::new(false));
         self.running = Some(stop.clone());
         let (hosts, interval, events) = (self.hosts.clone(), self.interval.clone(), self.events.clone());
+        let slow = self.slow.clone();
         std::thread::spawn(move || {
+            // The hosts that are slow now, so that each slowdown is told once.
+            let mut slow_now: std::collections::HashSet<IpAddr> = Default::default();
             while !stop.load(Ordering::Relaxed) {
                 let started = std::time::Instant::now();
                 let targets: Vec<IpAddr> = hosts.lock().map(|h| h.iter().map(|x| x.ip).collect()).unwrap_or_default();
@@ -279,6 +291,15 @@ impl Monitor {
                             let before = x.stats.state();
                             x.stats.add(r);
                             let after = x.stats.state();
+                            if x.stats.is_slow() {
+                                if slow_now.insert(ip)
+                                    && let Ok(mut v) = slow.lock()
+                                {
+                                    v.push((x.label.clone(), x.stats.last.unwrap_or_default().round() as u32));
+                                }
+                            } else {
+                                slow_now.remove(&ip);
+                            }
                             if before != after
                                 && (after == State::Down || (before == State::Down && after != State::Down))
                                 && let Ok(mut e) = events.lock()
@@ -302,6 +323,7 @@ impl Monitor {
 
     /// Alerts when a host goes down or comes back, on any page.
     pub fn poll(&mut self, ctx: &egui::Context, sh: &mut Shared) {
+        self.health.poll(ctx, sh);
         let new_events: Vec<(String, String, bool)> =
             self.events.lock().map(|e| e.iter().skip(self.seen_events).cloned().collect()).unwrap_or_default();
         self.seen_events += new_events.len();
@@ -312,6 +334,16 @@ impl Monitor {
                 trf("{host} is down.", &[("host", host)])
             };
             if sh.settings.notifications {
+                crate::notify::send(tr("Network Manager"), &text);
+            }
+            sh.toast(text);
+        }
+        let new_slow: Vec<(String, u32)> =
+            self.slow.lock().map(|e| e.iter().skip(self.seen_slow).cloned().collect()).unwrap_or_default();
+        self.seen_slow += new_slow.len();
+        for (host, ms) in new_slow {
+            let text = trf("{host} is slow: {ms} ms.", &[("host", &host), ("ms", &ms)]);
+            if sh.settings.notifications && sh.settings.notify_slow {
                 crate::notify::send(tr("Network Manager"), &text);
             }
             sh.toast(text);
@@ -335,6 +367,7 @@ impl Monitor {
                 (Tab::Path, icon::PATH, tr("Path analysis (MTR)")),
                 (Tab::Programs, icon::CHART_BAR, tr("Traffic per program")),
                 (Tab::Capture, icon::FILE_MAGNIFYING_GLASS, tr("Packet capture")),
+                (Tab::History, icon::CHART_LINE, tr("Connection history")),
             ],
         );
         ui.add_space(10.0);
@@ -343,6 +376,7 @@ impl Monitor {
             Tab::Path => self.path_tab(ui, p, sh),
             Tab::Programs => self.programs.ui(ui, p, sh),
             Tab::Capture => self.capture.ui(ui, p, sh),
+            Tab::History => self.health.ui(ui, p, sh),
         }
     }
 

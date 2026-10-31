@@ -643,6 +643,7 @@ mod tests {
         include_str!("console.rs"),
         include_str!("devices.rs"),
         include_str!("guide_view.rs"),
+        include_str!("health_tab.rs"),
         include_str!("heatmap.rs"),
         include_str!("help.rs"),
         include_str!("i18n.rs"),
