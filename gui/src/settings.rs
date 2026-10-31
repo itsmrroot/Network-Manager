@@ -269,6 +269,62 @@ fn toggle(ui: &mut Ui, on: &mut bool) {
 }
 
 /// Draws the Settings page.
+/// The settings as a file to keep or to copy to another computer: without the
+/// passwords, and without what belongs to this computer (its adapters, the devices it
+/// has seen, the MAC addresses it changed).
+pub fn export(s: &Settings) -> String {
+    let mut e = Settings {
+        snmp_user: netmgr::usm::User {
+            auth_password: String::new(),
+            privacy_password: String::new(),
+            ..s.snmp_user.clone()
+        },
+        trap_users: s
+            .trap_users
+            .iter()
+            .map(|u| netmgr::usm::User { auth_password: String::new(), privacy_password: String::new(), ..u.clone() })
+            .collect(),
+        original_macs: BTreeMap::new(),
+        known_devices: BTreeSet::new(),
+        dhcp_adapter: String::new(),
+        wifi_manual: None,
+        trap_engine: String::new(),
+        serial_port: String::new(),
+        ..s.clone()
+    };
+    e.sessions.clear();
+    serde_json::to_string_pretty(&e).unwrap_or_default()
+}
+
+/// The settings in `text` (made by [`export`]), with what belongs to this computer taken
+/// from `current`. `None` when `text` is not a settings file.
+pub fn import(current: &Settings, text: &str) -> Option<Settings> {
+    let value: serde_json::Value = serde_json::from_str(text).ok()?;
+    // Every setting has a default, so any JSON object would "work": the file has to
+    // have at least one setting this app knows.
+    let known = serde_json::to_value(Settings::default()).ok()?;
+    let object = value.as_object()?;
+    if !object.keys().any(|k| known.get(k).is_some()) {
+        return None;
+    }
+    let mut new: Settings = serde_json::from_value(value).ok()?;
+    new.sessions = current.sessions.clone();
+    new.original_macs = current.original_macs.clone();
+    new.known_devices = current.known_devices.clone();
+    new.dhcp_adapter = current.dhcp_adapter.clone();
+    new.wifi_manual = current.wifi_manual.clone();
+    new.trap_engine = current.trap_engine.clone();
+    new.serial_port = current.serial_port.clone();
+    new.snmp_user = netmgr::usm::User {
+        auth_password: current.snmp_user.auth_password.clone(),
+        privacy_password: current.snmp_user.privacy_password.clone(),
+        ..new.snmp_user
+    };
+    // The language and the scale are the user's of this computer too, but they are
+    // exactly what a copied setup is for: they come along.
+    Some(new)
+}
+
 pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
     theme::page_title(ui, p, tr("Settings"), tr("Saved automatically."));
 
@@ -485,7 +541,34 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
             );
         });
         ui.add_space(14.0);
-        ui.horizontal(|ui| {
+        let note_id = egui::Id::new("settings-file-note");
+        ui.horizontal_wrapped(|ui| {
+            if theme::secondary_button(ui, &icon_label(icon::EXPORT, tr("Export settings…"))).clicked()
+                && let Some(path) = rfd::FileDialog::new().set_file_name("network-manager-settings.json").save_file()
+            {
+                let note = match std::fs::write(&path, export(s)) {
+                    Ok(()) => trf("Settings saved to {path}.", &[("path", &path.display().to_string())]),
+                    Err(e) => e.to_string(),
+                };
+                ui.data_mut(|d| d.insert_temp(note_id, note));
+            }
+            if theme::secondary_button(ui, &icon_label(icon::DOWNLOAD_SIMPLE, tr("Import settings…"))).clicked()
+                && let Some(path) = rfd::FileDialog::new().add_filter("JSON", &["json"]).pick_file()
+            {
+                // A settings file is small; anything big is something else.
+                let text = std::fs::metadata(&path)
+                    .ok()
+                    .filter(|m| m.len() <= 4 * 1024 * 1024)
+                    .and_then(|_| std::fs::read_to_string(&path).ok());
+                let note = match text.and_then(|t| import(s, &t)) {
+                    Some(new) => {
+                        *s = new;
+                        tr("Settings imported.").to_string()
+                    }
+                    None => tr("This is not a settings file.").to_string(),
+                };
+                ui.data_mut(|d| d.insert_temp(note_id, note));
+            }
             if theme::secondary_button(ui, &icon_label(icon::ARROW_COUNTER_CLOCKWISE, tr("Reset to defaults"))).clicked() {
                 // Device names, original MAC addresses, saved plans and sessions are the user's data.
                 *s = Settings {
@@ -500,6 +583,45 @@ pub fn page(ui: &mut Ui, p: &Palette, s: &mut Settings) {
                 };
             }
         });
+        if let Some(note) = ui.data(|d| d.get_temp::<String>(note_id)) {
+            ui.add_space(4.0);
+            ui.label(RichText::new(note).color(p.weak));
+        }
         ui.add_space(20.0);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_travel_without_passwords_and_machine_data() {
+        let mut a = Settings { theme: ThemeChoice::Light, ui_scale: 1.25, ..Settings::default() };
+        a.snmp_user.name = "monitor".into();
+        a.snmp_user.auth_password = "secret-auth".into();
+        a.original_macs.insert("en0".into(), "aa:bb:cc:dd:ee:ff".into());
+        a.known_devices.insert("11:22:33:44:55:66".into());
+        let file = export(&a);
+        assert!(!file.contains("secret-auth") && !file.contains("aa:bb:cc") && !file.contains("11:22:33"));
+
+        let mut b = Settings::default();
+        b.snmp_user.auth_password = "local".into();
+        b.original_macs.insert("en1".into(), "00:00:00:00:00:01".into());
+        let imported = import(&b, &file).expect("a settings file");
+        assert_eq!((imported.theme, imported.ui_scale), (ThemeChoice::Light, 1.25));
+        assert_eq!(imported.snmp_user.name, "monitor");
+        // This computer keeps its own.
+        assert_eq!(imported.snmp_user.auth_password, "local");
+        assert!(imported.original_macs.contains_key("en1"));
+    }
+
+    #[test]
+    fn other_files_are_not_settings() {
+        let s = Settings::default();
+        assert!(import(&s, "not json").is_none());
+        assert!(import(&s, "[1,2]").is_none());
+        assert!(import(&s, r#"{"name":"x"}"#).is_none());
+        assert!(import(&s, r#"{"theme":"Dark"}"#).is_some());
+    }
 }

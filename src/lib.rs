@@ -14,6 +14,7 @@ pub mod config;
 pub mod console;
 pub mod dhcp;
 pub mod dhcpd;
+pub mod diag;
 pub mod discovery;
 pub mod dns;
 pub mod extras;

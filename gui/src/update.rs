@@ -296,6 +296,12 @@ pub fn clean_old_downloads() {
     }
 }
 
+/// Installers are only fetched from the project's own releases, over HTTPS, whatever a
+/// reply of the release API says.
+fn trusted_url(url: &str) -> bool {
+    url.starts_with("https://github.com/itsmrroot/") && !url.contains("..") && !url.contains('@')
+}
+
 /// Downloads the installer of `release` into a new temporary folder and
 /// checks it. Returns the file and its SHA-256, which [`install`] checks
 /// again right before running it.
@@ -304,6 +310,7 @@ pub fn download(release: &Release, progress: &Progress, cancel: &AtomicBool) -> 
     // GitHub publishes a checksum for every file; without one there is
     // nothing to check the download against.
     ensure!(asset.sha256.is_some(), "the update has no checksum");
+    ensure!(trusted_url(&asset.url), "the update is not on the project's GitHub page");
     let dir = netmgr::cmd::private_dir("netmgr-update")?;
     let path = dir.join(&asset.name);
 
@@ -875,6 +882,11 @@ mod tests {
 
     #[test]
     fn versions_compare_by_number() {
+        assert!(trusted_url("https://github.com/itsmrroot/Network-Manager-releases/releases/download/v1.0.0/x.exe"));
+        assert!(!trusted_url("http://github.com/itsmrroot/Network-Manager-releases/x.exe"));
+        assert!(!trusted_url("https://github.com.evil.example/itsmrroot/x.exe"));
+        assert!(!trusted_url("https://github.com/itsmrroot/../evil/x.exe"));
+        assert!(!trusted_url("https://github.com/itsmrroot/@evil.example/x.exe"));
         assert!(is_newer("v0.3.10", "0.3.9"));
         assert!(is_newer("1.0.0", "0.9.9"));
         assert!(!is_newer("v0.3.1", "0.3.1"));

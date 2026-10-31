@@ -2594,6 +2594,22 @@ pub const GERMAN: &[(&str, &str)] = &[
         "It cannot be told whether names are looked up through the VPN: {v}",
         "Es lässt sich nicht feststellen, ob Namen über das VPN aufgelöst werden: {v}",
     ),
+    ("Copy diagnostic information", "Diagnoseinformationen kopieren"),
+    (
+        "Diagnostic information is the version, your system and the end of the problem log, with IP and MAC addresses and your user folder hidden. It is copied only when you click, and sent nowhere.",
+        "Diagnoseinformationen sind die Version, Ihr System und das Ende des Problemprotokolls, wobei IP- und MAC-Adressen und Ihr Benutzerordner ausgeblendet sind. Sie werden nur auf Ihren Klick kopiert und nirgendwohin gesendet.",
+    ),
+    ("Export settings…", "Einstellungen exportieren…"),
+    ("Import settings…", "Einstellungen importieren…"),
+    ("Legal and support", "Rechtliches und Support"),
+    (
+        "Network Manager is free for noncommercial use under the PolyForm Noncommercial License. It contains open-source software and fonts that keep their own licences.",
+        "Network Manager ist unter der PolyForm Noncommercial License für nichtkommerzielle Nutzung kostenlos. Es enthält Open-Source-Software und Schriften, die ihre eigenen Lizenzen behalten.",
+    ),
+    ("Open-source licences", "Open-Source-Lizenzen"),
+    ("Settings imported.", "Einstellungen importiert."),
+    ("Settings saved to {path}.", "Einstellungen gespeichert unter {path}."),
+    ("This is not a settings file.", "Dies ist keine Einstellungsdatei."),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -5153,6 +5169,22 @@ pub const SPANISH: &[(&str, &str)] = &[
         "It cannot be told whether names are looked up through the VPN: {v}",
         "No se puede saber si los nombres se resuelven a través de la VPN: {v}",
     ),
+    ("Copy diagnostic information", "Copiar información de diagnóstico"),
+    (
+        "Diagnostic information is the version, your system and the end of the problem log, with IP and MAC addresses and your user folder hidden. It is copied only when you click, and sent nowhere.",
+        "La información de diagnóstico es la versión, su sistema y el final del registro de problemas, con las direcciones IP y MAC y su carpeta de usuario ocultas. Solo se copia cuando hace clic y no se envía a ninguna parte.",
+    ),
+    ("Export settings…", "Exportar ajustes…"),
+    ("Import settings…", "Importar ajustes…"),
+    ("Legal and support", "Aspectos legales y soporte"),
+    (
+        "Network Manager is free for noncommercial use under the PolyForm Noncommercial License. It contains open-source software and fonts that keep their own licences.",
+        "Network Manager es gratuito para uso no comercial bajo la PolyForm Noncommercial License. Contiene software de código abierto y fuentes que conservan sus propias licencias.",
+    ),
+    ("Open-source licences", "Licencias de código abierto"),
+    ("Settings imported.", "Ajustes importados."),
+    ("Settings saved to {path}.", "Ajustes guardados en {path}."),
+    ("This is not a settings file.", "Este no es un archivo de ajustes."),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -7739,6 +7771,22 @@ pub const FRENCH: &[(&str, &str)] = &[
         "It cannot be told whether names are looked up through the VPN: {v}",
         "Impossible de savoir si les noms sont résolus par le VPN : {v}",
     ),
+    ("Copy diagnostic information", "Copier les informations de diagnostic"),
+    (
+        "Diagnostic information is the version, your system and the end of the problem log, with IP and MAC addresses and your user folder hidden. It is copied only when you click, and sent nowhere.",
+        "Les informations de diagnostic comprennent la version, votre système et la fin du journal des problèmes, avec les adresses IP et MAC et votre dossier utilisateur masqués. Elles ne sont copiées que sur votre clic et ne sont envoyées nulle part.",
+    ),
+    ("Export settings…", "Exporter les réglages…"),
+    ("Import settings…", "Importer les réglages…"),
+    ("Legal and support", "Mentions légales et assistance"),
+    (
+        "Network Manager is free for noncommercial use under the PolyForm Noncommercial License. It contains open-source software and fonts that keep their own licences.",
+        "Network Manager est gratuit pour un usage non commercial selon la PolyForm Noncommercial License. Il contient des logiciels open source et des polices qui conservent leurs propres licences.",
+    ),
+    ("Open-source licences", "Licences open source"),
+    ("Settings imported.", "Réglages importés."),
+    ("Settings saved to {path}.", "Réglages enregistrés dans {path}."),
+    ("This is not a settings file.", "Ce n'est pas un fichier de réglages."),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -10268,6 +10316,22 @@ pub const TURKISH: &[(&str, &str)] = &[
         "It cannot be told whether names are looked up through the VPN: {v}",
         "Adların VPN üzerinden çözümlenip çözümlenmediği anlaşılamıyor: {v}",
     ),
+    ("Copy diagnostic information", "Tanılama bilgilerini kopyala"),
+    (
+        "Diagnostic information is the version, your system and the end of the problem log, with IP and MAC addresses and your user folder hidden. It is copied only when you click, and sent nowhere.",
+        "Tanılama bilgileri; sürüm, sisteminiz ve sorun günlüğünün sonudur; IP ve MAC adresleri ile kullanıcı klasörünüz gizlenir. Yalnızca tıkladığınızda kopyalanır ve hiçbir yere gönderilmez.",
+    ),
+    ("Export settings…", "Ayarları dışa aktar…"),
+    ("Import settings…", "Ayarları içe aktar…"),
+    ("Legal and support", "Yasal bilgiler ve destek"),
+    (
+        "Network Manager is free for noncommercial use under the PolyForm Noncommercial License. It contains open-source software and fonts that keep their own licences.",
+        "Network Manager, PolyForm Noncommercial License kapsamında ticari olmayan kullanım için ücretsizdir. Kendi lisanslarını koruyan açık kaynaklı yazılımlar ve yazı tipleri içerir.",
+    ),
+    ("Open-source licences", "Açık kaynak lisansları"),
+    ("Settings imported.", "Ayarlar içe aktarıldı."),
+    ("Settings saved to {path}.", "Ayarlar {path} konumuna kaydedildi."),
+    ("This is not a settings file.", "Bu bir ayar dosyası değil."),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -12818,6 +12882,22 @@ pub const RUSSIAN: &[(&str, &str)] = &[
         "It cannot be told whether names are looked up through the VPN: {v}",
         "Невозможно определить, разрешаются ли имена через VPN: {v}",
     ),
+    ("Copy diagnostic information", "Скопировать диагностическую информацию"),
+    (
+        "Diagnostic information is the version, your system and the end of the problem log, with IP and MAC addresses and your user folder hidden. It is copied only when you click, and sent nowhere.",
+        "Диагностическая информация — это версия, ваша система и конец журнала проблем; IP- и MAC-адреса и ваша папка пользователя скрыты. Она копируется только по вашему щелчку и никуда не отправляется.",
+    ),
+    ("Export settings…", "Экспортировать настройки…"),
+    ("Import settings…", "Импортировать настройки…"),
+    ("Legal and support", "Правовая информация и поддержка"),
+    (
+        "Network Manager is free for noncommercial use under the PolyForm Noncommercial License. It contains open-source software and fonts that keep their own licences.",
+        "Network Manager бесплатен для некоммерческого использования по лицензии PolyForm Noncommercial License. Он содержит программы с открытым исходным кодом и шрифты, которые сохраняют свои лицензии.",
+    ),
+    ("Open-source licences", "Лицензии открытого ПО"),
+    ("Settings imported.", "Настройки импортированы."),
+    ("Settings saved to {path}.", "Настройки сохранены в {path}."),
+    ("This is not a settings file.", "Это не файл настроек."),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -15284,6 +15364,22 @@ pub const ARABIC: &[(&str, &str)] = &[
         "It cannot be told whether names are looked up through the VPN: {v}",
         "لا يمكن معرفة ما إذا كانت الأسماء تُحلّ عبر VPN: {v}",
     ),
+    ("Copy diagnostic information", "نسخ معلومات التشخيص"),
+    (
+        "Diagnostic information is the version, your system and the end of the problem log, with IP and MAC addresses and your user folder hidden. It is copied only when you click, and sent nowhere.",
+        "معلومات التشخيص هي الإصدار ونظامك ونهاية سجل المشكلات، مع إخفاء عناوين IP وMAC ومجلد المستخدم الخاص بك. تُنسخ فقط عند النقر ولا تُرسل إلى أي مكان.",
+    ),
+    ("Export settings…", "تصدير الإعدادات…"),
+    ("Import settings…", "استيراد الإعدادات…"),
+    ("Legal and support", "الجانب القانوني والدعم"),
+    (
+        "Network Manager is free for noncommercial use under the PolyForm Noncommercial License. It contains open-source software and fonts that keep their own licences.",
+        "برنامج Network Manager مجاني للاستخدام غير التجاري بموجب PolyForm Noncommercial License. ويحتوي على برامج وخطوط مفتوحة المصدر تحتفظ بتراخيصها الخاصة.",
+    ),
+    ("Open-source licences", "تراخيص البرامج مفتوحة المصدر"),
+    ("Settings imported.", "تم استيراد الإعدادات."),
+    ("Settings saved to {path}.", "تم حفظ الإعدادات في {path}."),
+    ("This is not a settings file.", "هذا ليس ملف إعدادات."),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -17705,4 +17801,20 @@ pub const CHINESE: &[(&str, &str)] = &[
         "IPv6 从 {v} 发出；其服务商未知，因此无法与其余流量比较。",
     ),
     ("It cannot be told whether names are looked up through the VPN: {v}", "无法判断名称是否通过 VPN 解析：{v}"),
+    ("Copy diagnostic information", "复制诊断信息"),
+    (
+        "Diagnostic information is the version, your system and the end of the problem log, with IP and MAC addresses and your user folder hidden. It is copied only when you click, and sent nowhere.",
+        "诊断信息包括版本、您的系统和问题日志的末尾，其中的 IP 和 MAC 地址以及您的用户文件夹已被隐藏。仅在您点击时复制，不会发送到任何地方。",
+    ),
+    ("Export settings…", "导出设置…"),
+    ("Import settings…", "导入设置…"),
+    ("Legal and support", "法律信息与支持"),
+    (
+        "Network Manager is free for noncommercial use under the PolyForm Noncommercial License. It contains open-source software and fonts that keep their own licences.",
+        "Network Manager 依据 PolyForm Noncommercial License 可免费用于非商业用途。它包含开源软件和字体，它们保留各自的许可证。",
+    ),
+    ("Open-source licences", "开源许可证"),
+    ("Settings imported.", "设置已导入。"),
+    ("Settings saved to {path}.", "设置已保存到 {path}。"),
+    ("This is not a settings file.", "这不是设置文件。"),
 ];
