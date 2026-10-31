@@ -245,6 +245,16 @@ pub fn fitted_size(size: egui::Vec2, monitor: egui::Vec2) -> egui::Vec2 {
     size.min(max).max(min)
 }
 
+/// Where the top-left corner of a window of `fitted` goes on a screen of
+/// `monitor` points: centred, but never low enough for its bottom edge to
+/// reach into the SCREEN_MARGIN reserved for the title bar and the taskbar
+/// or Dock (`monitor` is the whole screen, taskbar and Dock included).
+fn safe_corner(monitor: egui::Vec2, fitted: egui::Vec2) -> egui::Vec2 {
+    let centered = ((monitor - fitted) / 2.0).max(egui::Vec2::ZERO);
+    let max_y = (monitor.y - SCREEN_MARGIN - fitted.y).max(0.0);
+    egui::vec2(centered.x, centered.y.min(max_y))
+}
+
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let mut settings: Settings = cc.storage.and_then(|s| eframe::get_value(s, SETTINGS_KEY)).unwrap_or_default();
@@ -607,20 +617,22 @@ impl App {
         let (Some(monitor), Some(inner)) = (monitor, inner) else { return };
         self.fitted = true;
         let size = inner.size();
-        // The first start gets the default size, as large as fits this screen. A size the
-        // user left stays unless it is bigger than the screen.
-        let too_big = if FIRST_RUN.load(std::sync::atomic::Ordering::Relaxed) {
-            fitted_size(size, monitor) != size
+        // The first start has no place to preserve, so it is always placed safely, even
+        // when the default size already fits: the window system's own placement does not
+        // know about the taskbar or Dock (see `safe_corner`). A later start only touches
+        // a window left bigger than this screen.
+        let needs_fit = if FIRST_RUN.load(std::sync::atomic::Ordering::Relaxed) {
+            true
         } else {
             size.x > monitor.x || size.y > monitor.y
         };
-        if maximized || full || !too_big {
+        if maximized || full || !needs_fit {
             return;
         }
         let fitted = fitted_size(size, monitor);
         ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(egui::vec2(MIN_SIZE[0], MIN_SIZE[1]).min(fitted)));
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(fitted));
-        let corner = ((monitor - fitted) / 2.0).max(egui::Vec2::ZERO);
+        let corner = safe_corner(monitor, fitted);
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(corner.to_pos2()));
     }
 
@@ -1023,6 +1035,10 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         self.fit_to_screen(&ctx);
         self.apply_settings(&ctx);
+        // A Paste button next to a session that is not in a window of its own queues its
+        // edit for this, the main window; unlike the menu and its shortcuts, it has not
+        // already drained the queue itself (see `menu::edit`), so this does it instead.
+        menu::take_edits(&ctx);
         let sessions: Vec<menu::SessionEntry> =
             self.shared.settings.sessions.iter().map(|s| (s.name.clone(), s.icon.clone())).collect();
         for c in self.menu.commands(&ctx, i18n::current(), &sessions) {
@@ -1800,5 +1816,17 @@ mod tests {
         // A small screen shrinks it, but never under the smallest size.
         let small = fitted_size(default, egui::vec2(1366.0, 768.0));
         assert!(small.y < default.y && small.x >= MIN_SIZE[0] && small.y >= MIN_SIZE[1]);
+    }
+
+    #[test]
+    fn the_window_never_reaches_into_the_taskbar_margin() {
+        let fitted: egui::Vec2 = DEFAULT_SIZE.into();
+        // A screen only a little taller than the window plus its margin (the taskbar
+        // takes a real bite out of a laptop screen): the previous, naive centering put
+        // the window's bottom edge under the taskbar here.
+        let monitor = egui::vec2(1512.0, 949.0);
+        let corner = safe_corner(monitor, fitted);
+        assert!(corner.y + fitted.y <= monitor.y - SCREEN_MARGIN, "{corner:?} + {fitted:?} on {monitor:?}");
+        assert!(corner.x >= 0.0 && corner.y >= 0.0);
     }
 }

@@ -140,57 +140,99 @@ fn latin1(c: char) -> u8 {
     }
 }
 
-/// The report's text without the Markdown marks, wrapped to `width` characters.
-fn plain_lines(markdown: &str, width: usize) -> Vec<Vec<u8>> {
-    let mut out = Vec::new();
+/// Pads a buffered table's rows into aligned columns (no `|` left in them) and
+/// appends them to `out`, in the plain font. Does nothing for an empty table.
+fn flush_table(out: &mut Vec<(bool, String)>, table: &mut Vec<Vec<String>>) {
+    let cols = table.iter().map(Vec::len).max().unwrap_or(0);
+    let mut widths = vec![0usize; cols];
+    for row in table.iter() {
+        for (i, c) in row.iter().enumerate() {
+            widths[i] = widths[i].max(c.chars().count());
+        }
+    }
+    for row in table.drain(..) {
+        let mut line = String::new();
+        for (i, c) in row.iter().enumerate() {
+            if i > 0 {
+                line.push_str("   ");
+            }
+            line.push_str(c);
+            if i + 1 < cols {
+                line.push_str(&" ".repeat(widths[i].saturating_sub(c.chars().count())));
+            }
+        }
+        out.push((false, line));
+    }
+}
+
+/// The report's text without the Markdown marks, wrapped to `width` characters,
+/// each paired with whether it is a heading (shown in the PDF's bold font).
+fn plain_lines(markdown: &str, width: usize) -> Vec<(bool, Vec<u8>)> {
+    let mut lines: Vec<(bool, String)> = Vec::new();
+    let mut table: Vec<Vec<String>> = Vec::new();
     for raw in markdown.lines() {
         let row = raw.trim_start();
-        let text = if row.starts_with('|') {
-            let row = cells(raw);
-            if row.iter().all(|c| !c.is_empty() && c.chars().all(|ch| matches!(ch, '-' | ':'))) {
+        if row.starts_with('|') {
+            let cells = cells(raw);
+            if cells.iter().all(|c| !c.is_empty() && c.chars().all(|ch| matches!(ch, '-' | ':'))) {
                 continue;
             }
-            if row.iter().all(|c| c.is_empty()) {
+            if cells.iter().all(|c| c.is_empty()) {
                 continue;
             }
-            row.join("  |  ")
-        } else {
-            let indent = raw.len() - row.len();
-            let body = row.trim_start_matches('#').trim_start();
-            let body = if let Some(item) = body.strip_prefix("- ") { format!("- {item}") } else { body.to_string() };
-            format!("{}{body}", " ".repeat(indent))
-        };
+            table.push(cells.into_iter().map(str::to_string).collect());
+            continue;
+        }
+        flush_table(&mut lines, &mut table);
+        let indent = raw.len() - row.len();
+        let heading = row.starts_with('#');
+        let body = row.trim_start_matches('#').trim_start();
+        let body = if let Some(item) = body.strip_prefix("- ") { format!("- {item}") } else { body.to_string() };
+        lines.push((heading, format!("{}{body}", " ".repeat(indent))));
+    }
+    flush_table(&mut lines, &mut table);
+
+    let mut out = Vec::new();
+    for (heading, text) in lines {
         let text = text.replace("**", "").replace('`', "");
         let bytes: Vec<u8> = text.chars().map(latin1).collect();
         if bytes.is_empty() {
-            out.push(bytes);
+            out.push((heading, bytes));
             continue;
         }
         for chunk in bytes.chunks(width) {
-            out.push(chunk.to_vec());
+            out.push((heading, chunk.to_vec()));
         }
     }
     out
 }
 
-/// A PDF with the report as text in a fixed-width font on A4 pages. (Only the
-/// characters of the Western European alphabet are in the font; other letters
+/// A PDF with the report as text in a fixed-width font on A4 pages, headings in
+/// bold and table columns lined up. (Only the characters of the Western European
+/// alphabet are in the font; other letters
 /// show as "?". The HTML export has them all.)
 pub fn to_pdf(markdown: &str) -> Vec<u8> {
     const PER_PAGE: usize = 62;
     let lines = plain_lines(markdown, 88);
-    let pages: Vec<&[Vec<u8>]> = if lines.is_empty() { vec![&[]] } else { lines.chunks(PER_PAGE).collect() };
+    let pages: Vec<&[(bool, Vec<u8>)]> = if lines.is_empty() { vec![&[]] } else { lines.chunks(PER_PAGE).collect() };
     let mut objects: Vec<Vec<u8>> = Vec::new();
-    // 1: catalog, 2: page tree, 3: font, then a content stream and a page for each page.
-    let kids: Vec<String> = (0..pages.len()).map(|i| format!("{} 0 R", 5 + 2 * i)).collect();
+    // 1: catalog, 2: page tree, 3: plain font, 4: bold font (headings), then a
+    // content stream and a page for each page.
+    let kids: Vec<String> = (0..pages.len()).map(|i| format!("{} 0 R", 6 + 2 * i)).collect();
     objects.push(b"<< /Type /Catalog /Pages 2 0 R >>".to_vec());
     objects.push(format!("<< /Type /Pages /Kids [{}] /Count {} >>", kids.join(" "), pages.len()).into_bytes());
     objects.push(b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>".to_vec());
-    // 4 is the content of the first page: the numbering below puts content at 4 + 2i and page at 5 + 2i.
+    objects.push(b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>".to_vec());
+    // 5 is the content of the first page: the numbering below puts content at 5 + 2i and page at 6 + 2i.
     for (i, page) in pages.iter().enumerate() {
         let mut stream = Vec::new();
         stream.extend_from_slice(b"BT /F1 9 Tf 12 TL 50 792 Td\n");
-        for line in *page {
+        let mut bold = false;
+        for (heading, line) in *page {
+            if *heading != bold {
+                bold = *heading;
+                stream.extend_from_slice(if bold { b"/F2 9 Tf\n" } else { b"/F1 9 Tf\n" });
+            }
             stream.push(b'(');
             for &b in line {
                 match b {
@@ -211,8 +253,8 @@ pub fn to_pdf(markdown: &str) -> Vec<u8> {
         objects.push(content);
         objects.push(
             format!(
-                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents {} 0 R >>",
-                4 + 2 * i
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {} 0 R >>",
+                5 + 2 * i
             )
             .into_bytes(),
         );
@@ -282,6 +324,19 @@ mod tests {
             assert!(text[at..].starts_with(&format!("{} 0 obj", i + 1)), "object {}", i + 1);
         }
         assert!(text.contains("(Network report) Tj") && text.contains("Gateway: reachable"));
+    }
+
+    #[test]
+    fn the_pdf_bolds_headings_and_lines_up_table_columns() {
+        let pdf = to_pdf(REPORT);
+        let text = String::from_utf8_lossy(&pdf).to_string();
+        // A heading switches to the bold font and the next, non-heading line switches back.
+        assert!(text.contains("/F2 9 Tf\n(Network report) Tj"), "{text}");
+        assert!(text.contains("/F2 9 Tf\n(Connection check) Tj"), "{text}");
+        assert!(text.contains("/F1 9 Tf\n("), "switches back to the plain font");
+        // The table's one row is padded into a column, not left with its `|` marks.
+        assert!(!text.contains("| Created") && !text.contains("|  |"), "{text}");
+        assert!(text.contains("(Created") && text.contains("2026-10-31"));
     }
 
     #[test]

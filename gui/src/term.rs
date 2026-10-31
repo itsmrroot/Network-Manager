@@ -735,7 +735,11 @@ impl Term {
         let bracketed = self.parser.screen().bracketed_paste();
         let mut out = Vec::new();
         let mods = ui.input(|i| i.modifiers);
-        for e in ui.input(|i| i.events.clone()) {
+        let events = ui.input(|i| i.events.clone());
+        // A window of its own can run this frame's input more than once (egui's extra
+        // passes): without this, a pasted event still in it is sent to the remote again.
+        ui.ctx().input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Paste(_))));
+        for e in events {
             match e {
                 egui::Event::Text(t) => out.extend_from_slice(t.as_bytes()),
                 // Windows and Linux: egui turns Ctrl+C and Ctrl+X into Copy and
@@ -1041,6 +1045,24 @@ mod tests {
 
     fn press(pos: Pos2, pressed: bool) -> Event {
         Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
+    }
+
+    /// A pop-out window's frame can run its UI more than once (egui's extra
+    /// passes): a pasted event still in the input on the second run must not be
+    /// sent to the device again.
+    #[test]
+    fn a_pasted_event_is_not_sent_twice_in_the_same_frame() {
+        let ctx = egui::Context::default();
+        let term = Term::new(1);
+        let input = egui::RawInput { events: vec![Event::Paste("hello".into())], ..Default::default() };
+        let mut passes = Vec::new();
+        let mut output = ctx.run_ui(input, |ui| {
+            passes.push(term.keys(ui, false));
+            passes.push(term.keys(ui, false));
+        });
+        output.textures_delta.clear();
+        assert_eq!(passes[0], b"hello", "{passes:?}");
+        assert!(passes[1].is_empty(), "the second pass sent the paste again: {passes:?}");
     }
 
     /// Dragging over text selects it and copies it; a double-click takes a
