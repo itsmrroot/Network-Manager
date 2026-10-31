@@ -223,11 +223,24 @@ pub const MIN_SIZE: [f32; 2] = [860.0, 560.0];
 /// The height of the menu bar that the themes without a header have (Windows, Linux).
 const MENU_STRIP: f32 = 30.0;
 
-/// The size a window of `size` gets on a screen of `monitor` points: with room
-/// around it (it opens as a window, not over the whole screen), and not under
-/// the smallest size.
+/// Is this the first start (no window place saved)? Set by `main`.
+pub static FIRST_RUN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// What a window cannot use of a screen's height: title bar and the menu bar, Dock or taskbar.
+const SCREEN_MARGIN: f32 = if cfg!(target_os = "macos") {
+    130.0
+} else if cfg!(windows) {
+    90.0
+} else {
+    100.0
+};
+
+/// The size a window of `size` gets on a screen of `monitor` points: the same
+/// everywhere (DEFAULT_SIZE) as long as it fits with its title bar and the
+/// taskbar or Dock, smaller only on a screen that is too small for it, and not
+/// under the smallest size.
 pub fn fitted_size(size: egui::Vec2, monitor: egui::Vec2) -> egui::Vec2 {
-    let max = egui::vec2(monitor.x * 0.86, monitor.y * 0.84);
+    let max = egui::vec2(monitor.x * 0.95, monitor.y - SCREEN_MARGIN);
     let min = egui::vec2(MIN_SIZE[0], MIN_SIZE[1]).min(max);
     size.min(max).max(min)
 }
@@ -594,10 +607,14 @@ impl App {
         let (Some(monitor), Some(inner)) = (monitor, inner) else { return };
         self.fitted = true;
         let size = inner.size();
-        // macOS reports the whole screen, with the menu bar and the Dock: a window that is
-        // as high as the screen would have its bottom edge under the Dock.
-        let room = if cfg!(target_os = "macos") { 100.0 } else { 0.0 };
-        if maximized || full || (size.x <= monitor.x && size.y <= monitor.y - room) {
+        // The first start gets the default size, as large as fits this screen. A size the
+        // user left stays unless it is bigger than the screen.
+        let too_big = if FIRST_RUN.load(std::sync::atomic::Ordering::Relaxed) {
+            fitted_size(size, monitor) != size
+        } else {
+            size.x > monitor.x || size.y > monitor.y
+        };
+        if maximized || full || !too_big {
             return;
         }
         let fitted = fitted_size(size, monitor);
@@ -1761,5 +1778,23 @@ impl App {
             t.waiting = Some(name.to_string());
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_window_opens_at_the_default_size_where_it_fits() {
+        let default: egui::Vec2 = DEFAULT_SIZE.into();
+        // A MacBook, a Full HD screen at 100 % and at 125 %: the same size.
+        for monitor in [egui::vec2(1512.0, 982.0), egui::vec2(1920.0, 1080.0), egui::vec2(1536.0, 864.0)] {
+            let fitted = fitted_size(default, monitor);
+            assert!(fitted.x == default.x && fitted.y >= 700.0, "{monitor:?} -> {fitted:?}");
+        }
+        // A small screen shrinks it, but never under the smallest size.
+        let small = fitted_size(default, egui::vec2(1366.0, 768.0));
+        assert!(small.y < default.y && small.x >= MIN_SIZE[0] && small.y >= MIN_SIZE[1]);
     }
 }

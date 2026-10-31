@@ -145,6 +145,7 @@ fn main() -> eframe::Result {
     // was left in (maximized too): shown once, ready, as VS Code opens. The
     // first time it has the size that fits this screen, in the middle of it.
     let first_run = !window_was_saved();
+    app::FIRST_RUN.store(first_run, std::sync::atomic::Ordering::Relaxed);
     let size = primary_screen().map_or(app::DEFAULT_SIZE.into(), |s| app::fitted_size(app::DEFAULT_SIZE.into(), s));
     // Changed only by the development tour.
     #[allow(unused_mut)]
