@@ -1,6 +1,6 @@
 [package]
 name = "netmgr-gui"
-version = "0.9.27"
+version = "0.9.28"
 edition = "2024"
 rust-version = "1.88"
 description = "Desktop app for Network Manager"

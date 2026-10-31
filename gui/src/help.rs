@@ -134,6 +134,37 @@ fn guides() -> Vec<Guide> {
             ],
         },
         Guide {
+            icon: icon::SHIELD_CHECK,
+            title: tr("VPN and where your traffic goes"),
+            steps: vec![
+                trl(
+                    "Open VPN in the sidebar: it says whether a VPN is on, which adapter it uses, and whether all your traffic or only part of it goes through it.",
+                ),
+                trl(
+                    "\"Check for leaks\" tests whether your public address and DNS servers still show your real provider. \"Where your traffic goes\" lists your routes in plain words.",
+                ),
+                trl(
+                    "If Tailscale is installed, you can connect or disconnect, choose an exit node, keep your local network reachable while one is used, and copy or open an SSH session to your devices.",
+                ),
+                trl("VPN connections kept by the system (IKEv2, L2TP and others) can be switched on and off here too."),
+            ],
+        },
+        Guide {
+            icon: icon::CHART_LINE,
+            title: tr("Watch the connection over time"),
+            steps: vec![
+                trl(
+                    "Monitor → Connection history: choose how often a snapshot is taken, from every 5 to 60 minutes. It runs only while the app is open, and is off until you turn it on.",
+                ),
+                trl(
+                    "A snapshot pings your router and 1.1.1.1, times a name lookup and reads the Wi-Fi signal. The graph shows the last 24 hours, 7 or 30 days; outages are red.",
+                ),
+                trl(
+                    "A notification tells you when the internet is slow, or gone while the router still answers. Settings → Notifications → Slow connections turns it off; Delete history empties the list.",
+                ),
+            ],
+        },
+        Guide {
             icon: icon::TREE_STRUCTURE,
             title: tr("Which switch port is this cable on?"),
             steps: vec![
@@ -400,9 +431,52 @@ fn guides() -> Vec<Guide> {
             icon: icon::FILE_TEXT,
             title: tr("A report for a support ticket"),
             steps: vec![
-                trl("On the Overview, click \"Network report\". After a few seconds of tests, save the file."),
+                trl(
+                    "On the Overview, click \"Network report\". After a few seconds of tests, save it as Markdown, a web page (.html) or a PDF: the name you give the file decides.",
+                ),
                 trl(
                     "It contains the computer, the adapters, Wi-Fi, routes, DNS timing, the connection check and how well the router and the internet answer — never Wi-Fi passwords.",
+                ),
+            ],
+        },
+        Guide {
+            icon: icon::BELL_RINGING,
+            title: tr("Who used my servers?"),
+            steps: vec![
+                trl(
+                    "Servers → Activity lists SSH sign-ins, files fetched or sent, and the first time a device uses a service. It is saved when you close the app.",
+                ),
+                trl(
+                    "Search it, use Save as… for a CSV or text file, or Delete… for the last hours, today, older than some days, between two times, or everything. The dialog says how many entries go and can save a copy first.",
+                ),
+                trl(
+                    "Every server has Stop and Restart. Restart waits until the old server has let go of its port, then starts it again with the same settings.",
+                ),
+            ],
+        },
+        Guide {
+            icon: icon::FLOPPY_DISK,
+            title: tr("Move settings and ask for help"),
+            steps: vec![
+                trl(
+                    "Settings → Export settings saves them to a file, and Import settings loads that file on another computer. Passwords and what belongs to one computer are left out.",
+                ),
+                trl(
+                    "About → Copy diagnostic information copies the version, your system and the end of the problem log, with IP and MAC addresses hidden, to paste into a bug report.",
+                ),
+                trl("About → Open-source licences lists the software inside the app and its licences."),
+            ],
+        },
+        Guide {
+            icon: icon::KEYBOARD,
+            title: tr("Shortcuts and menus"),
+            steps: vec![
+                trl("Ctrl+K (⌘K on a Mac) searches every page, tool and action by name."),
+                trl(
+                    "Ctrl+1 to 9 (⌘1 to 9) open the first pages, Ctrl+, opens Settings, F1 opens this page, and the button at the top left hides the sidebar for more room.",
+                ),
+                trl(
+                    "Windows and Linux show a menu bar at the top of the window (File, Edit, View, Go, Network, Console, Help); F11 fills the screen. On a Mac the menu bar is the system's own.",
                 ),
             ],
         },

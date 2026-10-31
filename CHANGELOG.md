@@ -5,6 +5,34 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.28
+
+### New
+- **Restart for servers:** every server (TFTP, HTTP, syslog, SNMP traps, time,
+  DHCP and the throughput test) has a Restart button next to Stop. It waits
+  until the old server has let go of its port, then starts it again with the
+  same settings.
+- **Activity is kept:** the list of SSH sign-ins, file transfers and services
+  used (Servers → Activity) is saved on your computer and is still there after
+  you close the app. You can search it, save it as a CSV or text file with
+  "Save as…", and delete a part of it with "Delete…": the last hours, today,
+  yesterday, older than some days, between two times, or everything. The
+  dialog says how many entries will go, and can save a copy first.
+- **Help:** new guides for the VPN page, the connection history, the activity
+  and server restart, moving settings and asking for help, and shortcuts and
+  menus; the report guide mentions the web page and PDF.
+- **Reports:** the PDF report has bold headings and tidy table columns.
+
+### Fixed
+- **Wi-Fi QR code (macOS):** if you cancelled the password prompt, a QR code
+  for a network without a password was still shown. The code now only appears
+  once the password is known.
+- **Console windows:** Paste in a console window of its own no longer pastes
+  twice, and the Paste button works for a session that is still in the main
+  window.
+- **Windows:** the window that opens the first time no longer reaches under
+  the taskbar.
+
 ## 0.9.27
 
 ### New

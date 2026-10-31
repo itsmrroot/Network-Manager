@@ -122,9 +122,10 @@ The same design as [Deleted Files Recovery](https://github.com/itsmrroot/Recover
 in **English, German, Spanish, French, Turkish, Russian, Arabic and Chinese**,
 with **Midnight** (default), dark and light themes, **four app icons** (blue, violet, graphite and kiwi —
 the colours follow the icon you pick), accent colours, interface size, a
-Help page with step-by-step guides, and **one-click updates**. On macOS, a **native menu
-bar** (Edit, View, Go, Network, Window, Help) with the usual shortcuts; ⌘1–⌘9 (Ctrl on
-Windows and Linux) jump between pages. **Search everything with ⌘K / Ctrl+K** — every
+Help page with step-by-step guides, and **one-click updates** that ask before they restart the app. On macOS, a **native menu
+bar** (Edit, View, Go, Network, Window, Help) with the usual shortcuts; on Windows and Linux the app draws the same
+menus at the top (File, Edit, View, Go, Network, Console, Help). ⌘1–⌘9 (Ctrl on
+Windows and Linux) jump between pages, and the window opens at the same size on every system. **Search everything with ⌘K / Ctrl+K** — every
 page, tool and action by name — and **Simple mode** hides the engineer pages for home users.
 
 </td>
@@ -338,7 +339,35 @@ take **screenshots**, install apps and move files. It uses the `adb` already
 on your computer and tells you how to install it when it is missing.
 
 </td>
-<td valign="top"></td>
+<td valign="top">
+
+### 🛡️ VPN & Tailscale
+Is a **VPN** on, which adapter carries it, and does **all your traffic or only part** of it go through it? The VPN
+page also runs a **leak check** (public address, DNS servers, IPv6), lists **where your traffic goes** in plain
+words, and manages **Tailscale** (connect, **exit nodes**, keep the local network reachable, copy or SSH to your
+devices) and the VPN connections the system keeps.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 📉 Connection history
+Every 5 to 60 minutes while the app is open (off until you turn it on) a snapshot pings the router and the
+internet, times a name lookup and reads the Wi-Fi signal. A **graph of 24 hours, 7 or 30 days** shows delays and
+**outages**, and a **notification** tells you when the connection suddenly gets slow or the internet is gone while
+the router still answers. Everything stays on your computer.
+
+</td>
+<td valign="top">
+
+### 🧾 Activity, reports & your data
+**Activity** (SSH sign-ins, files fetched or sent, first use of a service) is **saved between runs**, with search,
+**Save as** (CSV or text) and **Delete** for the last hours, today, older than some days, between two times or
+everything. The **network report** saves as Markdown, a **web page or a PDF**; settings can be **exported and
+imported**; **Restart** next to Stop on every server; and the About page lists the **open-source licences** and
+copies **diagnostic information** (addresses hidden) for bug reports.
+
 </td>
 </tr>
 </table>
@@ -354,6 +383,9 @@ on your computer and tells you how to install it when it is missing.
 > **LLDP/CDP** port discovery (LDWin, PortFinder, a LinkSprinter), **rogue DHCP** detection, **MTR/PingPlotter**-style
 > path analysis, a multi-host **ping monitor**, **Tftpd64**-style TFTP and syslog servers, an **iperf**-style
 > throughput test, a **PuTTY**-style serial console, TLS and WHOIS checks, and netstat, route and hosts tools.
+> Versions 0.9.19 to 0.9.28 add a **VPN page** with leak check, routes and Tailscale, a **connection history** with
+> alerts, **reports as web page or PDF**, **saved activity** with delete and export, **restart** for servers, a menu bar for
+> Windows and Linux, and **settings export and import**.
 > Version 0.9 adds **several IP addresses** per adapter and **IPv6** settings, **SNMPv3** (queries, traps and
 > informs), **scheduled backups**, **pushing a configuration** to many switches and **Wi-Fi heat maps** on a floor plan.
 > Version 0.7 adds a **DHCP server** for zero-touch provisioning, an **HTTP file server**, an **SNMP trap receiver**,
@@ -384,12 +416,13 @@ on your computer and tells you how to install it when it is missing.
 | **Overview** | Connected network and signal, local and public IP (with provider and location), router, DNS, link speed, MAC address, live traffic, **Check connection**, **Renew IP**, **Flush DNS**, speed test. |
 | **Adapters** | Every adapter with its status, addresses, DNS, MAC and maker, link speed, MTU and traffic. **Change IP settings** (several IPv4 addresses, IPv6), **Change MAC address**, **Renew IP**, **Turn on/off**, **Undo**. |
 | **Wi-Fi** | The current network in detail; **saved networks with passwords** (show, copy, QR, export); **nearby networks** with a channel chart, width and Wi-Fi generation; **signal and roaming** over time; **heat maps** of the signal on a floor plan. |
+| **VPN** | Whether a VPN is on and which adapter carries it, full or split tunnel, **leak check** (public address, DNS, IPv6), **where your traffic goes** from the routing table, **Tailscale** (connect, exit nodes, devices) and the VPN connections of the system. |
 | **Devices** | Every device on the network with IP, MAC, maker, name and services; new devices marked; your own names for devices; ping, ports, web page and Wake-on-LAN per device; CSV export; **network map**; **free addresses** and IP conflict check; **Bonjour services**. |
 | **Switch port** | The switch, port, VLAN, voice VLAN, PoE and management address of this cable (LLDP/CDP); every DHCP server on the network. |
-| **Monitor** | Ping monitor for many hosts with alerts and export; path analysis (MTR) with a verdict; traffic per program; packet capture with filters and pcap files. |
+| **Monitor** | Ping monitor for many hosts with alerts (also for sudden slowdowns) and export; path analysis (MTR) with a verdict; traffic per program; packet capture with filters and pcap files; **connection history** with a graph and outages. |
 | **Profiles** | Saved IP settings applied to any adapter in one click; shared with the command line. |
 | **Tools** | Ping, Traceroute, DNS lookup (compare resolvers), Port check, Subnet calculator, Network planner, SNMP, Time (NTP), MTU, Wake-on-LAN, MAC lookup, Web & TLS check, WHOIS, Connections, Routes, Hosts file. |
-| **Servers** | TFTP and HTTP file servers, DHCP server with zero-touch options (66, 67, 150, 43), syslog (UDP/TCP, save to file), SNMP trap receiver (v1, v2c, v3), NTP time server, throughput test between two computers. |
+| **Servers** | TFTP and HTTP file servers, DHCP server with zero-touch options (66, 67, 150, 43), syslog (UDP/TCP, save to file), SNMP trap receiver (v1, v2c, v3), NTP time server, throughput test between two computers; **Stop and Restart** for each server; **Activity** and **Logs**, kept between runs. |
 | **Console** | Serial console for console cables; SSH and Telnet sessions in tabs, with saved sessions in groups; **configuration backups** with differences, on a schedule; **push configuration** to many devices; a **CLI guide** to read beside the console; **Android (ADB)** shell, logcat and wireless pairing. |
 
 <table>
@@ -435,7 +468,9 @@ on your computer and tells you how to install it when it is missing.
 with matching colours), accent colour, interface size, notifications (watched hosts and new devices, SSH sign-ins,
 file transfers, other services, sound),
 showing virtual adapters, finding device names and services during scans, forgetting known devices, pings per
-test, the public IP lookup and the update check.
+test, the public IP lookup, the update check, notifications for slow connections and the connection history. Settings can be
+**exported to a file and imported** on another computer (without passwords or anything that belongs to one computer).
+The About page has the **open-source licences** and **Copy diagnostic information** for bug reports.
 
 ## 📥 Install
 
@@ -658,7 +693,10 @@ is truncated), so resolvers can be compared without the system's cache in betwee
 | `console` | Serial ports, terminal screen, SSH/Telnet launcher |
 | `web` | TLS certificates, HTTP redirects, WHOIS (RDAP) |
 | `system` | Connections, routes, hosts file |
-| `report` | The network report |
+| `report`, `report_export` | The network report, and as a web page or PDF |
+| `vpn`, `vpns`, `tailscale`, `routes` | VPN detection, leak check, system VPN connections, Tailscale, the routing table in plain words |
+| `health` | Connection history: snapshots, summary, alerts |
+| `diag` | Diagnostic information with addresses hidden |
 | `internet` | Public IP, speed test, connection check |
 | `subnet` | Subnet calculator |
 | `plan` | Network planner: subnets, VLANs, IPv6 and switch configuration (Cisco, Juniper, Aruba, MikroTik) |
@@ -749,6 +787,8 @@ Nothing about your networks, devices or passwords is ever sent.
 
 ## 🗺️ Roadmap
 
+Done in 0.9.x: ~~VPN page and Tailscale~~, ~~connection history~~, ~~reports as HTML and PDF~~, ~~saved activity~~,
+~~settings export and import~~, ~~menu bar on Windows and Linux~~.
 Done in 0.9: ~~several IP addresses and IPv6 settings~~, ~~SNMPv3~~, ~~scheduled backups and pushing a
 configuration~~, ~~Wi-Fi heat maps~~.
 Done in 0.7: ~~DHCP server with zero-touch provisioning~~, ~~HTTP file server~~, ~~SNMP trap receiver~~,

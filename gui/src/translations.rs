@@ -606,10 +606,6 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("Offers", "Bietet an"),
     ("On", "Ein"),
     (
-        "On the Overview, click \"Network report\". After a few seconds of tests, save the file.",
-        "Klicken Sie in der Übersicht auf „Netzwerkbericht“. Speichern Sie die Datei nach einigen Sekunden Tests.",
-    ),
-    (
         "On the Switch port page, click \"Find DHCP servers\". Every server that answers is listed with the address, router and DNS it hands out.",
         "Klicken Sie auf der Seite „Switch-Port“ auf „DHCP-Server suchen“. Jeder antwortende Server wird mit Adresse, Router und DNS aufgeführt, die er vergibt.",
     ),
@@ -2662,6 +2658,79 @@ pub const GERMAN: &[(&str, &str)] = &[
     ("hours", "Stunden"),
     ("{n} entries deleted.", "{n} Einträge gelöscht."),
     ("{n} entries will be deleted.", "{n} Einträge werden gelöscht."),
+    (
+        "\"Check for leaks\" tests whether your public address and DNS servers still show your real provider. \"Where your traffic goes\" lists your routes in plain words.",
+        "„Auf Lecks prüfen\" testet, ob Ihre öffentliche Adresse und Ihre DNS-Server noch Ihren echten Anbieter zeigen. „Wohin Ihr Datenverkehr geht\" listet Ihre Routen in einfachen Worten auf.",
+    ),
+    (
+        "A notification tells you when the internet is slow, or gone while the router still answers. Settings → Notifications → Slow connections turns it off; Delete history empties the list.",
+        "Eine Benachrichtigung sagt Ihnen, wenn das Internet langsam oder weg ist, während der Router noch antwortet. Einstellungen → Benachrichtigungen → Langsame Verbindungen schaltet sie aus; „Verlauf löschen\" leert die Liste.",
+    ),
+    (
+        "A snapshot pings your router and 1.1.1.1, times a name lookup and reads the Wi-Fi signal. The graph shows the last 24 hours, 7 or 30 days; outages are red.",
+        "Eine Momentaufnahme pingt Ihren Router und 1.1.1.1, misst eine Namensauflösung und liest das WLAN-Signal. Das Diagramm zeigt die letzten 24 Stunden, 7 oder 30 Tage; Ausfälle sind rot.",
+    ),
+    (
+        "About → Copy diagnostic information copies the version, your system and the end of the problem log, with IP and MAC addresses hidden, to paste into a bug report.",
+        "Info → Diagnoseinformationen kopieren kopiert die Version, Ihr System und das Ende des Problemprotokolls, wobei IP- und MAC-Adressen ausgeblendet sind, zum Einfügen in einen Fehlerbericht.",
+    ),
+    (
+        "About → Open-source licences lists the software inside the app and its licences.",
+        "Info → Open-Source-Lizenzen listet die Software in der App und ihre Lizenzen auf.",
+    ),
+    (
+        "Ctrl+1 to 9 (⌘1 to 9) open the first pages, Ctrl+, opens Settings, F1 opens this page, and the button at the top left hides the sidebar for more room.",
+        "Strg+1 bis 9 (⌘1 bis 9) öffnen die ersten Seiten, Strg+, öffnet die Einstellungen, F1 diese Seite, und die Schaltfläche oben links blendet die Seitenleiste für mehr Platz aus.",
+    ),
+    (
+        "Ctrl+K (⌘K on a Mac) searches every page, tool and action by name.",
+        "Strg+K (⌘K auf dem Mac) durchsucht jede Seite, jedes Werkzeug und jede Aktion nach Namen.",
+    ),
+    (
+        "Every server has Stop and Restart. Restart waits until the old server has let go of its port, then starts it again with the same settings.",
+        "Jeder Server hat Stopp und Neustart. Neustart wartet, bis der alte Server seinen Port freigegeben hat, und startet ihn dann mit denselben Einstellungen neu.",
+    ),
+    (
+        "If Tailscale is installed, you can connect or disconnect, choose an exit node, keep your local network reachable while one is used, and copy or open an SSH session to your devices.",
+        "Wenn Tailscale installiert ist, können Sie die Verbindung trennen oder herstellen, einen Exit-Node wählen, Ihr lokales Netzwerk erreichbar halten, solange einer genutzt wird, und eine SSH-Sitzung zu Ihren Geräten kopieren oder öffnen.",
+    ),
+    (
+        "Monitor → Connection history: choose how often a snapshot is taken, from every 5 to 60 minutes. It runs only while the app is open, and is off until you turn it on.",
+        "Überwachung → Verbindungsverlauf: Wählen Sie, wie oft eine Momentaufnahme gemacht wird, von alle 5 bis 60 Minuten. Er läuft nur, solange die App geöffnet ist, und ist aus, bis Sie ihn einschalten.",
+    ),
+    ("Move settings and ask for help", "Einstellungen übertragen und Hilfe holen"),
+    (
+        "On the Overview, click \"Network report\". After a few seconds of tests, save it as Markdown, a web page (.html) or a PDF: the name you give the file decides.",
+        "Klicken Sie in der Übersicht auf „Netzwerkbericht\". Speichern Sie ihn nach einigen Sekunden Tests als Markdown, Webseite (.html) oder PDF: Der Dateiname entscheidet.",
+    ),
+    (
+        "Open VPN in the sidebar: it says whether a VPN is on, which adapter it uses, and whether all your traffic or only part of it goes through it.",
+        "Öffnen Sie VPN in der Seitenleiste: Es zeigt, ob ein VPN an ist, welchen Adapter es nutzt und ob Ihr gesamter Datenverkehr oder nur ein Teil darüber läuft.",
+    ),
+    (
+        "Search it, use Save as… for a CSV or text file, or Delete… for the last hours, today, older than some days, between two times, or everything. The dialog says how many entries go and can save a copy first.",
+        "Durchsuchen Sie ihn, nutzen Sie „Speichern unter…\" für eine CSV- oder Textdatei oder „Löschen…\" für die letzten Stunden, heute, älter als einige Tage, zwischen zwei Zeitpunkten oder alles. Der Dialog nennt die Zahl der Einträge und kann vorher eine Kopie speichern.",
+    ),
+    (
+        "Servers → Activity lists SSH sign-ins, files fetched or sent, and the first time a device uses a service. It is saved when you close the app.",
+        "Server → Aktivität listet SSH-Anmeldungen, abgeholte oder gesendete Dateien und das erste Mal, dass ein Gerät einen Dienst nutzt. Sie wird beim Schließen der App gespeichert.",
+    ),
+    (
+        "Settings → Export settings saves them to a file, and Import settings loads that file on another computer. Passwords and what belongs to one computer are left out.",
+        "Einstellungen → Einstellungen exportieren speichert sie in einer Datei, und „Einstellungen importieren\" lädt diese Datei auf einem anderen Computer. Passwörter und was zu einem Computer gehört, bleiben außen vor.",
+    ),
+    ("Shortcuts and menus", "Tastenkürzel und Menüs"),
+    ("VPN and where your traffic goes", "VPN und wohin Ihr Datenverkehr geht"),
+    (
+        "VPN connections kept by the system (IKEv2, L2TP and others) can be switched on and off here too.",
+        "Vom System verwaltete VPN-Verbindungen (IKEv2, L2TP und andere) lassen sich hier ebenfalls ein- und ausschalten.",
+    ),
+    ("Watch the connection over time", "Die Verbindung über die Zeit beobachten"),
+    ("Who used my servers?", "Wer hat meine Server genutzt?"),
+    (
+        "Windows and Linux show a menu bar at the top of the window (File, Edit, View, Go, Network, Console, Help); F11 fills the screen. On a Mac the menu bar is the system's own.",
+        "Windows und Linux zeigen oben im Fenster eine Menüleiste (Datei, Bearbeiten, Darstellung, Gehe zu, Netzwerk, Konsole, Hilfe); F11 füllt den Bildschirm. Auf dem Mac ist die Menüleiste die des Systems.",
+    ),
 ];
 
 pub const SPANISH: &[(&str, &str)] = &[
@@ -3256,10 +3325,6 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("Off", "No"),
     ("Offers", "Ofrece"),
     ("On", "Sí"),
-    (
-        "On the Overview, click \"Network report\". After a few seconds of tests, save the file.",
-        "En Resumen, haga clic en «Informe de red». Tras unos segundos de pruebas, guarde el archivo.",
-    ),
     (
         "On the Switch port page, click \"Find DHCP servers\". Every server that answers is listed with the address, router and DNS it hands out.",
         "En la página Puerto del switch, haga clic en «Buscar servidores DHCP». Cada servidor que responde aparece con la dirección, el router y el DNS que entrega.",
@@ -5289,6 +5354,79 @@ pub const SPANISH: &[(&str, &str)] = &[
     ("hours", "horas"),
     ("{n} entries deleted.", "{n} entradas borradas."),
     ("{n} entries will be deleted.", "Se borrarán {n} entradas."),
+    (
+        "\"Check for leaks\" tests whether your public address and DNS servers still show your real provider. \"Where your traffic goes\" lists your routes in plain words.",
+        "«Comprobar fugas» prueba si su dirección pública y sus servidores DNS siguen mostrando a su proveedor real. «Adónde va su tráfico» enumera sus rutas en palabras sencillas.",
+    ),
+    (
+        "A notification tells you when the internet is slow, or gone while the router still answers. Settings → Notifications → Slow connections turns it off; Delete history empties the list.",
+        "Una notificación le avisa cuando internet va lento, o se ha ido mientras el router sigue respondiendo. Ajustes → Notificaciones → Conexiones lentas la desactiva; «Borrar historial» vacía la lista.",
+    ),
+    (
+        "A snapshot pings your router and 1.1.1.1, times a name lookup and reads the Wi-Fi signal. The graph shows the last 24 hours, 7 or 30 days; outages are red.",
+        "Una instantánea hace ping a su router y a 1.1.1.1, mide una resolución de nombre y lee la señal Wi-Fi. El gráfico muestra las últimas 24 horas, 7 o 30 días; los cortes aparecen en rojo.",
+    ),
+    (
+        "About → Copy diagnostic information copies the version, your system and the end of the problem log, with IP and MAC addresses hidden, to paste into a bug report.",
+        "Acerca de → Copiar información de diagnóstico copia la versión, su sistema y el final del registro de problemas, con las direcciones IP y MAC ocultas, para pegarlo en un informe de error.",
+    ),
+    (
+        "About → Open-source licences lists the software inside the app and its licences.",
+        "Acerca de → Licencias de código abierto enumera el software incluido en la aplicación y sus licencias.",
+    ),
+    (
+        "Ctrl+1 to 9 (⌘1 to 9) open the first pages, Ctrl+, opens Settings, F1 opens this page, and the button at the top left hides the sidebar for more room.",
+        "Ctrl+1 a 9 (⌘1 a 9) abren las primeras páginas, Ctrl+, abre Ajustes, F1 abre esta página y el botón de arriba a la izquierda oculta la barra lateral para tener más espacio.",
+    ),
+    (
+        "Ctrl+K (⌘K on a Mac) searches every page, tool and action by name.",
+        "Ctrl+K (⌘K en un Mac) busca por nombre en todas las páginas, herramientas y acciones.",
+    ),
+    (
+        "Every server has Stop and Restart. Restart waits until the old server has let go of its port, then starts it again with the same settings.",
+        "Cada servidor tiene Detener y Reiniciar. Reiniciar espera a que el servidor anterior libere su puerto y lo vuelve a iniciar con los mismos ajustes.",
+    ),
+    (
+        "If Tailscale is installed, you can connect or disconnect, choose an exit node, keep your local network reachable while one is used, and copy or open an SSH session to your devices.",
+        "Si Tailscale está instalado, puede conectar o desconectar, elegir un nodo de salida, mantener accesible su red local mientras se usa uno, y copiar o abrir una sesión SSH a sus dispositivos.",
+    ),
+    (
+        "Monitor → Connection history: choose how often a snapshot is taken, from every 5 to 60 minutes. It runs only while the app is open, and is off until you turn it on.",
+        "Monitor → Historial de conexión: elija con qué frecuencia se hace una instantánea, de cada 5 a 60 minutos. Solo funciona mientras la aplicación está abierta y está desactivado hasta que lo active.",
+    ),
+    ("Move settings and ask for help", "Mover los ajustes y pedir ayuda"),
+    (
+        "On the Overview, click \"Network report\". After a few seconds of tests, save it as Markdown, a web page (.html) or a PDF: the name you give the file decides.",
+        "En el Resumen, haga clic en «Informe de red». Tras unos segundos de pruebas, guárdelo como Markdown, página web (.html) o PDF: lo decide el nombre que dé al archivo.",
+    ),
+    (
+        "Open VPN in the sidebar: it says whether a VPN is on, which adapter it uses, and whether all your traffic or only part of it goes through it.",
+        "Abra VPN en la barra lateral: indica si hay una VPN activa, qué adaptador usa y si todo su tráfico o solo una parte pasa por ella.",
+    ),
+    (
+        "Search it, use Save as… for a CSV or text file, or Delete… for the last hours, today, older than some days, between two times, or everything. The dialog says how many entries go and can save a copy first.",
+        "Búsquelo, use «Guardar como…» para un archivo CSV o de texto, o «Borrar…» para las últimas horas, hoy, más antiguo que unos días, entre dos momentos o todo. El cuadro indica cuántas entradas se borran y puede guardar antes una copia.",
+    ),
+    (
+        "Servers → Activity lists SSH sign-ins, files fetched or sent, and the first time a device uses a service. It is saved when you close the app.",
+        "Servidores → Actividad enumera los inicios de sesión SSH, los archivos descargados o enviados y la primera vez que un dispositivo usa un servicio. Se guarda al cerrar la aplicación.",
+    ),
+    (
+        "Settings → Export settings saves them to a file, and Import settings loads that file on another computer. Passwords and what belongs to one computer are left out.",
+        "Ajustes → Exportar ajustes los guarda en un archivo, e «Importar ajustes» carga ese archivo en otro equipo. Las contraseñas y lo que pertenece a un solo equipo se dejan fuera.",
+    ),
+    ("Shortcuts and menus", "Atajos y menús"),
+    ("VPN and where your traffic goes", "VPN y adónde va su tráfico"),
+    (
+        "VPN connections kept by the system (IKEv2, L2TP and others) can be switched on and off here too.",
+        "Las conexiones VPN que guarda el sistema (IKEv2, L2TP y otras) también se pueden activar y desactivar aquí.",
+    ),
+    ("Watch the connection over time", "Vigilar la conexión a lo largo del tiempo"),
+    ("Who used my servers?", "¿Quién ha usado mis servidores?"),
+    (
+        "Windows and Linux show a menu bar at the top of the window (File, Edit, View, Go, Network, Console, Help); F11 fills the screen. On a Mac the menu bar is the system's own.",
+        "Windows y Linux muestran una barra de menús en la parte superior de la ventana (Archivo, Edición, Visualización, Ir, Red, Consola, Ayuda); F11 ocupa toda la pantalla. En un Mac, la barra de menús es la del sistema.",
+    ),
 ];
 
 pub const FRENCH: &[(&str, &str)] = &[
@@ -5889,10 +6027,6 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("Off", "Désactivé"),
     ("Offers", "Propose"),
     ("On", "Activé"),
-    (
-        "On the Overview, click \"Network report\". After a few seconds of tests, save the file.",
-        "Dans l'aperçu, cliquez sur « Rapport réseau ». Après quelques secondes de tests, enregistrez le fichier.",
-    ),
     (
         "On the Switch port page, click \"Find DHCP servers\". Every server that answers is listed with the address, router and DNS it hands out.",
         "Sur la page Port du switch, cliquez sur « Trouver les serveurs DHCP ». Chaque serveur qui répond est listé avec l'adresse, le routeur et le DNS qu'il distribue.",
@@ -7943,6 +8077,79 @@ pub const FRENCH: &[(&str, &str)] = &[
     ("hours", "heures"),
     ("{n} entries deleted.", "{n} entrées supprimées."),
     ("{n} entries will be deleted.", "{n} entrées seront supprimées."),
+    (
+        "\"Check for leaks\" tests whether your public address and DNS servers still show your real provider. \"Where your traffic goes\" lists your routes in plain words.",
+        "« Vérifier les fuites » teste si votre adresse publique et vos serveurs DNS montrent encore votre vrai fournisseur. « Où va votre trafic » énumère vos routes en termes simples.",
+    ),
+    (
+        "A notification tells you when the internet is slow, or gone while the router still answers. Settings → Notifications → Slow connections turns it off; Delete history empties the list.",
+        "Une notification vous prévient quand internet est lent, ou coupé alors que le routeur répond encore. Réglages → Notifications → Connexions lentes la désactive ; « Supprimer l'historique » vide la liste.",
+    ),
+    (
+        "A snapshot pings your router and 1.1.1.1, times a name lookup and reads the Wi-Fi signal. The graph shows the last 24 hours, 7 or 30 days; outages are red.",
+        "Un instantané envoie un ping à votre routeur et à 1.1.1.1, mesure une résolution de nom et lit le signal Wi-Fi. Le graphique montre les dernières 24 heures, 7 ou 30 jours ; les coupures sont en rouge.",
+    ),
+    (
+        "About → Copy diagnostic information copies the version, your system and the end of the problem log, with IP and MAC addresses hidden, to paste into a bug report.",
+        "À propos → Copier les informations de diagnostic copie la version, votre système et la fin du journal des problèmes, adresses IP et MAC masquées, à coller dans un rapport de bogue.",
+    ),
+    (
+        "About → Open-source licences lists the software inside the app and its licences.",
+        "À propos → Licences open source énumère les logiciels inclus dans l'application et leurs licences.",
+    ),
+    (
+        "Ctrl+1 to 9 (⌘1 to 9) open the first pages, Ctrl+, opens Settings, F1 opens this page, and the button at the top left hides the sidebar for more room.",
+        "Ctrl+1 à 9 (⌘1 à 9) ouvrent les premières pages, Ctrl+, ouvre les Réglages, F1 cette page, et le bouton en haut à gauche masque la barre latérale pour gagner de la place.",
+    ),
+    (
+        "Ctrl+K (⌘K on a Mac) searches every page, tool and action by name.",
+        "Ctrl+K (⌘K sur un Mac) recherche par nom dans toutes les pages, tous les outils et toutes les actions.",
+    ),
+    (
+        "Every server has Stop and Restart. Restart waits until the old server has let go of its port, then starts it again with the same settings.",
+        "Chaque serveur a Arrêter et Redémarrer. Redémarrer attend que l'ancien serveur ait libéré son port, puis le relance avec les mêmes réglages.",
+    ),
+    (
+        "If Tailscale is installed, you can connect or disconnect, choose an exit node, keep your local network reachable while one is used, and copy or open an SSH session to your devices.",
+        "Si Tailscale est installé, vous pouvez vous connecter ou vous déconnecter, choisir un nœud de sortie, garder votre réseau local accessible pendant qu'un nœud est utilisé, et copier ou ouvrir une session SSH vers vos appareils.",
+    ),
+    (
+        "Monitor → Connection history: choose how often a snapshot is taken, from every 5 to 60 minutes. It runs only while the app is open, and is off until you turn it on.",
+        "Moniteur → Historique de connexion : choisissez la fréquence des instantanés, de toutes les 5 à 60 minutes. Il ne fonctionne que lorsque l'application est ouverte et reste désactivé jusqu'à ce que vous l'activiez.",
+    ),
+    ("Move settings and ask for help", "Déplacer les réglages et demander de l'aide"),
+    (
+        "On the Overview, click \"Network report\". After a few seconds of tests, save it as Markdown, a web page (.html) or a PDF: the name you give the file decides.",
+        "Dans l'Aperçu, cliquez sur « Rapport réseau ». Après quelques secondes de tests, enregistrez-le en Markdown, en page web (.html) ou en PDF : le nom du fichier décide.",
+    ),
+    (
+        "Open VPN in the sidebar: it says whether a VPN is on, which adapter it uses, and whether all your traffic or only part of it goes through it.",
+        "Ouvrez VPN dans la barre latérale : elle indique si un VPN est actif, quel adaptateur il utilise et si tout votre trafic ou seulement une partie y passe.",
+    ),
+    (
+        "Search it, use Save as… for a CSV or text file, or Delete… for the last hours, today, older than some days, between two times, or everything. The dialog says how many entries go and can save a copy first.",
+        "Recherchez-y, utilisez « Enregistrer sous… » pour un fichier CSV ou texte, ou « Supprimer… » pour les dernières heures, aujourd'hui, plus ancien que quelques jours, entre deux moments ou tout. La boîte indique combien d'entrées partent et peut d'abord enregistrer une copie.",
+    ),
+    (
+        "Servers → Activity lists SSH sign-ins, files fetched or sent, and the first time a device uses a service. It is saved when you close the app.",
+        "Serveurs → Activité énumère les connexions SSH, les fichiers récupérés ou envoyés et la première utilisation d'un service par un appareil. Elle est enregistrée à la fermeture de l'application.",
+    ),
+    (
+        "Settings → Export settings saves them to a file, and Import settings loads that file on another computer. Passwords and what belongs to one computer are left out.",
+        "Réglages → Exporter les réglages les enregistre dans un fichier, et « Importer les réglages » charge ce fichier sur un autre ordinateur. Les mots de passe et ce qui appartient à un seul ordinateur sont exclus.",
+    ),
+    ("Shortcuts and menus", "Raccourcis et menus"),
+    ("VPN and where your traffic goes", "VPN et où va votre trafic"),
+    (
+        "VPN connections kept by the system (IKEv2, L2TP and others) can be switched on and off here too.",
+        "Les connexions VPN gérées par le système (IKEv2, L2TP et autres) peuvent aussi être activées et désactivées ici.",
+    ),
+    ("Watch the connection over time", "Surveiller la connexion dans le temps"),
+    ("Who used my servers?", "Qui a utilisé mes serveurs ?"),
+    (
+        "Windows and Linux show a menu bar at the top of the window (File, Edit, View, Go, Network, Console, Help); F11 fills the screen. On a Mac the menu bar is the system's own.",
+        "Windows et Linux affichent une barre de menus en haut de la fenêtre (Fichier, Édition, Affichage, Aller, Réseau, Console, Aide) ; F11 plein écran. Sur un Mac, la barre de menus est celle du système.",
+    ),
 ];
 
 pub const TURKISH: &[(&str, &str)] = &[
@@ -8522,10 +8729,6 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("Off", "Kapalı"),
     ("Offers", "Sunduğu"),
     ("On", "Açık"),
-    (
-        "On the Overview, click \"Network report\". After a few seconds of tests, save the file.",
-        "Genel Bakış'ta “Ağ raporu”na tıklayın. Birkaç saniyelik testlerden sonra dosyayı kaydedin.",
-    ),
     (
         "On the Switch port page, click \"Find DHCP servers\". Every server that answers is listed with the address, router and DNS it hands out.",
         "Switch portu sayfasında “DHCP sunucularını bul”a tıklayın. Yanıt veren her sunucu dağıttığı adres, yönlendirici ve DNS ile listelenir.",
@@ -10540,6 +10743,79 @@ pub const TURKISH: &[(&str, &str)] = &[
     ("hours", "saat"),
     ("{n} entries deleted.", "{n} giriş silindi."),
     ("{n} entries will be deleted.", "{n} giriş silinecek."),
+    (
+        "\"Check for leaks\" tests whether your public address and DNS servers still show your real provider. \"Where your traffic goes\" lists your routes in plain words.",
+        "\"Sızıntıları denetle\", genel adresinizin ve DNS sunucularınızın hâlâ gerçek sağlayıcınızı gösterip göstermediğini sınar. \"Trafiğiniz nereye gidiyor\" yollarınızı sade sözcüklerle listeler.",
+    ),
+    (
+        "A notification tells you when the internet is slow, or gone while the router still answers. Settings → Notifications → Slow connections turns it off; Delete history empties the list.",
+        "İnternet yavaşladığında ya da yönlendirici hâlâ yanıt verirken kesildiğinde bir bildirim sizi uyarır. Ayarlar → Bildirimler → Yavaş bağlantılar bunu kapatır; \"Geçmişi sil\" listeyi boşaltır.",
+    ),
+    (
+        "A snapshot pings your router and 1.1.1.1, times a name lookup and reads the Wi-Fi signal. The graph shows the last 24 hours, 7 or 30 days; outages are red.",
+        "Bir anlık görüntü yönlendiricinize ve 1.1.1.1'e ping atar, bir ad çözümlemesini ölçer ve Wi-Fi sinyalini okur. Grafik son 24 saati, 7 veya 30 günü gösterir; kesintiler kırmızıdır.",
+    ),
+    (
+        "About → Copy diagnostic information copies the version, your system and the end of the problem log, with IP and MAC addresses hidden, to paste into a bug report.",
+        "Hakkında → Tanılama bilgilerini kopyala; sürümü, sisteminizi ve sorun günlüğünün sonunu, IP ve MAC adresleri gizlenmiş olarak, bir hata raporuna yapıştırmak üzere kopyalar.",
+    ),
+    (
+        "About → Open-source licences lists the software inside the app and its licences.",
+        "Hakkında → Açık kaynak lisansları, uygulamanın içindeki yazılımları ve lisanslarını listeler.",
+    ),
+    (
+        "Ctrl+1 to 9 (⌘1 to 9) open the first pages, Ctrl+, opens Settings, F1 opens this page, and the button at the top left hides the sidebar for more room.",
+        "Ctrl+1–9 (⌘1–9) ilk sayfaları açar, Ctrl+, Ayarlar'ı, F1 bu sayfayı açar; sol üstteki düğme daha fazla yer için kenar çubuğunu gizler.",
+    ),
+    (
+        "Ctrl+K (⌘K on a Mac) searches every page, tool and action by name.",
+        "Ctrl+K (Mac'te ⌘K) her sayfayı, aracı ve eylemi adına göre arar.",
+    ),
+    (
+        "Every server has Stop and Restart. Restart waits until the old server has let go of its port, then starts it again with the same settings.",
+        "Her sunucunun Durdur ve Yeniden başlat düğmesi vardır. Yeniden başlat, eski sunucunun bağlantı noktasını bırakmasını bekler, sonra aynı ayarlarla yeniden başlatır.",
+    ),
+    (
+        "If Tailscale is installed, you can connect or disconnect, choose an exit node, keep your local network reachable while one is used, and copy or open an SSH session to your devices.",
+        "Tailscale yüklüyse bağlanabilir veya bağlantıyı kesebilir, çıkış düğümü seçebilir, biri kullanılırken yerel ağınıza erişimi sürdürebilir ve cihazlarınıza SSH oturumu kopyalayabilir veya açabilirsiniz.",
+    ),
+    (
+        "Monitor → Connection history: choose how often a snapshot is taken, from every 5 to 60 minutes. It runs only while the app is open, and is off until you turn it on.",
+        "İzleme → Bağlantı geçmişi: anlık görüntünün ne sıklıkla alınacağını 5 ile 60 dakika arasında seçin. Yalnızca uygulama açıkken çalışır ve siz açana kadar kapalıdır.",
+    ),
+    ("Move settings and ask for help", "Ayarları taşıma ve yardım isteme"),
+    (
+        "On the Overview, click \"Network report\". After a few seconds of tests, save it as Markdown, a web page (.html) or a PDF: the name you give the file decides.",
+        "Genel Bakış'ta \"Ağ raporu\"na tıklayın. Birkaç saniyelik testten sonra Markdown, web sayfası (.html) veya PDF olarak kaydedin: dosyaya verdiğiniz ad belirler.",
+    ),
+    (
+        "Open VPN in the sidebar: it says whether a VPN is on, which adapter it uses, and whether all your traffic or only part of it goes through it.",
+        "Kenar çubuğunda VPN'i açın: VPN'in açık olup olmadığını, hangi bağdaştırıcıyı kullandığını ve trafiğinizin tamamının mı yoksa bir kısmının mı içinden geçtiğini söyler.",
+    ),
+    (
+        "Search it, use Save as… for a CSV or text file, or Delete… for the last hours, today, older than some days, between two times, or everything. The dialog says how many entries go and can save a copy first.",
+        "İçinde arayın, CSV veya metin dosyası için \"Farklı kaydet…\", son saatler, bugün, birkaç günden eski, iki zaman arası veya hepsi için \"Sil…\" kullanın. Pencere kaç girişin gideceğini söyler ve önce bir kopya kaydedebilir.",
+    ),
+    (
+        "Servers → Activity lists SSH sign-ins, files fetched or sent, and the first time a device uses a service. It is saved when you close the app.",
+        "Sunucular → Etkinlik; SSH girişlerini, alınan veya gönderilen dosyaları ve bir cihazın bir hizmeti ilk kullanışını listeler. Uygulamayı kapattığınızda kaydedilir.",
+    ),
+    (
+        "Settings → Export settings saves them to a file, and Import settings loads that file on another computer. Passwords and what belongs to one computer are left out.",
+        "Ayarlar → Ayarları dışa aktar bunları bir dosyaya kaydeder, \"Ayarları içe aktar\" ise o dosyayı başka bir bilgisayarda yükler. Parolalar ve tek bir bilgisayara ait olanlar dışarıda bırakılır.",
+    ),
+    ("Shortcuts and menus", "Kısayollar ve menüler"),
+    ("VPN and where your traffic goes", "VPN ve trafiğiniz nereye gidiyor"),
+    (
+        "VPN connections kept by the system (IKEv2, L2TP and others) can be switched on and off here too.",
+        "Sistemin tuttuğu VPN bağlantıları (IKEv2, L2TP ve diğerleri) burada da açılıp kapatılabilir.",
+    ),
+    ("Watch the connection over time", "Bağlantıyı zaman içinde izleyin"),
+    ("Who used my servers?", "Sunucularımı kim kullandı?"),
+    (
+        "Windows and Linux show a menu bar at the top of the window (File, Edit, View, Go, Network, Console, Help); F11 fills the screen. On a Mac the menu bar is the system's own.",
+        "Windows ve Linux pencerenin üstünde bir menü çubuğu gösterir (Dosya, Düzen, Görünüm, Git, Ağ, Konsol, Yardım); F11 ekranı doldurur. Mac'te menü çubuğu sistemin kendisidir.",
+    ),
 ];
 
 pub const RUSSIAN: &[(&str, &str)] = &[
@@ -11134,10 +11410,6 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("Off", "Выкл."),
     ("Offers", "Предлагает"),
     ("On", "Вкл."),
-    (
-        "On the Overview, click \"Network report\". After a few seconds of tests, save the file.",
-        "В обзоре нажмите «Отчёт о сети». Через несколько секунд проверок сохраните файл.",
-    ),
     (
         "On the Switch port page, click \"Find DHCP servers\". Every server that answers is listed with the address, router and DNS it hands out.",
         "На странице «Порт коммутатора» нажмите «Найти DHCP-серверы». Каждый ответивший сервер показан с адресом, роутером и DNS, которые он выдаёт.",
@@ -13158,6 +13430,79 @@ pub const RUSSIAN: &[(&str, &str)] = &[
     ("hours", "часов"),
     ("{n} entries deleted.", "Удалено записей: {n}."),
     ("{n} entries will be deleted.", "Будет удалено записей: {n}."),
+    (
+        "\"Check for leaks\" tests whether your public address and DNS servers still show your real provider. \"Where your traffic goes\" lists your routes in plain words.",
+        "«Проверить утечки» проверяет, не показывают ли ваш публичный адрес и DNS-серверы по-прежнему вашего настоящего провайдера. «Куда идёт ваш трафик» простыми словами перечисляет ваши маршруты.",
+    ),
+    (
+        "A notification tells you when the internet is slow, or gone while the router still answers. Settings → Notifications → Slow connections turns it off; Delete history empties the list.",
+        "Уведомление сообщит, когда интернет медленный или пропал, пока маршрутизатор ещё отвечает. Настройки → Уведомления → Медленные соединения отключает его; «Удалить историю» очищает список.",
+    ),
+    (
+        "A snapshot pings your router and 1.1.1.1, times a name lookup and reads the Wi-Fi signal. The graph shows the last 24 hours, 7 or 30 days; outages are red.",
+        "Снимок отправляет пинг на маршрутизатор и 1.1.1.1, измеряет разрешение имени и считывает сигнал Wi-Fi. График показывает последние 24 часа, 7 или 30 дней; перебои выделены красным.",
+    ),
+    (
+        "About → Copy diagnostic information copies the version, your system and the end of the problem log, with IP and MAC addresses hidden, to paste into a bug report.",
+        "О программе → Скопировать диагностическую информацию копирует версию, вашу систему и конец журнала проблем со скрытыми IP- и MAC-адресами для вставки в отчёт об ошибке.",
+    ),
+    (
+        "About → Open-source licences lists the software inside the app and its licences.",
+        "О программе → Лицензии открытого ПО перечисляет программы внутри приложения и их лицензии.",
+    ),
+    (
+        "Ctrl+1 to 9 (⌘1 to 9) open the first pages, Ctrl+, opens Settings, F1 opens this page, and the button at the top left hides the sidebar for more room.",
+        "Ctrl+1–9 (⌘1–9) открывают первые страницы, Ctrl+, — настройки, F1 — эту страницу, а кнопка вверху слева скрывает боковую панель, освобождая место.",
+    ),
+    (
+        "Ctrl+K (⌘K on a Mac) searches every page, tool and action by name.",
+        "Ctrl+K (⌘K на Mac) ищет по названию в любой странице, инструменте и действии.",
+    ),
+    (
+        "Every server has Stop and Restart. Restart waits until the old server has let go of its port, then starts it again with the same settings.",
+        "У каждого сервера есть кнопки «Остановить» и «Перезапустить». Перезапуск ждёт, пока старый сервер освободит порт, и снова запускает его с теми же настройками.",
+    ),
+    (
+        "If Tailscale is installed, you can connect or disconnect, choose an exit node, keep your local network reachable while one is used, and copy or open an SSH session to your devices.",
+        "Если установлен Tailscale, можно подключаться и отключаться, выбирать выходной узел, сохранять доступ к локальной сети, пока он используется, и копировать или открывать сеанс SSH к вашим устройствам.",
+    ),
+    (
+        "Monitor → Connection history: choose how often a snapshot is taken, from every 5 to 60 minutes. It runs only while the app is open, and is off until you turn it on.",
+        "Монитор → История подключения: выберите, как часто делать снимок — от каждых 5 до 60 минут. Работает только пока приложение открыто и выключена, пока вы её не включите.",
+    ),
+    ("Move settings and ask for help", "Перенос настроек и помощь"),
+    (
+        "On the Overview, click \"Network report\". After a few seconds of tests, save it as Markdown, a web page (.html) or a PDF: the name you give the file decides.",
+        "На странице «Обзор» нажмите «Сетевой отчёт». После нескольких секунд проверок сохраните его как Markdown, веб-страницу (.html) или PDF: формат определяет имя файла.",
+    ),
+    (
+        "Open VPN in the sidebar: it says whether a VPN is on, which adapter it uses, and whether all your traffic or only part of it goes through it.",
+        "Откройте VPN в боковой панели: там сказано, включён ли VPN, какой адаптер он использует и идёт ли через него весь трафик или только часть.",
+    ),
+    (
+        "Search it, use Save as… for a CSV or text file, or Delete… for the last hours, today, older than some days, between two times, or everything. The dialog says how many entries go and can save a copy first.",
+        "Ищите в ней, используйте «Сохранить как…» для файла CSV или текста либо «Удалить…» для последних часов, сегодня, старше нескольких дней, между двумя моментами или всего. Диалог сообщает, сколько записей будет удалено, и может сначала сохранить копию.",
+    ),
+    (
+        "Servers → Activity lists SSH sign-ins, files fetched or sent, and the first time a device uses a service. It is saved when you close the app.",
+        "Серверы → Активность перечисляет входы по SSH, полученные или отправленные файлы и первое использование службы устройством. Она сохраняется при закрытии приложения.",
+    ),
+    (
+        "Settings → Export settings saves them to a file, and Import settings loads that file on another computer. Passwords and what belongs to one computer are left out.",
+        "Настройки → Экспортировать настройки сохраняет их в файл, а «Импортировать настройки» загружает этот файл на другом компьютере. Пароли и то, что относится к одному компьютеру, не включаются.",
+    ),
+    ("Shortcuts and menus", "Сочетания клавиш и меню"),
+    ("VPN and where your traffic goes", "VPN и куда идёт ваш трафик"),
+    (
+        "VPN connections kept by the system (IKEv2, L2TP and others) can be switched on and off here too.",
+        "VPN-подключения, которые хранит система (IKEv2, L2TP и другие), здесь тоже можно включать и выключать.",
+    ),
+    ("Watch the connection over time", "Наблюдение за подключением во времени"),
+    ("Who used my servers?", "Кто пользовался моими серверами?"),
+    (
+        "Windows and Linux show a menu bar at the top of the window (File, Edit, View, Go, Network, Console, Help); F11 fills the screen. On a Mac the menu bar is the system's own.",
+        "Windows и Linux показывают строку меню вверху окна (Файл, Правка, Вид, Переход, Сеть, Консоль, Справка); F11 разворачивает на весь экран. На Mac строка меню — системная.",
+    ),
 ];
 
 pub const ARABIC: &[(&str, &str)] = &[
@@ -13728,10 +14073,6 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("Off", "إيقاف"),
     ("Offers", "يعرض"),
     ("On", "تشغيل"),
-    (
-        "On the Overview, click \"Network report\". After a few seconds of tests, save the file.",
-        "في النظرة العامة، اضغط «تقرير الشبكة». بعد بضع ثوانٍ من الفحوص، احفظ الملف.",
-    ),
     (
         "On the Switch port page, click \"Find DHCP servers\". Every server that answers is listed with the address, router and DNS it hands out.",
         "في صفحة «منفذ السويتش»، اضغط «البحث عن خوادم DHCP». يظهر كل خادم يرد مع العنوان والراوتر وDNS التي يوزعها.",
@@ -15692,6 +16033,79 @@ pub const ARABIC: &[(&str, &str)] = &[
     ("hours", "ساعات"),
     ("{n} entries deleted.", "تم حذف {n} إدخالًا."),
     ("{n} entries will be deleted.", "سيتم حذف {n} إدخالًا."),
+    (
+        "\"Check for leaks\" tests whether your public address and DNS servers still show your real provider. \"Where your traffic goes\" lists your routes in plain words.",
+        "«فحص التسريب» يختبر ما إذا كان عنوانك العام وخوادم DNS لديك لا تزال تُظهر مزوّدك الحقيقي. «إلى أين تذهب حركة بياناتك» يسرد مساراتك بكلمات بسيطة.",
+    ),
+    (
+        "A notification tells you when the internet is slow, or gone while the router still answers. Settings → Notifications → Slow connections turns it off; Delete history empties the list.",
+        "يُخبرك إشعار عندما يكون الإنترنت بطيئًا أو منقطعًا بينما يواصل الراوتر الاستجابة. الإعدادات ← الإشعارات ← الاتصالات البطيئة تُوقفه؛ و«حذف السجل» يفرّغ القائمة.",
+    ),
+    (
+        "A snapshot pings your router and 1.1.1.1, times a name lookup and reads the Wi-Fi signal. The graph shows the last 24 hours, 7 or 30 days; outages are red.",
+        "تُرسل اللقطة ping إلى الراوتر و1.1.1.1 وتقيس زمن تحليل اسم وتقرأ إشارة Wi-Fi. يعرض الرسم آخر 24 ساعة أو 7 أو 30 يومًا؛ وتظهر الانقطاعات بالأحمر.",
+    ),
+    (
+        "About → Copy diagnostic information copies the version, your system and the end of the problem log, with IP and MAC addresses hidden, to paste into a bug report.",
+        "حول ← نسخ معلومات التشخيص ينسخ الإصدار ونظامك ونهاية سجل المشكلات مع إخفاء عناوين IP وMAC، لتلصقه في تقرير خطأ.",
+    ),
+    (
+        "About → Open-source licences lists the software inside the app and its licences.",
+        "حول ← تراخيص البرامج مفتوحة المصدر يسرد البرامج داخل التطبيق وتراخيصها.",
+    ),
+    (
+        "Ctrl+1 to 9 (⌘1 to 9) open the first pages, Ctrl+, opens Settings, F1 opens this page, and the button at the top left hides the sidebar for more room.",
+        "Ctrl+1 إلى 9 (⌘1 إلى 9) تفتح الصفحات الأولى، وCtrl+, تفتح الإعدادات، وF1 تفتح هذه الصفحة، والزر في أعلى اليسار يُخفي الشريط الجانبي لمساحة أكبر.",
+    ),
+    (
+        "Ctrl+K (⌘K on a Mac) searches every page, tool and action by name.",
+        "Ctrl+K (⌘K على ماك) يبحث في كل صفحة وأداة وإجراء بالاسم.",
+    ),
+    (
+        "Every server has Stop and Restart. Restart waits until the old server has let go of its port, then starts it again with the same settings.",
+        "لكل خادم زرّا إيقاف وإعادة التشغيل. تنتظر إعادة التشغيل حتى يحرّر الخادم القديم منفذه ثم تشغّله من جديد بالإعدادات نفسها.",
+    ),
+    (
+        "If Tailscale is installed, you can connect or disconnect, choose an exit node, keep your local network reachable while one is used, and copy or open an SSH session to your devices.",
+        "إذا كان Tailscale مثبّتًا، يمكنك الاتصال أو قطع الاتصال واختيار عقدة خروج وإبقاء شبكتك المحلية في المتناول أثناء استخدام واحدة، ونسخ جلسة SSH إلى أجهزتك أو فتحها.",
+    ),
+    (
+        "Monitor → Connection history: choose how often a snapshot is taken, from every 5 to 60 minutes. It runs only while the app is open, and is off until you turn it on.",
+        "المراقبة ← سجل الاتصال: اختر عدد مرات التقاط اللقطة، من كل 5 إلى 60 دقيقة. يعمل فقط أثناء فتح التطبيق ويبقى متوقفًا حتى تُشغّله.",
+    ),
+    ("Move settings and ask for help", "نقل الإعدادات وطلب المساعدة"),
+    (
+        "On the Overview, click \"Network report\". After a few seconds of tests, save it as Markdown, a web page (.html) or a PDF: the name you give the file decides.",
+        "في النظرة العامة، انقر «تقرير الشبكة». بعد بضع ثوانٍ من الاختبارات احفظه بصيغة Markdown أو صفحة ويب (.html) أو PDF: اسم الملف هو الذي يحدّد.",
+    ),
+    (
+        "Open VPN in the sidebar: it says whether a VPN is on, which adapter it uses, and whether all your traffic or only part of it goes through it.",
+        "افتح VPN في الشريط الجانبي: يخبرك إن كانت VPN قيد التشغيل وأي محوّل تستخدم وهل تمرّ كل حركة بياناتك عبرها أم جزء منها فقط.",
+    ),
+    (
+        "Search it, use Save as… for a CSV or text file, or Delete… for the last hours, today, older than some days, between two times, or everything. The dialog says how many entries go and can save a copy first.",
+        "ابحث فيه، واستخدم «حفظ باسم…» لملف CSV أو نصي، أو «حذف…» لآخر ساعات أو اليوم أو الأقدم من بضعة أيام أو بين وقتين أو الكل. يذكر مربع الحوار عدد الإدخالات التي ستُحذف ويمكنه حفظ نسخة أولًا.",
+    ),
+    (
+        "Servers → Activity lists SSH sign-ins, files fetched or sent, and the first time a device uses a service. It is saved when you close the app.",
+        "الخوادم ← النشاط يسرد عمليات تسجيل الدخول عبر SSH والملفات المجلوبة أو المرسلة وأول مرة يستخدم فيها جهاز خدمة. يُحفظ عند إغلاق التطبيق.",
+    ),
+    (
+        "Settings → Export settings saves them to a file, and Import settings loads that file on another computer. Passwords and what belongs to one computer are left out.",
+        "الإعدادات ← تصدير الإعدادات يحفظها في ملف، و«استيراد الإعدادات» يحمّل هذا الملف على كمبيوتر آخر. تُستبعد كلمات المرور وما يخص كمبيوترًا واحدًا.",
+    ),
+    ("Shortcuts and menus", "الاختصارات والقوائم"),
+    ("VPN and where your traffic goes", "VPN وإلى أين تذهب حركة بياناتك"),
+    (
+        "VPN connections kept by the system (IKEv2, L2TP and others) can be switched on and off here too.",
+        "يمكن أيضًا تشغيل اتصالات VPN التي يحفظها النظام (IKEv2 وL2TP وغيرها) وإيقافها من هنا.",
+    ),
+    ("Watch the connection over time", "راقب الاتصال عبر الزمن"),
+    ("Who used my servers?", "من استخدم خوادمي؟"),
+    (
+        "Windows and Linux show a menu bar at the top of the window (File, Edit, View, Go, Network, Console, Help); F11 fills the screen. On a Mac the menu bar is the system's own.",
+        "تعرض Windows وLinux شريط قوائم في أعلى النافذة (ملف، تحرير، عرض، انتقال، شبكة، وحدة تحكم، مساعدة)؛ وF11 يملأ الشاشة. أما على ماك فشريط القوائم هو شريط النظام.",
+    ),
 ];
 
 pub const CHINESE: &[(&str, &str)] = &[
@@ -16253,10 +16667,6 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("Off", "关"),
     ("Offers", "提供"),
     ("On", "开"),
-    (
-        "On the Overview, click \"Network report\". After a few seconds of tests, save the file.",
-        "在概览中点击“网络报告”。经过几秒钟的检查后，保存文件。",
-    ),
     (
         "On the Switch port page, click \"Find DHCP servers\". Every server that answers is listed with the address, router and DNS it hands out.",
         "在“交换机端口”页面点击“查找 DHCP 服务器”。每个响应的服务器都会显示它分配的地址、路由器和 DNS。",
@@ -18178,4 +18588,77 @@ pub const CHINESE: &[(&str, &str)] = &[
     ("hours", "小时"),
     ("{n} entries deleted.", "已删除 {n} 条记录。"),
     ("{n} entries will be deleted.", "将删除 {n} 条记录。"),
+    (
+        "\"Check for leaks\" tests whether your public address and DNS servers still show your real provider. \"Where your traffic goes\" lists your routes in plain words.",
+        "“检查泄漏”测试您的公网地址和 DNS 服务器是否仍显示您真实的运营商。“流量去向”用通俗的语言列出您的路由。",
+    ),
+    (
+        "A notification tells you when the internet is slow, or gone while the router still answers. Settings → Notifications → Slow connections turns it off; Delete history empties the list.",
+        "当互联网变慢，或在路由器仍有响应时断开，会有通知提醒您。设置 → 通知 → 连接缓慢可将其关闭；“删除历史”会清空列表。",
+    ),
+    (
+        "A snapshot pings your router and 1.1.1.1, times a name lookup and reads the Wi-Fi signal. The graph shows the last 24 hours, 7 or 30 days; outages are red.",
+        "快照会对您的路由器和 1.1.1.1 发送 ping、测量一次域名解析并读取 Wi-Fi 信号。图表显示最近 24 小时、7 天或 30 天；中断以红色标出。",
+    ),
+    (
+        "About → Copy diagnostic information copies the version, your system and the end of the problem log, with IP and MAC addresses hidden, to paste into a bug report.",
+        "关于 → 复制诊断信息会复制版本、您的系统和问题日志的末尾（IP 和 MAC 地址已隐藏），便于粘贴到错误报告中。",
+    ),
+    (
+        "About → Open-source licences lists the software inside the app and its licences.",
+        "关于 → 开源许可证列出应用内的软件及其许可证。",
+    ),
+    (
+        "Ctrl+1 to 9 (⌘1 to 9) open the first pages, Ctrl+, opens Settings, F1 opens this page, and the button at the top left hides the sidebar for more room.",
+        "Ctrl+1 至 9（⌘1 至 9）打开前几个页面，Ctrl+, 打开设置，F1 打开本页，左上角的按钮可隐藏侧边栏以腾出空间。",
+    ),
+    (
+        "Ctrl+K (⌘K on a Mac) searches every page, tool and action by name.",
+        "Ctrl+K（Mac 上为 ⌘K）按名称搜索每个页面、工具和操作。",
+    ),
+    (
+        "Every server has Stop and Restart. Restart waits until the old server has let go of its port, then starts it again with the same settings.",
+        "每个服务器都有停止和重新启动。重新启动会等旧服务器释放端口后，用相同的设置再次启动它。",
+    ),
+    (
+        "If Tailscale is installed, you can connect or disconnect, choose an exit node, keep your local network reachable while one is used, and copy or open an SSH session to your devices.",
+        "如果已安装 Tailscale，您可以连接或断开、选择出口节点、在使用出口节点时保持本地网络可访问，并复制或打开到您设备的 SSH 会话。",
+    ),
+    (
+        "Monitor → Connection history: choose how often a snapshot is taken, from every 5 to 60 minutes. It runs only while the app is open, and is off until you turn it on.",
+        "监控 → 连接历史：选择拍摄快照的频率，从每 5 分钟到 60 分钟。它仅在应用打开时运行，在您开启之前保持关闭。",
+    ),
+    ("Move settings and ask for help", "迁移设置与寻求帮助"),
+    (
+        "On the Overview, click \"Network report\". After a few seconds of tests, save it as Markdown, a web page (.html) or a PDF: the name you give the file decides.",
+        "在“概览”中点击“网络报告”。经过几秒钟的测试后，将其保存为 Markdown、网页（.html）或 PDF：由您给文件起的名字决定。",
+    ),
+    (
+        "Open VPN in the sidebar: it says whether a VPN is on, which adapter it uses, and whether all your traffic or only part of it goes through it.",
+        "在侧边栏中打开 VPN：它会告诉您 VPN 是否开启、使用哪个适配器，以及您的全部流量还是仅部分流量经过它。",
+    ),
+    (
+        "Search it, use Save as… for a CSV or text file, or Delete… for the last hours, today, older than some days, between two times, or everything. The dialog says how many entries go and can save a copy first.",
+        "可以搜索它，用“另存为…”保存为 CSV 或文本文件，或用“删除…”删除最近几小时、今天、早于若干天、两个时间之间或全部。对话框会说明将删除多少条记录，并可先保存一份副本。",
+    ),
+    (
+        "Servers → Activity lists SSH sign-ins, files fetched or sent, and the first time a device uses a service. It is saved when you close the app.",
+        "服务器 → 活动列出 SSH 登录、被获取或发送的文件，以及设备首次使用某项服务。关闭应用时会保存。",
+    ),
+    (
+        "Settings → Export settings saves them to a file, and Import settings loads that file on another computer. Passwords and what belongs to one computer are left out.",
+        "设置 → 导出设置会将其保存到文件，“导入设置”则在另一台电脑上加载该文件。密码和仅属于某台电脑的内容不会包含在内。",
+    ),
+    ("Shortcuts and menus", "快捷键和菜单"),
+    ("VPN and where your traffic goes", "VPN 与流量去向"),
+    (
+        "VPN connections kept by the system (IKEv2, L2TP and others) can be switched on and off here too.",
+        "系统保存的 VPN 连接（IKEv2、L2TP 等）也可以在这里开启和关闭。",
+    ),
+    ("Watch the connection over time", "长期观察连接"),
+    ("Who used my servers?", "谁使用了我的服务器？"),
+    (
+        "Windows and Linux show a menu bar at the top of the window (File, Edit, View, Go, Network, Console, Help); F11 fills the screen. On a Mac the menu bar is the system's own.",
+        "Windows 和 Linux 在窗口顶部显示菜单栏（文件、编辑、视图、前往、网络、控制台、帮助）；F11 全屏。在 Mac 上，菜单栏是系统自带的。",
+    ),
 ];
