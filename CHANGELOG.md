@@ -5,6 +5,23 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.26
+
+### Fixed
+- **macOS: Paste, Copy and Cut in a console window of its own:** the Edit menu
+  and the Paste button did nothing once you pulled a console tab out into its
+  own window. They now reach that window correctly.
+- **Routes:** the card showing where your traffic goes now lists every
+  network tied for the lowest metric, instead of picking just one. This
+  matters most on macOS, which reports no metric at all.
+- **Window size (macOS):** on a small screen, the app no longer sizes itself
+  under the Dock.
+- **Updates:** a downloaded update is kept for three days instead of one
+  hour, so it is still there to install if you choose "Update later" and
+  come back the next day.
+- **Error dialogs:** pressing Enter now closes them, matching the highlighted
+  OK button. It used to take a click.
+
 ## 0.9.25
 
 ### Fixed
