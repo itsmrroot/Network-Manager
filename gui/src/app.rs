@@ -1035,6 +1035,10 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         self.fit_to_screen(&ctx);
         self.apply_settings(&ctx);
+        // A Paste button next to a session that is not in a window of its own queues its
+        // edit for this, the main window; unlike the menu and its shortcuts, it has not
+        // already drained the queue itself (see `menu::edit`), so this does it instead.
+        menu::take_edits(&ctx);
         let sessions: Vec<menu::SessionEntry> =
             self.shared.settings.sessions.iter().map(|s| (s.name.clone(), s.icon.clone())).collect();
         for c in self.menu.commands(&ctx, i18n::current(), &sessions) {
