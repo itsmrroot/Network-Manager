@@ -5,6 +5,40 @@ app. The release process puts the section of a version on its release page,
 and the app shows it in its update window. A version without a section here
 cannot be released (the tests and the release check for it).
 
+## 0.9.27
+
+### New
+- **Connection history (Monitor):** every 5, 15, 30 or 60 minutes while the
+  app is open, the app pings your router and the internet, times a name lookup
+  and reads the Wi-Fi signal. A graph shows the last 24 hours, 7 or 30 days,
+  with the typical and worst delay, how often the internet was reachable and a
+  list of outages. It is off until you choose how often, and the results stay
+  on your computer.
+- **Slowdown alerts:** a notification when a watched host, or the internet in
+  the connection history, suddenly answers much slower than usual, or the
+  internet is gone while your router still answers. A switch "Slow
+  connections" in Settings turns it off.
+- **Network report as a web page or PDF:** besides Markdown, the report can be
+  saved as an HTML page or a PDF; the name you give the file decides.
+- **Export and import settings:** Settings can be saved to a file and loaded
+  on another computer. Passwords and what belongs to one computer (its
+  adapters, the devices it has seen) are left out.
+- **Legal and support (About):** a list of the open-source software in the
+  app with its licences, and a button that copies the version, your system and
+  the end of the problem log for a bug report, with IP and MAC addresses and
+  your user folder hidden first.
+- **Search (Ctrl/Cmd+K)** also finds the connection history, exporting
+  settings and the licences.
+
+### Changed
+- **Window size:** the app opens at the same size on Windows, macOS and Linux
+  (as large as fits your screen with its title bar and the taskbar or Dock).
+  A window you resized yourself keeps its size.
+
+### Fixed
+- **Updates:** an installer is only downloaded from the project's own
+  releases page, whatever the update check answers.
+
 ## 0.9.26
 
 ### Fixed
