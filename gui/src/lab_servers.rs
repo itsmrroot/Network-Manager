@@ -14,7 +14,7 @@ use netmgr::snmp::{self, Trap};
 
 use crate::app::{Nav, Page, Shared};
 use crate::i18n::{tr, trf, trl, trlf};
-use crate::servers::{Running, listen_address, listen_picker, my_addresses};
+use crate::servers::{Running, listen_address, listen_picker, my_addresses, restart};
 use crate::theme::{self, Palette, icon_label};
 
 fn clock() -> String {
@@ -42,16 +42,32 @@ fn examples(ui: &mut Ui, p: &Palette, sh: &mut Shared, list: &[(&str, String)]) 
     }
 }
 
-fn start_stop(ui: &mut Ui, p: &Palette, running: &mut Option<Running>, start: impl FnOnce() -> Option<Running>) {
+fn start_stop(
+    ui: &mut Ui,
+    p: &Palette,
+    key: &str,
+    running: &mut Option<Running>,
+    start: impl FnOnce() -> Option<Running>,
+) {
     if running.is_some() {
         if theme::danger_button(ui, p, &icon_label(icon::STOP, "Stop server")).clicked()
             && let Some(r) = running.take()
         {
             r.stop.store(true, Ordering::Relaxed);
         }
+        if ui.button(icon_label(icon::ARROW_CLOCKWISE, "Restart")).clicked()
+            && let Some(r) = running.take()
+        {
+            restart::begin(ui, key, r);
+        }
         ui.spinner();
         ui.label(RichText::new(tr("Running")).color(p.success));
-    } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), true).clicked() {
+    } else if restart::waiting(ui, key) {
+        ui.spinner();
+        ui.label(RichText::new(tr("Restarting…")).color(p.weak));
+    } else if restart::ready(ui, key)
+        || theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), true).clicked()
+    {
         *running = start();
     }
 }
@@ -140,7 +156,7 @@ impl HttpTab {
                 let root = PathBuf::from(sh.settings.tftp_folder.trim());
                 let listen = listen_address(sh);
                 let activity = sh.activity.clone();
-                start_stop(ui, p, &mut self.server, || {
+                start_stop(ui, p, "http", &mut self.server, || {
                     Some(Running::spawn(move |stop| {
                         netmgr::httpd::serve(
                             netmgr::httpd::Options { root, port, listen, allow_upload: upload, overwrite },
@@ -374,7 +390,7 @@ impl TrapTab {
                 let users: Vec<netmgr::usm::User> =
                     self.users.iter().filter(|u| u.validate().is_ok()).cloned().collect();
                 let engine = netmgr::usm::parse_engine_id(&sh.settings.trap_engine).unwrap_or_default();
-                start_stop(ui, p, &mut self.server, || {
+                start_stop(ui, p, "traps", &mut self.server, || {
                     Some(Running::spawn(move |stop| {
                         snmp::trap_serve(
                             listen,
@@ -653,7 +669,7 @@ impl NtpTab {
                 });
                 let (port, stratum, log) = (self.port, self.stratum, self.log.clone());
                 let activity = sh.activity.clone();
-                start_stop(ui, p, &mut self.server, || {
+                start_stop(ui, p, "ntp", &mut self.server, || {
                     Some(Running::spawn(move |stop| {
                         netmgr::ntp::serve(
                             listen,
@@ -993,10 +1009,18 @@ impl DhcpTab {
                     {
                         r.stop.store(true, Ordering::Relaxed);
                     }
+                    if ui.button(icon_label(icon::ARROW_CLOCKWISE, "Restart")).clicked()
+                        && let Some(r) = self.server.take()
+                    {
+                        restart::begin(ui, "dhcp", r);
+                    }
                     ui.spinner();
                     ui.label(RichText::new(tr("Running")).color(p.success));
-                } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), self.confirmed)
-                    .clicked()
+                } else if restart::waiting(ui, "dhcp") {
+                    ui.spinner();
+                    ui.label(RichText::new(tr("Restarting…")).color(p.weak));
+                } else if restart::ready(ui, "dhcp")
+                    || theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), self.confirmed).clicked()
                 {
                     match self.config(sh) {
                         Ok((cfg, iface)) => {

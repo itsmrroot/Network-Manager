@@ -27,6 +27,8 @@ pub struct WifiPage {
     /// The name and BSSID macOS hid, once shown.
     revealed_ssid: Option<(Option<String>, Option<String>)>,
     qr: Option<(String, Vec<Vec<bool>>, Option<String>)>,
+    /// The network whose QR code waits for its password (the system may ask the user for theirs).
+    qr_pending: Option<String>,
     search: String,
     tab: Tab,
     roaming: crate::roaming::Roaming,
@@ -89,7 +91,7 @@ impl WifiPage {
     }
 
     pub fn ui(&mut self, ui: &mut Ui, p: &Palette, sh: &mut Shared) {
-        self.poll(sh);
+        self.poll(ui.ctx(), sh);
         if self.saved.is_none() && self.saved_job.is_none() {
             self.saved_job = Some(Job::spawn(ui.ctx(), |_, _| wifi::saved()));
         }
@@ -130,7 +132,7 @@ impl WifiPage {
         self.qr_dialog(ui.ctx(), p);
     }
 
-    fn poll(&mut self, sh: &mut Shared) {
+    fn poll(&mut self, ctx: &egui::Context, sh: &mut Shared) {
         if let Some(r) = jobs::finished(&mut self.saved_job) {
             match r {
                 Ok(list) => self.saved = Some(list),
@@ -143,13 +145,31 @@ impl WifiPage {
         if let Some(r) = jobs::finished(&mut self.password_job) {
             match r {
                 Ok((ssid, pw)) => {
+                    let found = pw.is_some();
                     if let Some(n) = self.saved.iter_mut().flatten().find(|n| n.ssid == ssid) {
                         n.password = pw;
                         n.password_read = true;
                     }
+                    // The QR code that waited for this password.
+                    if self.qr_pending.as_deref() == Some(ssid.as_str()) {
+                        let n = self.saved.iter().flatten().find(|n| n.ssid == ssid).cloned();
+                        match n {
+                            Some(n) if found || n.security.as_deref().is_some_and(|s| s.contains("Open")) => {
+                                self.open_qr(ctx, &n)
+                            }
+                            _ => {
+                                self.qr_pending = None;
+                                sh.toast(trf("No password was found for {network}.", &[("network", &ssid)]));
+                            }
+                        }
+                    }
                     self.revealed.insert(ssid);
                 }
-                Err(e) => sh.fail(trl("The password could not be read."), &e),
+                Err(e) => {
+                    // Cancelled or refused: no code is made.
+                    self.qr_pending = None;
+                    sh.fail(trl("The password could not be read."), &e);
+                }
             }
         }
         if let Some(r) = jobs::finished(&mut self.nearby_job) {
@@ -326,11 +346,22 @@ impl WifiPage {
         }
     }
 
+    /// Opens the QR code of a network. It is only made when the password is known (or the
+    /// network is open): a code made while the system still asks the user to allow reading the
+    /// password, or after they said no, would be one for a network without a password.
     fn open_qr(&mut self, ctx: &egui::Context, n: &SavedNetwork) {
-        if !n.password_read && n.security.as_deref() != Some("Open") {
-            // The password first; the QR code opens once it is known.
+        let open = n.security.as_deref().is_some_and(|s| s.contains("Open"));
+        if !n.password_read && !open {
+            self.qr_pending = Some(n.ssid.clone());
             self.show_password(ctx, n);
+            return;
         }
+        if n.password.is_none() && !open {
+            // Read, and there is none: nothing to share.
+            self.qr_pending = None;
+            return;
+        }
+        self.qr_pending = None;
         let text = wifi::qr_text(&n.ssid, n.security.as_deref(), n.password.as_deref(), n.hidden);
         if let Ok(m) = wifi::qr_modules(&text) {
             self.qr = Some((n.ssid.clone(), m, n.password.clone()));
@@ -353,12 +384,6 @@ impl WifiPage {
             if let (Some(ssid), Some(sec)) = (&c.ssid, &c.security) {
                 seen.insert(ssid.clone(), sec.clone());
             }
-        }
-        // A QR code opened before its password was read gets it now.
-        if let Some((ssid, _, None)) = &self.qr
-            && let Some(n) = self.saved.iter().flatten().find(|n| &n.ssid == ssid && n.password.is_some()).cloned()
-        {
-            self.open_qr(ui.ctx(), &n);
         }
         theme::card(ui, p, |ui| {
             ui.set_width(ui.available_width());
@@ -638,8 +663,27 @@ impl WifiPage {
     }
 
     fn qr_dialog(&mut self, ctx: &egui::Context, p: &Palette) {
+        if let Some(ssid) = self.qr_pending.clone() {
+            // Waiting for the password: nothing to show yet, and a way out.
+            let modal = egui::Modal::new(egui::Id::new("qr-wait")).show(ctx, |ui| {
+                ui.set_width(340.0);
+                ui.vertical_centered(|ui| {
+                    ui.label(theme::semibold(&ssid, 19.0).color(p.text));
+                    ui.add_space(30.0);
+                    ui.spinner();
+                    ui.label(RichText::new(tr("Reading the password…")).color(p.weak));
+                    ui.add_space(30.0);
+                    theme::secondary_button(ui, tr("Cancel")).clicked()
+                })
+                .inner
+            });
+            if modal.inner || modal.should_close() {
+                self.qr_pending = None;
+            }
+            return;
+        }
         let Some((ssid, modules, password)) = &self.qr else { return };
-        let waiting = self.password_job.is_some();
+        let waiting = false;
         let modal = egui::Modal::new(egui::Id::new("qr")).show(ctx, |ui| {
             ui.set_width(340.0);
             ui.vertical_centered(|ui| {

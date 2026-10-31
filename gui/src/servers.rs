@@ -36,21 +36,25 @@ enum Tab {
 pub(crate) struct Running {
     pub(crate) stop: Arc<AtomicBool>,
     error: Arc<Mutex<Option<String>>>,
+    /// Set when the server's thread has ended (its port is free again).
+    done: Arc<AtomicBool>,
 }
 
 impl Running {
     pub(crate) fn spawn(work: impl FnOnce(Arc<AtomicBool>) -> anyhow::Result<()> + Send + 'static) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
         let error = Arc::new(Mutex::new(None));
-        let (s, e) = (stop.clone(), error.clone());
+        let done = Arc::new(AtomicBool::new(false));
+        let (s, e, d) = (stop.clone(), error.clone(), done.clone());
         std::thread::spawn(move || {
             if let Err(err) = work(s)
                 && let Ok(mut e) = e.lock()
             {
                 *e = Some(format!("{err:#}"));
             }
+            d.store(true, Ordering::Relaxed);
         });
-        Self { stop, error }
+        Self { stop, error, done }
     }
 
     pub(crate) fn failed(&self) -> Option<String> {
@@ -58,8 +62,60 @@ impl Running {
     }
 }
 
+/// Restarting a server: it is stopped, the new start waits until the old one has let go of its
+/// port, then the server starts again with the settings on the page. (One Restart button for every
+/// server: `begin` when it is clicked, then `waiting` and `ready` in the place of the Start button.)
+pub(crate) mod restart {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::{Duration, Instant};
+
+    use eframe::egui::{self, Ui};
+
+    use super::Running;
+
+    /// A server that does not let go of its port in this time is started anyway (and says why it cannot).
+    const PATIENCE: Duration = Duration::from_secs(10);
+
+    fn id(key: &str) -> egui::Id {
+        egui::Id::new(("server-restart", key))
+    }
+
+    /// Stops `r`; `ready` turns true when it has ended.
+    pub(crate) fn begin(ui: &Ui, key: &str, r: Running) {
+        r.stop.store(true, Ordering::Relaxed);
+        let waiting = (r.done.clone(), Instant::now());
+        ui.data_mut(|d| d.insert_temp(id(key), waiting));
+    }
+
+    fn pending(ui: &Ui, key: &str) -> Option<(Arc<AtomicBool>, Instant)> {
+        ui.data(|d| d.get_temp::<(Arc<AtomicBool>, Instant)>(id(key)))
+    }
+
+    /// The server is stopping, to start again.
+    pub(crate) fn waiting(ui: &Ui, key: &str) -> bool {
+        match pending(ui, key) {
+            Some((done, since)) if !done.load(Ordering::Relaxed) && since.elapsed() < PATIENCE => {
+                ui.ctx().request_repaint_after(Duration::from_millis(100));
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// The old server has ended: start the new one (true once).
+    pub(crate) fn ready(ui: &Ui, key: &str) -> bool {
+        if pending(ui, key).is_some() {
+            ui.data_mut(|d| d.remove::<(Arc<AtomicBool>, Instant)>(id(key)));
+            return true;
+        }
+        false
+    }
+}
+
 pub struct Servers {
     tab: Tab,
+    activity_tab: crate::activity_tab::ActivityTab,
     /// TFTP transfers already noted in the activity log.
     reported: std::collections::HashSet<u64>,
     /// Servers → Logs: what is shown, and when it was read.
@@ -98,6 +154,7 @@ impl Default for Servers {
     fn default() -> Self {
         Self {
             tab: Tab::Tftp,
+            activity_tab: Default::default(),
             tftp_port: 69,
             tftp_upload: false,
             tftp_overwrite: false,
@@ -286,6 +343,13 @@ impl Servers {
     }
 
     /// Shows a tab by name (search).
+    /// Development aid: the Activity tab with its delete dialog open (screenshot tour).
+    #[cfg(debug_assertions)]
+    pub fn demo_activity_delete(&mut self) {
+        self.tab = Tab::Activity;
+        self.activity_tab.demo_delete();
+    }
+
     pub fn open_tab(&mut self, id: &str) {
         self.tab = match id {
             "http" => Tab::Http,
@@ -618,7 +682,7 @@ impl Servers {
             Tab::Throughput => {
                 egui::ScrollArea::vertical().id_salt("throughput-tab").show(ui, |ui| self.throughput_tab(ui, p, sh));
             }
-            Tab::Activity => activity_tab(ui, p, sh),
+            Tab::Activity => self.activity_tab.ui(ui, p, sh),
             Tab::Logs => self.logs_tab(ui, p, sh),
         }
     }
@@ -678,9 +742,19 @@ impl Servers {
                     {
                         r.stop.store(true, Ordering::Relaxed);
                     }
+                    if ui.button(icon_label(icon::ARROW_CLOCKWISE, "Restart")).clicked()
+                        && let Some(r) = self.tftp.take()
+                    {
+                        restart::begin(ui, "tftp", r);
+                    }
                     ui.spinner();
                     ui.label(RichText::new(tr("Running")).color(p.success));
-                } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), true).clicked() {
+                } else if restart::waiting(ui, "tftp") {
+                    ui.spinner();
+                    ui.label(RichText::new(tr("Restarting…")).color(p.weak));
+                } else if restart::ready(ui, "tftp")
+                    || theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), true).clicked()
+                {
                     let root = PathBuf::from(sh.settings.tftp_folder.trim());
                     let _ = std::fs::create_dir_all(&root);
                     let opts = ns::TftpOptions {
@@ -866,8 +940,18 @@ impl Servers {
                 {
                     r.stop.store(true, Ordering::Relaxed);
                 }
+                if ui.button(icon_label(icon::ARROW_CLOCKWISE, "Restart")).clicked()
+                    && let Some(r) = self.syslog.take()
+                {
+                    restart::begin(ui, "syslog", r);
+                }
                 ui.spinner();
-            } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start"), true).clicked() {
+            } else if restart::waiting(ui, "syslog") {
+                ui.spinner();
+                ui.label(RichText::new(tr("Restarting…")).color(p.weak));
+            } else if restart::ready(ui, "syslog")
+                || theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start"), true).clicked()
+            {
                 let (port, messages, file) = (self.syslog_port, self.messages.clone(), self.syslog_file.clone());
                 let activity = sh.activity.clone();
                 self.syslog = Some(Running::spawn(move |stop| {
@@ -1119,10 +1203,22 @@ impl Servers {
                         {
                             r.stop.store(true, Ordering::Relaxed);
                         }
+                        if ui.button(icon_label(icon::ARROW_CLOCKWISE, "Restart")).clicked()
+                            && let Some(r) = self.tp_server.take()
+                        {
+                            restart::begin(ui, "throughput", r);
+                        }
                         ui.spinner();
                     });
                     theme::paragraph(ui, &trlf("On the other computer, test to {addresses} (port {port}).", &[("addresses", &my_addresses(sh).join(", ")), ("port", &ns::THROUGHPUT_PORT)]), 13.5, p.text);
-                } else if theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), true).clicked() {
+                } else if restart::waiting(ui, "throughput") {
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(RichText::new(tr("Restarting…")).color(p.weak));
+                    });
+                } else if restart::ready(ui, "throughput")
+                    || theme::primary_button(ui, p, &icon_label(icon::PLAY, "Start server"), true).clicked()
+                {
                     let log = self.tp_log.clone();
                     let activity = sh.activity.clone();
                     self.tp_server = Some(Running::spawn(move |stop| {
@@ -1230,56 +1326,6 @@ pub(crate) fn udp_hint(ui: &mut Ui, p: &Palette, sh: &mut Shared, what: &str, po
 }
 
 /// Servers → Activity: what others did with this computer.
-fn activity_tab(ui: &mut Ui, p: &Palette, sh: &mut Shared) {
-    sh.activity.mark_read();
-    theme::card(ui, p, |ui| {
-        ui.set_width(ui.available_width());
-        theme::paragraph(
-            ui,
-            trl(
-                "What others do with this computer while the app runs: SSH sign-ins, files fetched or sent through the servers, and the first time a device uses a service.",
-            ),
-            14.0,
-            p.weak,
-        );
-        ui.add_space(6.0);
-        ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(tr("Notify me about")).color(p.weak));
-            ui.checkbox(&mut sh.settings.notify_ssh, tr("SSH sign-ins"));
-            ui.checkbox(&mut sh.settings.notify_files, tr("File transfers"));
-            ui.checkbox(&mut sh.settings.notify_services, tr("Other services"));
-            theme::trailing(ui, "activity", |ui| {
-                if ui.button(icon_label(icon::TRASH, "Clear")).clicked() {
-                    sh.activity.clear();
-                }
-            });
-        });
-    });
-    ui.add_space(10.0);
-    let events = sh.activity.newest(500);
-    theme::card(ui, p, |ui| {
-        ui.set_width(ui.available_width());
-        if events.is_empty() {
-            ui.label(RichText::new(tr("Nothing yet.")).color(p.weak));
-            return;
-        }
-        egui::ScrollArea::vertical().id_salt("activity-list").auto_shrink([false, true]).show(ui, |ui| {
-            for e in &events {
-                ui.horizontal(|ui| {
-                    let (g, c) = match e.kind {
-                        crate::activity::Kind::Ssh => (icon::TERMINAL_WINDOW, p.warning),
-                        crate::activity::Kind::File => (icon::FILE_ARROW_DOWN, p.accent),
-                        crate::activity::Kind::Service => (icon::PLUGS_CONNECTED, p.success),
-                    };
-                    ui.label(RichText::new(e.when.format("%H:%M:%S").to_string()).monospace().color(p.weak).size(12.5));
-                    ui.label(RichText::new(g).color(c).size(16.0));
-                    ui.label(RichText::new(crate::i18n::visual(&e.text)).color(p.text));
-                });
-            }
-        });
-    });
-}
-
 /// The most lines a server's log keeps: a flood of requests must not fill
 /// the memory (or slow down every frame).
 pub(crate) const LOG_LINES: usize = 2000;
